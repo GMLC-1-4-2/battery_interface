@@ -12,9 +12,6 @@ class FleetRequest:
     """
 
     def __init__(self, ts=datetime.utcnow(), sim_step=timedelta(hours=1), p=None, q=None):
-        """
-        Constructor
-        """
         # Timestamp in simulation loop: datetime
         self.ts_req = ts
 

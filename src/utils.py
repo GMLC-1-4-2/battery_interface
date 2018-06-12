@@ -2,19 +2,6 @@ import os
 import logging
 
 
-def setup_logging(level=logging.DEBUG):
-    root = logging.getLogger()
-    if not root.handlers:
-        handler = logging.StreamHandler()
-        if isapipe(sys.stderr) and '_LAUNCHED_BY_PLATFORM' in os.environ:
-            handler.setFormatter(JsonFormatter())
-        else:
-            fmt = '%(asctime)s %(name)s %(levelname)s: %(message)s'
-            handler.setFormatter(logging.Formatter(fmt))
-
-        root.addHandler(handler)
-    root.setLevel(level)
-
 def format_timestamp(time_stamp):
     """Create a consistent datetime string representation based on
     ISO 8601 format.

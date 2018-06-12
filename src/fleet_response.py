@@ -12,9 +12,6 @@ class FleetResponse:
     """
 
     def __init__(self, ts=datetime.utcnow()):
-        """
-        Constructor with default values
-        """
         # Are the ts and sim_step necessary?
         self.ts = ts                        # Start of current time period
         self.sim_step = timedelta(hours=3)  # Length of current time period (same as most recent request sim_step)
