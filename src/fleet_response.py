@@ -46,4 +46,3 @@ class FleetResponse:
         self.T_restore      = None
         self.Strike_price   = None
         self.SOC_cost       = None
-
