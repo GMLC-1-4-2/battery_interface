@@ -3,6 +3,7 @@
 # Your license here
 # }}}
 
+from dateutil import parser
 from datetime import datetime, timedelta
 
 from fleet_interface import FleetInterface
@@ -11,6 +12,7 @@ from fleet_response import FleetResponse
 from fleet_config import FleetConfig
 
 from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 
 class PeakManagementService():
@@ -21,11 +23,15 @@ class PeakManagementService():
     def __init__(self, *args, **kwargs):
         self.sim_time_step = timedelta(hours=1)
 
-        self.home_fleet = HomeAcFleet()
+        self.fleet = BatteryInverterFleet()
 
     def request(self):
-        fleet_request = FleetRequest()
-        fleet_response = self.home_fleet.process_request(fleet_request)
+        _ts = parser.parse("2017-08-01 16:00:00")
+        _sim_step = timedelta(seconds=2)
+        _p = self.normalize_p(100)
+        fleet_request = FleetRequest(ts=_ts, sim_step=_sim_step, p=_p, q=None)
+
+        fleet_response = self.fleet.process_request(fleet_request)
 
         return fleet_response
 
@@ -43,10 +49,13 @@ class PeakManagementService():
             cur_time += self.sim_time_step
 
         # Call a fleet forecast
-        forecast = self.home_fleet.forecast(fleet_requests)
+        forecast = self.fleet.forecast(fleet_requests)
 
         return forecast
 
     def change_config(self):
         fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
-        self.home_fleet.change_config(fleet_config)
+        self.fleet.change_config(fleet_config)
+
+    def normalize_p(self, p):
+        return p

@@ -25,7 +25,7 @@ class FleetInterface:
         :return fleet_response: an instance of FleetResponse
         """
         fleet_response = FleetResponse()
-		fleet_response2 = FleetResponse()
+        fleet_response2 = FleetResponse()
 		
         return fleet_response
 
