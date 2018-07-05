@@ -24,12 +24,18 @@ class PeakManagementService():
     This class implements FleetInterface so that it can communicate with a fleet
     """
 
-    def __init__(self, fleet=None, capacity_scaling_factor=1.0, drive_cycle_file="drive.cycle.summer.peaky.csv", *args, **kwargs):
+    def __init__(self,
+                 fleet=None,
+                 capacity_scaling_factor=1.0,                       # To match drive cycle to fleet capacity
+                 drive_cycle_file="drive.cycle.summer.peaky.csv",   # Data frame
+                 f_reduction=0.1,                                   # Try to reduce annual peak by this amount
+                 *args, **kwargs):
 
         self.drive_cycle_file = drive_cycle_file
+        self.f_reduction = f_reduction
 
-        # Establish a default simulation timestep (in case drive cycle data has no time info?)...
-        self.sim_time_step = timedelta(hours=1)
+        # Establish a default simulation timestep (will always be 1-hour as far as I know)...
+        self.sim_step = timedelta(hours=1)
 
         # Set the appropriate fleet to use.
         # Q:  What's the best way to pass in the fleet to instantiate?  Should the fleet be
@@ -53,8 +59,8 @@ class PeakManagementService():
         # the three-letter month abbreviation (Jan, Feb, etc.) and all others are numeric...
         self.drive_cycle = pd.read_csv(self.drive_cycle_file)
 
-        self.drive_cycle.load_forecast_mw /= self.capacity_scaling_factor
-
+        # There may be more straightforward ways to do this...just want to add a datetime object
+        # matching the drive cycle's year, month_abbr, day, hour info...
         self.drive_cycle["month_num"] = [
                 list(calendar.month_abbr).index(self.drive_cycle[abb]) for abb in self.drive_cycle["month"]
             ]
@@ -68,6 +74,11 @@ class PeakManagementService():
         # Ideally the fleet could tell us its capacity and we compute the scaling_factor from that
         # and the maximum value in the drive cycle...
         self.capacity_scaling_factor = capacity_scaling_factor
+        self.drive_cycle.load_forecast_mw /= capacity_scaling_factor
+        self.mw_target = self.drive_cycle.load_forecast_mw * (1 - self.f_reduction)
+
+        # Find the "annual" peak (largest peak in our drive cycle really)
+        annual_peak = 0
 
 
     def request(self):
@@ -98,5 +109,32 @@ class PeakManagementService():
 
         return forecast
 
-    def run_fleet_test(self):
-        foreach day
+    def run_fleet_forecast_test(self):
+        ndx_start = 0
+        ndx_end = ndx_start + 23
+        while ndx_end < len(self.drive_cycle.dt):   # Loop over days...
+            dt_day = self.drive_cycle.dt[ndx_start:ndx_end]
+            mw_day = self.drive_cycle.load_forecast_mw[ndx_start:ndx_end]
+            p_needed = [self.no_neg(mw_day[i] - self.mw_target) for i in range(24)]
+
+            ndx_start += 24
+            ndx_end += 24
+
+            # No need to work on days without high peaks
+            if max(mw_day) <= self.annual_peak:
+                continue
+
+            # Get a 24-hour forecast from fleet
+            requests = []
+            for i in [range(24)]:
+                requests.append(FleetRequest(ts=dt_day[i], sim_step=self.sim_step, p=p_needed[i]))
+
+            forecast_response = self.fleet.forecast(requests)
+            insufficient = [forecast_response[i].P_service < p_needed[i]  for i in [range(24)]]
+            if any(insufficient):
+                RESET p_needed and RE-DO ?????
+
+    def no_neg(self, values):
+        for i in range(values):
+            if values[i] < 0:
+                values[i] = 0
