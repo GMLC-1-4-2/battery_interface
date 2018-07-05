@@ -8,7 +8,7 @@ from fleet_response import FleetResponse
 
 class FleetInterface:
     """
-    This class is base class for all services
+    This class is base class for all fleets
     """
 
     def __init__(self, *args, **kwargs):
