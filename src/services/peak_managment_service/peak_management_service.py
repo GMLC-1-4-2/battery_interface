@@ -5,6 +5,7 @@
 
 from dateutil import parser
 from datetime import datetime, timedelta
+import calendar
 
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
@@ -13,6 +14,7 @@ from fleet_config import FleetConfig
 
 from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+
 import numpy as np
 import pandas as pd
 
@@ -47,9 +49,21 @@ class PeakManagementService():
         # load forecast service that a higher-level function in the software provides.
         # But for now, our whole purpose is testing...
         #
-        # This data frame has columns (year, month, day, hour, load_forecast_mw)
+        # This data frame has columns (year, month, day, hour, load_forecast_mw), where month is
+        # the three-letter month abbreviation (Jan, Feb, etc.) and all others are numeric...
         self.drive_cycle = pd.read_csv(self.drive_cycle_file)
+
         self.drive_cycle.load_forecast_mw /= self.capacity_scaling_factor
+
+        self.drive_cycle["month_num"] = [
+                list(calendar.month_abbr).index(self.drive_cycle[abb]) for abb in self.drive_cycle["month"]
+            ]
+        self.drive_cycle["dt"] = [
+                datetime.datetime(
+                    self.drive_cycle["year"], self.drive_cycle["month_num"], self.drive_cycle["day"],
+                    self.drive_cycle["hour"], 0, 0
+                                  )
+            ]
 
         # Ideally the fleet could tell us its capacity and we compute the scaling_factor from that
         # and the maximum value in the drive cycle...
