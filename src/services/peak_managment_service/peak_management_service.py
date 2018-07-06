@@ -138,3 +138,4 @@ class PeakManagementService():
         for i in range(values):
             if values[i] < 0:
                 values[i] = 0
+        return values
