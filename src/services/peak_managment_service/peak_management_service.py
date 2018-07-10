@@ -37,19 +37,6 @@ class PeakManagementService():
         # Establish a default simulation timestep (will always be 1-hour as far as I know)...
         self.sim_step = timedelta(hours=1)
 
-        # Set the appropriate fleet to use.
-        # Q:  What's the best way to pass in the fleet to instantiate?  Should the fleet be
-        # instantiated in main and passed in as an object?
-        if fleet == None:
-            self.fleet = BatteryInverterFleet()
-        elif fleet = "HomeAcFleet":
-            self.fleet = HomeAcFleet()
-        else:
-            self.fleet = None   # Need to throw an exception here...
-
-        # Set up the fleet (if necessary?)  Again, should this happen in main before fleet is passed in??
-        fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=None)
-        self.fleet.change_config(fleet_config)
 
         # Long term, we don't want a drive cycle, we want to call some kind of daily
         # load forecast service that a higher-level function in the software provides.
@@ -121,7 +108,9 @@ class PeakManagementService():
         for i in range(values):
             if values[i] < 0:
                 values[i] = 0
+        return values
 
 
     def process_stats:
+        pass
         # TODO:  Aggregate up the fleet's performance stats and...do what?  Print them?  Write them to a file?
