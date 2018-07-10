@@ -47,7 +47,7 @@ class PeakManagementService():
         else:
             self.fleet = None   # Need to throw an exception here...
 
-        # Set up the fleet (if necessary?)
+        # Set up the fleet (if necessary?)  Again, should this happen in main before fleet is passed in??
         fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=None)
         self.fleet.change_config(fleet_config)
 
@@ -55,7 +55,7 @@ class PeakManagementService():
         # load forecast service that a higher-level function in the software provides.
         # But for now, our whole purpose is testing...
         #
-        # This data frame has columns (year, month, day, hour, load_forecast_mw), where month is
+        # This data frame has columns (year, month_abbr, day, hour, load_forecast_mw), where month is
         # the three-letter month abbreviation (Jan, Feb, etc.) and all others are numeric...
         self.drive_cycle = pd.read_csv(self.drive_cycle_file)
 
@@ -67,47 +67,20 @@ class PeakManagementService():
         self.drive_cycle["dt"] = [
                 datetime.datetime(
                     self.drive_cycle["year"], self.drive_cycle["month_num"], self.drive_cycle["day"],
-                    self.drive_cycle["hour"], 0, 0
-                                  )
-            ]
+                    self.drive_cycle["hour"], 0, 0) ]
 
         # Ideally the fleet could tell us its capacity and we compute the scaling_factor from that
         # and the maximum value in the drive cycle...
         self.capacity_scaling_factor = capacity_scaling_factor
         self.drive_cycle.load_forecast_mw /= capacity_scaling_factor
-        self.mw_target = self.drive_cycle.load_forecast_mw * (1 - self.f_reduction)
 
-        # Find the "annual" peak (largest peak in our drive cycle really)
-        annual_peak = 0
+        # Find the "annual" peak (largest peak in our drive cycle really) and the desired new peak...
+        self.annual_peak = max(self.drive_cycle.load_forecast_mw)
+        self.mw_target = self.annual_peak * (1 - self.f_reduction)
+
+        # TODO:  Initialize something to hold stats
 
 
-    def request(self):
-        _ts = parser.parse("2017-08-01 16:00:00")
-        _sim_step = timedelta(seconds=2)
-        _p = self.normalize_p(100)
-        fleet_request = FleetRequest(ts=_ts, sim_step=_sim_step, p=_p, q=None)
-
-        fleet_response = self.fleet.process_request(fleet_request)
-
-        return fleet_response
-
-    def forecast(self):
-        # Init simulation time frame
-        start_time = datetime.utcnow()
-        end_time = datetime.utcnow() + timedelta(hours=3)
-
-        # Create requests for each hour in simulation time frame
-        cur_time = start_time
-        fleet_requests = []
-        while cur_time < end_time:
-            req = FleetRequest(ts=cur_time, sim_step=self.sim_time_step, p=1000, q=1000)
-            fleet_requests.append(req)
-            cur_time += self.sim_time_step
-
-        # Call a fleet forecast
-        forecast = self.fleet.forecast(fleet_requests)
-
-        return forecast
 
     def run_fleet_forecast_test(self):
         ndx_start = 0
@@ -121,20 +94,34 @@ class PeakManagementService():
             ndx_end += 24
 
             # No need to work on days without high peaks
-            if max(mw_day) <= self.annual_peak:
+            if max(mw_day) <= self.mw_target:
                 continue
 
             # Get a 24-hour forecast from fleet
             requests = []
             for i in [range(24)]:
                 requests.append(FleetRequest(ts=dt_day[i], sim_step=self.sim_step, p=p_needed[i]))
-
             forecast_response = self.fleet.forecast(requests)
-            insufficient = [forecast_response[i].P_service < p_needed[i]  for i in [range(24)]]
+
+            # See if the forecast can meet the desired load
+            deficit = [forecast_response[i].P_service - p_needed[i] for i in [range(24)]]
+            insufficient = [deficit[i] < 0 for i in range(24)]
             if any(insufficient):
-                RESET p_needed and RE-DO ?????
+                # TODO:  NEED TO LOOP BACK AND REBUILD requests until we have a 24-hour request we know can be met
+
+            # Now we know what the fleet can do, so ask it to do it
+
+            for i in range(24):
+                fleet_request = FleetRequest(ts=dt_day[i], sim_step=self.sim_step, p=forecast_response[i].P_service)
+                fleet_response = self.fleet.process_request(fleet_request)
+                # TODO:  store performance stats
+
 
     def no_neg(self, values):
         for i in range(values):
             if values[i] < 0:
                 values[i] = 0
+
+
+    def process_stats:
+        # TODO:  Aggregate up the fleet's performance stats and...do what?  Print them?  Write them to a file?

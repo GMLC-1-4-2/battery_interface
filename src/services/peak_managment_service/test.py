@@ -6,13 +6,12 @@ from services.peak_managment_service.peak_management_service import PeakManageme
 
 
 if __name__ == '__main__':
-    pms = PeakManagementService()
 
-    # Use case 1
-    print(pms.request())
+    fleet = BatteryInverterFleet()
+    pms = PeakManagementService(
+        fleet=None,
+        capacity_scaling_factor=1.0,
+        drive_cycle_file="drive.cycle.summer.peaky.csv",
+        f_reduction=0.1)
 
-    # Use case 2
-    print(pms.forecast())
-
-    # Use case 3
-    pms.change_config()
+    pms.run_fleet_forecast_test()
