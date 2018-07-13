@@ -128,7 +128,7 @@ def integration_test(Fleet):
 
 
 if __name__ == '__main__':
-    Fleet = BatteryInverterFleet('config_ERM.ini')
+    Fleet = BatteryInverterFleet('ERM')
     fleet_test(Fleet)
     Fleet.soc = 50.0*numpy.ones(Fleet.num_of_devices)
     integration_test(Fleet)

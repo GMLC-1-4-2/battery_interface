@@ -2,73 +2,80 @@
 #
 # Your license here
 # }}}
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 import configparser
-from fleet_interface import FleetInterface
-from fleet_request import FleetRequest
-from fleet_response import FleetResponse
 from datetime import datetime, timedelta
 import numpy  
 import copy 
 import math
+
+from fleet_interface import FleetInterface
+from fleet_request import FleetRequest
+from fleet_response import FleetResponse
+
 
 class BatteryInverterFleet(FleetInterface):
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
 
-    def __init__(self, ConfigFile, **kwargs):
+    def __init__(self, model_type="ERM", **kwargs):
         """
         Constructor
         """
+        self.model_type = model_type
         
+        # Get cur directory
+        base_path = dirname(abspath(__file__))
 
         # Read config file
         self.config = configparser.ConfigParser()
-        self.config.read(ConfigFile)
+        self.config.read(join(base_path, 'config.ini'))
 
         # Load config info with default values if there is no such config parameter in the config file
-        self.name = self.config.get('Config Values', 'Name', fallback='Fallback/default Battery Name')
-        self.model_type = self.config.get('Config Values', 'ModelType', fallback='Not Defined')
+        self.name = self.config.get(self.model_type, 'Name', fallback='Battery Inverter Fleet')
         
-        # Load different parameters for the energy reservoir model (self), or the charge reservoir model (self)
+        # Load different parameters for the energy reservoir model (ERM), or the charge reservoir model (CRM)
         if self.model_type == "ERM":
-            self.max_power_charge = float(self.config.get('Config Values', 'MaxPowerCharge', fallback=10))
-            self.max_power_discharge = float(self.config.get('Config Values', 'MaxPowerDischarge', fallback=10))
-            self.max_apparent_power = float(self.config.get('Config Values', 'MaxApparentPower', fallback=-10))
-            self.min_pf = float(self.config.get('Config Values', 'MinPF', fallback=0.8))
-            self.max_soc = float(self.config.get('Config Values', 'MaxSoC', fallback=100))
-            self.min_soc = float(self.config.get('Config Values', 'MinSoC', fallback=0))
-            self.energy_capacity = float(self.config.get('Config Values', 'EnergyCapacity', fallback=10))
-            self.energy_efficiency = float(self.config.get('Config Values', 'EnergyEfficiency', fallback=1))
-            self.self_discharge_power = float(self.config.get('Config Values', 'SelfDischargePower', fallback=0))
-            self.max_ramp_up = float(self.config.get('Config Values', 'MaxRampUp', fallback=10))
-            self.max_ramp_down = float(self.config.get('Config Values', 'MaxRampDown', fallback=10))
-            self.num_of_devices = int(self.config.get('Config Values', 'NumberOfDevices', fallback=10))
+            self.max_power_charge = float(self.config.get(self.model_type, 'MaxPowerCharge', fallback=10))
+            self.max_power_discharge = float(self.config.get(self.model_type, 'MaxPowerDischarge', fallback=10))
+            self.max_apparent_power = float(self.config.get(self.model_type, 'MaxApparentPower', fallback=-10))
+            self.min_pf = float(self.config.get(self.model_type, 'MinPF', fallback=0.8))
+            self.max_soc = float(self.config.get(self.model_type, 'MaxSoC', fallback=100))
+            self.min_soc = float(self.config.get(self.model_type, 'MinSoC', fallback=0))
+            self.energy_capacity = float(self.config.get(self.model_type, 'EnergyCapacity', fallback=10))
+            self.energy_efficiency = float(self.config.get(self.model_type, 'EnergyEfficiency', fallback=1))
+            self.self_discharge_power = float(self.config.get(self.model_type, 'SelfDischargePower', fallback=0))
+            self.max_ramp_up = float(self.config.get(self.model_type, 'MaxRampUp', fallback=10))
+            self.max_ramp_down = float(self.config.get(self.model_type, 'MaxRampDown', fallback=10))
+            self.num_of_devices = int(self.config.get(self.model_type, 'NumberOfDevices', fallback=10))
             # system states
-            self.t = float(self.config.get('Config Values', 't', fallback=10))
-            self.soc = float(self.config.get('Config Values', 'soc', fallback=10))
-            self.cap = float(self.config.get('Config Values', 'cap', fallback=10))
-            self.maxp = float(self.config.get('Config Values', 'maxp', fallback=10))
-            self.minp = float(self.config.get('Config Values', 'minp', fallback=10))
-            self.maxp_fs = float(self.config.get('Config Values', 'maxp_fs', fallback=10))
-            self.rru = float(self.config.get('Config Values', 'rru', fallback=10))
-            self.rrd = float(self.config.get('Config Values', 'rrd', fallback=10))
-            self.ceff = float(self.config.get('Config Values', 'ceff', fallback=10))
-            self.deff = float(self.config.get('Config Values', 'deff', fallback=10))
-            self.P_req =float( self.config.get('Config Values', 'P_req', fallback=10))
-            self.Q_req = float(self.config.get('Config Values', 'Q_req', fallback=10))
-            self.P_injected = float(self.config.get('Config Values', 'P_injected', fallback=0))
-            self.Q_injected = float(self.config.get('Config Values', 'Q_injected', fallback=0))
-            self.P_service = float(self.config.get('Config Values', 'P_service', fallback=0))
-            self.Q_service = float(self.config.get('Config Values', 'Q_service', fallback=0))
-            self.es = float(self.config.get('Config Values', 'es', fallback=10))
+            self.t = float(self.config.get(self.model_type, 't', fallback=10))
+            self.soc = float(self.config.get(self.model_type, 'soc', fallback=10))
+            self.cap = float(self.config.get(self.model_type, 'cap', fallback=10))
+            self.maxp = float(self.config.get(self.model_type, 'maxp', fallback=10))
+            self.minp = float(self.config.get(self.model_type, 'minp', fallback=10))
+            self.maxp_fs = float(self.config.get(self.model_type, 'maxp_fs', fallback=10))
+            self.rru = float(self.config.get(self.model_type, 'rru', fallback=10))
+            self.rrd = float(self.config.get(self.model_type, 'rrd', fallback=10))
+            self.ceff = float(self.config.get(self.model_type, 'ceff', fallback=10))
+            self.deff = float(self.config.get(self.model_type, 'deff', fallback=10))
+            self.P_req =float( self.config.get(self.model_type, 'P_req', fallback=10))
+            self.Q_req = float(self.config.get(self.model_type, 'Q_req', fallback=10))
+            self.P_injected = float(self.config.get(self.model_type, 'P_injected', fallback=0))
+            self.Q_injected = float(self.config.get(self.model_type, 'Q_injected', fallback=0))
+            self.P_service = float(self.config.get(self.model_type, 'P_service', fallback=0))
+            self.Q_service = float(self.config.get(self.model_type, 'Q_service', fallback=0))
+            self.es = float(self.config.get(self.model_type, 'es', fallback=10))
         
-            self.fleet_model_type = self.config.get('Config Values', 'FleetModelType', fallback='Uniform')
+            self.fleet_model_type = self.config.get(self.model_type, 'FleetModelType', fallback='Uniform')
             if self.fleet_model_type == 'Uniform':
                 self.soc = numpy.repeat(self.soc,self.num_of_devices)
             if self.fleet_model_type == 'Standard Normal SoC Distribution':
-                self.soc_std = float(self.config.get('Config Values', 'SOC_STD', fallback=0)) # Standard deveation of SoC spread
+                self.soc_std = float(self.config.get(self.model_type, 'SOC_STD', fallback=0)) # Standard deveation of SoC spread
                 self.soc = numpy.repeat(self.soc,self.num_of_devices) + self.soc_std * numpy.random.randn(self.num_of_devices) 
                 for i in range(self.num_of_devices):
                     if self.soc[i] > self.max_soc:
@@ -78,44 +85,44 @@ class BatteryInverterFleet(FleetInterface):
             self.P_injected = numpy.repeat(self.P_injected,self.num_of_devices)
             self.Q_injected = numpy.repeat(self.Q_injected,self.num_of_devices)
         elif self.model_type == "CRM":
-            self.energy_capacity = float(self.config.get('Config Values', 'EnergyCapacity', fallback=10))
+            self.energy_capacity = float(self.config.get(self.model_type, 'EnergyCapacity', fallback=10))
             # inverter parameters
-            self.inv_name = self.config.get('Config Values', 'InvName', fallback='Name')
-            self.inv_type = self.config.get('Config Values', 'InvType', fallback='Not Defined')
-            self.coeff_0 = float(self.config.get('Config Values', 'Coeff0', fallback=0))
-            self.coeff_1 = float(self.config.get('Config Values', 'Coeff1', fallback=1))
-            self.coeff_2 = float(self.config.get('Config Values', 'Coeff2', fallback=0))
-            self.max_power_charge = float(self.config.get('Config Values', 'MaxPowerCharge', fallback=10))
-            self.max_power_discharge = float(self.config.get('Config Values', 'MaxPowerDischarge', fallback=-10))
-            self.max_apparent_power = float(self.config.get('Config Values', 'MaxApparentPower', fallback=-10))
-            self.min_pf = float(self.config.get('Config Values', 'MinPF', fallback=0.8))
-            self.max_ramp_up = float(self.config.get('Config Values', 'MaxRampUp', fallback=10))
-            self.max_ramp_down = float(self.config.get('Config Values', 'MaxRampDown', fallback=10))
+            self.inv_name = self.config.get(self.model_type, 'InvName', fallback='Name')
+            self.inv_type = self.config.get(self.model_type, 'InvType', fallback='Not Defined')
+            self.coeff_0 = float(self.config.get(self.model_type, 'Coeff0', fallback=0))
+            self.coeff_1 = float(self.config.get(self.model_type, 'Coeff1', fallback=1))
+            self.coeff_2 = float(self.config.get(self.model_type, 'Coeff2', fallback=0))
+            self.max_power_charge = float(self.config.get(self.model_type, 'MaxPowerCharge', fallback=10))
+            self.max_power_discharge = float(self.config.get(self.model_type, 'MaxPowerDischarge', fallback=-10))
+            self.max_apparent_power = float(self.config.get(self.model_type, 'MaxApparentPower', fallback=-10))
+            self.min_pf = float(self.config.get(self.model_type, 'MinPF', fallback=0.8))
+            self.max_ramp_up = float(self.config.get(self.model_type, 'MaxRampUp', fallback=10))
+            self.max_ramp_down = float(self.config.get(self.model_type, 'MaxRampDown', fallback=10))
             # battery parameters
-            self.bat_name = self.config.get('Config Values', 'BatName', fallback='Name')
-            self.bat_type = self.config.get('Config Values', 'BatType', fallback='Not Defined')
-            self.n_cells = float(self.config.get('Config Values', 'NCells', fallback=10))
-            self.voc_model_type = self.config.get('Config Values', 'VOCModelType', fallback='Linear')
+            self.bat_name = self.config.get(self.model_type, 'BatName', fallback='Name')
+            self.bat_type = self.config.get(self.model_type, 'BatType', fallback='Not Defined')
+            self.n_cells = float(self.config.get(self.model_type, 'NCells', fallback=10))
+            self.voc_model_type = self.config.get(self.model_type, 'VOCModelType', fallback='Linear')
             if self.voc_model_type == 'Linear': # note all model values assume SoC ranges from 0% to 100%
-                self.voc_model_m = float(self.config.get('Config Values', 'VOC_Model_M', fallback=0.005))
-                self.voc_model_b = float(self.config.get('Config Values', 'VOC_Model_b', fallback=1.8))
+                self.voc_model_m = float(self.config.get(self.model_type, 'VOC_Model_M', fallback=0.005))
+                self.voc_model_b = float(self.config.get(self.model_type, 'VOC_Model_b', fallback=1.8))
             if self.voc_model_type == 'Quadratic':
-                self.voc_model_a = float(self.config.get('Config Values', 'VOC_Model_A', fallback=0.005))
-                self.voc_model_b = float(self.config.get('Config Values', 'VOC_Model_B', fallback=1.8))
-                self.voc_model_c = float(self.config.get('Config Values', 'VOC_Model_C', fallback=1.8))
+                self.voc_model_a = float(self.config.get(self.model_type, 'VOC_Model_A', fallback=0.005))
+                self.voc_model_b = float(self.config.get(self.model_type, 'VOC_Model_B', fallback=1.8))
+                self.voc_model_c = float(self.config.get(self.model_type, 'VOC_Model_C', fallback=1.8))
             if self.voc_model_type == 'Cubic':
-                self.voc_model_a = float(self.config.get('Config Values', 'VOC_Model_A', fallback=0.005))
-                self.voc_model_b = float(self.config.get('Config Values', 'VOC_Model_B', fallback=1.8))
-                self.voc_model_c = float(self.config.get('Config Values', 'VOC_Model_C', fallback=1.8))
-                self.voc_model_d = float(self.config.get('Config Values', 'VOC_Model_D', fallback=1.8))
+                self.voc_model_a = float(self.config.get(self.model_type, 'VOC_Model_A', fallback=0.005))
+                self.voc_model_b = float(self.config.get(self.model_type, 'VOC_Model_B', fallback=1.8))
+                self.voc_model_c = float(self.config.get(self.model_type, 'VOC_Model_C', fallback=1.8))
+                self.voc_model_d = float(self.config.get(self.model_type, 'VOC_Model_D', fallback=1.8))
             if self.voc_model_type == 'CubicSpline':
-                SoC_list = self.config.get('Config Values', 'VOC_Model_SOC_LIST', fallback=0.005)
+                SoC_list = self.config.get(self.model_type, 'VOC_Model_SOC_LIST', fallback=0.005)
                 list_hold = SoC_list.split(',')
                 self.voc_model_SoC_list = [float(e) for e in list_hold]
-                a_list = self.config.get('Config Values', 'VOC_Model_A', fallback=0.005)
-                b_list = self.config.get('Config Values', 'VOC_Model_B', fallback=0.005)
-                c_list = self.config.get('Config Values', 'VOC_Model_C', fallback=0.005)
-                d_list = self.config.get('Config Values', 'VOC_Model_D', fallback=0.005)
+                a_list = self.config.get(self.model_type, 'VOC_Model_A', fallback=0.005)
+                b_list = self.config.get(self.model_type, 'VOC_Model_B', fallback=0.005)
+                c_list = self.config.get(self.model_type, 'VOC_Model_C', fallback=0.005)
+                d_list = self.config.get(self.model_type, 'VOC_Model_D', fallback=0.005)
                 list_hold = a_list.split(',')
                 self.voc_model_a = [float(e) for e in list_hold]
                 list_hold = b_list.split(',')
@@ -124,52 +131,52 @@ class BatteryInverterFleet(FleetInterface):
                 self.voc_model_c = [float(e) for e in list_hold]
                 list_hold = d_list.split(',')
                 self.voc_model_d = [float(e) for e in list_hold]
-            self.max_current_charge = float(self.config.get('Config Values', 'MaxCurrentCharge', fallback=10))
-            self.max_current_discharge = float(self.config.get('Config Values', 'MaxCurrentDischarge', fallback=-10))
-            self.max_voltage = float(self.config.get('Config Values', 'MaxVoltage', fallback=58))
-            self.min_voltage= float(self.config.get('Config Values', 'MinVoltage', fallback=48))
-            self.max_soc = float(self.config.get('Config Values', 'MaxSoC', fallback=100))
-            self.min_soc = float(self.config.get('Config Values', 'MinSoC', fallback=0))
-            self.charge_capacity = float(self.config.get('Config Values', 'ChargeCapacity', fallback=10))
-            self.coulombic_efficiency = float(self.config.get('Config Values', 'CoulombicEfficiency', fallback=1))
-            self.self_discharge_current = float(self.config.get('Config Values', 'SelfDischargeCurrent', fallback=0))
-            self.r0 = float(self.config.get('Config Values', 'R0', fallback=0))
-            self.r1 = float(self.config.get('Config Values', 'R1', fallback=0))
-            self.r2 = float(self.config.get('Config Values', 'R2', fallback=0))
-            self.c1 = float(self.config.get('Config Values', 'C1', fallback=0))
-            self.c2 = float(self.config.get('Config Values', 'C2', fallback=0))
+            self.max_current_charge = float(self.config.get(self.model_type, 'MaxCurrentCharge', fallback=10))
+            self.max_current_discharge = float(self.config.get(self.model_type, 'MaxCurrentDischarge', fallback=-10))
+            self.max_voltage = float(self.config.get(self.model_type, 'MaxVoltage', fallback=58))
+            self.min_voltage= float(self.config.get(self.model_type, 'MinVoltage', fallback=48))
+            self.max_soc = float(self.config.get(self.model_type, 'MaxSoC', fallback=100))
+            self.min_soc = float(self.config.get(self.model_type, 'MinSoC', fallback=0))
+            self.charge_capacity = float(self.config.get(self.model_type, 'ChargeCapacity', fallback=10))
+            self.coulombic_efficiency = float(self.config.get(self.model_type, 'CoulombicEfficiency', fallback=1))
+            self.self_discharge_current = float(self.config.get(self.model_type, 'SelfDischargeCurrent', fallback=0))
+            self.r0 = float(self.config.get(self.model_type, 'R0', fallback=0))
+            self.r1 = float(self.config.get(self.model_type, 'R1', fallback=0))
+            self.r2 = float(self.config.get(self.model_type, 'R2', fallback=0))
+            self.c1 = float(self.config.get(self.model_type, 'C1', fallback=0))
+            self.c2 = float(self.config.get(self.model_type, 'C2', fallback=0))
             # fleet parameters
-            self.num_of_devices = int(self.config.get('Config Values', 'NumberOfDevices', fallback=10))
+            self.num_of_devices = int(self.config.get(self.model_type, 'NumberOfDevices', fallback=10))
             # battery system states
-            self.t = float(self.config.get('Config Values', 't', fallback=0))
-            self.soc = float(self.config.get('Config Values', 'soc', fallback=50))
-            self.v1 = float(self.config.get('Config Values', 'v1', fallback=0))
-            self.v2 = float(self.config.get('Config Values', 'v2', fallback=0))
-            self.voc = float(self.config.get('Config Values', 'voc', fallback=53))
-            self.vbat = float(self.config.get('Config Values', 'vbat', fallback=53))
-            self.ibat = float(self.config.get('Config Values', 'ibat', fallback=0))
-            self.pdc = float(self.config.get('Config Values', 'pdc', fallback=0))
-            self.cap = float(self.config.get('Config Values', 'cap', fallback=10.6))
-            self.maxp = float(self.config.get('Config Values', 'maxp', fallback=10))
-            self.minp = float(self.config.get('Config Values', 'minp', fallback=-10))
-            self.maxp_fs = float(self.config.get('Config Values', 'maxp_fs', fallback=0))
-            self.rru = float(self.config.get('Config Values', 'rru', fallback=10))
-            self.rrd = float(self.config.get('Config Values', 'rrd', fallback=-10))
-            self.ceff = float(self.config.get('Config Values', 'ceff', fallback=1))
-            self.deff = float(self.config.get('Config Values', 'deff', fallback=1))
-            self.P_req = float(self.config.get('Config Values', 'P_req', fallback=0))
-            self.Q_req = float(self.config.get('Config Values', 'Q_req', fallback=0))
-            self.P_injected = float(self.config.get('Config Values', 'P_injected', fallback=0))
-            self.Q_injected = float(self.config.get('Config Values', 'Q_injected', fallback=0))
-            self.P_service = float(self.config.get('Config Values', 'P_service', fallback=0))
-            self.Q_service = float(self.config.get('Config Values', 'Q_service', fallback=0))
-            self.es = float(self.config.get('Config Values', 'es', fallback=5.3))
+            self.t = float(self.config.get(self.model_type, 't', fallback=0))
+            self.soc = float(self.config.get(self.model_type, 'soc', fallback=50))
+            self.v1 = float(self.config.get(self.model_type, 'v1', fallback=0))
+            self.v2 = float(self.config.get(self.model_type, 'v2', fallback=0))
+            self.voc = float(self.config.get(self.model_type, 'voc', fallback=53))
+            self.vbat = float(self.config.get(self.model_type, 'vbat', fallback=53))
+            self.ibat = float(self.config.get(self.model_type, 'ibat', fallback=0))
+            self.pdc = float(self.config.get(self.model_type, 'pdc', fallback=0))
+            self.cap = float(self.config.get(self.model_type, 'cap', fallback=10.6))
+            self.maxp = float(self.config.get(self.model_type, 'maxp', fallback=10))
+            self.minp = float(self.config.get(self.model_type, 'minp', fallback=-10))
+            self.maxp_fs = float(self.config.get(self.model_type, 'maxp_fs', fallback=0))
+            self.rru = float(self.config.get(self.model_type, 'rru', fallback=10))
+            self.rrd = float(self.config.get(self.model_type, 'rrd', fallback=-10))
+            self.ceff = float(self.config.get(self.model_type, 'ceff', fallback=1))
+            self.deff = float(self.config.get(self.model_type, 'deff', fallback=1))
+            self.P_req = float(self.config.get(self.model_type, 'P_req', fallback=0))
+            self.Q_req = float(self.config.get(self.model_type, 'Q_req', fallback=0))
+            self.P_injected = float(self.config.get(self.model_type, 'P_injected', fallback=0))
+            self.Q_injected = float(self.config.get(self.model_type, 'Q_injected', fallback=0))
+            self.P_service = float(self.config.get(self.model_type, 'P_service', fallback=0))
+            self.Q_service = float(self.config.get(self.model_type, 'Q_service', fallback=0))
+            self.es = float(self.config.get(self.model_type, 'es', fallback=5.3))
             
-            self.fleet_model_type = self.config.get('Config Values', 'FleetModelType', fallback='Uniform')
+            self.fleet_model_type = self.config.get(self.model_type, 'FleetModelType', fallback='Uniform')
             if self.fleet_model_type == 'Uniform':
                 self.soc = numpy.repeat(self.soc,self.num_of_devices)
             if self.fleet_model_type == 'Standard Normal SoC Distribution':
-                self.soc_std = float(self.config.get('Config Values', 'SOC_STD', fallback=0)) # Standard deveation of SoC spread
+                self.soc_std = float(self.config.get(self.model_type, 'SOC_STD', fallback=0)) # Standard deveation of SoC spread
                 self.soc = numpy.repeat(self.soc,self.num_of_devices) + self.soc_std * numpy.random.randn(self.num_of_devices) 
                 for i in range(self.num_of_devices):
                     if self.soc[i] > self.max_soc:
@@ -568,9 +575,3 @@ class BatteryInverterFleet(FleetInterface):
         # change config
 
         pass
-
-
-if __name__ == '__main__':
-    fleet = BatteryInverterFleet('config_CRM.ini')
-    print(fleet.name)
-    print(fleet.model_type)
