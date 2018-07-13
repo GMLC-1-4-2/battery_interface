@@ -3,3 +3,4 @@ configparser>=3.5.0
 numpy
 scipy
 matplotlib
+pandas

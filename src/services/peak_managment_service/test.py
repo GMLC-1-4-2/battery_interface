@@ -2,6 +2,8 @@ import sys
 from os.path import dirname, abspath
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
+from fleet_config import FleetConfig
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 from services.peak_managment_service.peak_management_service import PeakManagementService
 
 
@@ -15,7 +17,7 @@ if __name__ == '__main__':
 
     # Instantiate a peak management service, connected to the previous fleet
     pms = PeakManagementService(
-        fleet=None,
+        fleet=fleet,
         capacity_scaling_factor=1.0,
         drive_cycle_file="drive.cycle.summer.peaky.csv",
         f_reduction=0.1)

@@ -12,16 +12,14 @@ from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 from fleet_config import FleetConfig
 
-from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
-import numpy as np
 import pandas as pd
 
 
-class PeakManagementService():
+class PeakManagementService:
     """
-    This class implements FleetInterface so that it can communicate with a fleet
+    The peak management service short summary
     """
 
     def __init__(self,
@@ -37,7 +35,6 @@ class PeakManagementService():
         # Establish a default simulation timestep (will always be 1-hour as far as I know)...
         self.sim_step = timedelta(hours=1)
 
-
         # Long term, we don't want a drive cycle, we want to call some kind of daily
         # load forecast service that a higher-level function in the software provides.
         # But for now, our whole purpose is testing...
@@ -49,12 +46,12 @@ class PeakManagementService():
         # There may be more straightforward ways to do this...just want to add a datetime object
         # matching the drive cycle's year, month_abbr, day, hour info...
         self.drive_cycle["month_num"] = [
-                list(calendar.month_abbr).index(self.drive_cycle[abb]) for abb in self.drive_cycle["month"]
-            ]
+            list(calendar.month_abbr).index(self.drive_cycle[abb]) for abb in self.drive_cycle["month"]]
+
         self.drive_cycle["dt"] = [
                 datetime.datetime(
                     self.drive_cycle["year"], self.drive_cycle["month_num"], self.drive_cycle["day"],
-                    self.drive_cycle["hour"], 0, 0) ]
+                    self.drive_cycle["hour"], 0, 0)]
 
         # Ideally the fleet could tell us its capacity and we compute the scaling_factor from that
         # and the maximum value in the drive cycle...
@@ -66,8 +63,6 @@ class PeakManagementService():
         self.mw_target = self.annual_peak * (1 - self.f_reduction)
 
         # TODO:  Initialize something to hold stats
-
-
 
     def run_fleet_forecast_test(self):
         ndx_start = 0
@@ -95,6 +90,7 @@ class PeakManagementService():
             insufficient = [deficit[i] < 0 for i in range(24)]
             if any(insufficient):
                 # TODO:  NEED TO LOOP BACK AND REBUILD requests until we have a 24-hour request we know can be met
+                pass
 
             # Now we know what the fleet can do, so ask it to do it
 
@@ -103,14 +99,12 @@ class PeakManagementService():
                 fleet_response = self.fleet.process_request(fleet_request)
                 # TODO:  store performance stats
 
-
     def no_neg(self, values):
         for i in range(values):
             if values[i] < 0:
                 values[i] = 0
         return values
 
-
-    def process_stats:
+    def process_stats(self):
         pass
         # TODO:  Aggregate up the fleet's performance stats and...do what?  Print them?  Write them to a file?
