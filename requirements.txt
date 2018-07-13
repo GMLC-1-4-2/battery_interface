@@ -4,3 +4,6 @@ numpy
 scipy
 matplotlib
 pandas
+csv
+math
+copy
