@@ -1,16 +1,18 @@
-from datetime import datetime, timedelta
-import numpy
-#import sys
-#from os.path import dirname, abspath
-#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
+import sys
+from os.path import dirname, abspath
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
-from fleet_request import FleetRequest
-from fleet_response import FleetResponse
-from battery_inverter_fleet import BatteryInverterFleet
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import scipy.io as spio
 import csv
 import copy
+import numpy
+
+from fleet_request import FleetRequest
+from fleet_response import FleetResponse
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+
 
 def fleet_test(Fleet):
     
@@ -70,6 +72,7 @@ def fleet_test(Fleet):
     """ plt.figure(2)
     plt.plot(t, V) """
     plt.show()
+
 
 def integration_test(Fleet):
 
