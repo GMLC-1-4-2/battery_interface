@@ -10,17 +10,13 @@ from services.peak_managment_service.peak_management_service import PeakManageme
 if __name__ == '__main__':
 
     # Instantiate a fleet for this test
-    fleet = BatteryInverterFleet()
+    fleet = BatteryInverterFleet("ERM")
 
     # Set up the fleet (if necessary?)
     fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=None)
 
     # Instantiate a peak management service, connected to the previous fleet
-    pms = PeakManagementService(
-        fleet=fleet,
-        capacity_scaling_factor=1.0,
-        drive_cycle_file="drive.cycle.summer.peaky.csv",
-        f_reduction=0.1)
+    pms = PeakManagementService(fleet=fleet)
 
     # Do it
     pms.run_fleet_forecast_test()
