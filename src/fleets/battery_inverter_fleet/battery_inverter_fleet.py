@@ -66,8 +66,8 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=10))
             self.P_req =float( self.config.get(config_header, 'P_req', fallback=10))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=10))
-            self.P_injected = float(self.config.get(config_header, 'P_injected', fallback=0))
-            self.Q_injected = float(self.config.get(config_header, 'Q_injected', fallback=0))
+            self.P_togrid = float(self.config.get(config_header, 'P_togrid', fallback=0))
+            self.Q_togrid = float(self.config.get(config_header, 'Q_togrid', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.es = float(self.config.get(config_header, 'es', fallback=10))
@@ -83,8 +83,8 @@ class BatteryInverterFleet(FleetInterface):
                         self.soc[i] = self.max_soc
                     if self.soc[i] < self.min_soc:
                         self.soc[i] = self.min_soc
-            self.P_injected = numpy.repeat(self.P_injected,self.num_of_devices)
-            self.Q_injected = numpy.repeat(self.Q_injected,self.num_of_devices)
+            self.P_togrid = numpy.repeat(self.P_togrid,self.num_of_devices)
+            self.Q_togrid = numpy.repeat(self.Q_togrid,self.num_of_devices)
         elif self.model_type == "CRM":
             self.energy_capacity = float(self.config.get(config_header, 'EnergyCapacity', fallback=10))
             # inverter parameters
@@ -167,8 +167,8 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=1))
             self.P_req = float(self.config.get(config_header, 'P_req', fallback=0))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=0))
-            self.P_injected = float(self.config.get(config_header, 'P_injected', fallback=0))
-            self.Q_injected = float(self.config.get(config_header, 'Q_injected', fallback=0))
+            self.P_togrid = float(self.config.get(config_header, 'P_togrid', fallback=0))
+            self.Q_togrid = float(self.config.get(config_header, 'Q_togrid', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.es = float(self.config.get(config_header, 'es', fallback=5.3))
@@ -192,8 +192,8 @@ class BatteryInverterFleet(FleetInterface):
             self.pdc = numpy.repeat(self.pdc,self.num_of_devices)
             self.maxp = numpy.repeat(self.maxp,self.num_of_devices)
             self.minp = numpy.repeat(self.minp,self.num_of_devices)
-            self.P_injected = numpy.repeat(self.P_injected,self.num_of_devices)
-            self.Q_injected = numpy.repeat(self.Q_injected,self.num_of_devices)
+            self.P_togrid = numpy.repeat(self.P_togrid,self.num_of_devices)
+            self.Q_togrid = numpy.repeat(self.Q_togrid,self.num_of_devices)
         else: 
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
@@ -239,10 +239,10 @@ class BatteryInverterFleet(FleetInterface):
             vbat_update = self.vbat
 
         for i in range(self.num_of_devices):
-            last_P[i] = self.P_injected[i]
-            last_Q[i] = self.Q_injected[i]
-            self.P_injected[i] = 0
-            self.Q_injected[i] = 0
+            last_P[i] = self.P_togrid[i]
+            last_Q[i] = self.Q_togrid[i]
+            self.P_togrid[i] = 0
+            self.Q_togrid[i] = 0
         TOL = 0.000001  # tolerance
         while ((p_tot < P_req-TOL or p_tot > P_req+TOL) or (q_tot < Q_req-TOL or q_tot > Q_req+TOL)) and sum(np)!=0 and sum(nq)!=0: #continue looping through devices until the power needs are met or all devices are at their limits
             # distribute the requested power equally among the devices that are not at their limits
@@ -253,7 +253,7 @@ class BatteryInverterFleet(FleetInterface):
 
                     #  Max ramp rate and apparent power limit checking
                     if np[i] == 1 :
-                        p_ach = self.P_injected[i] + p_req
+                        p_ach = self.P_togrid[i] + p_req
                         if (p_ach-last_P[i]) > self.max_ramp_up:
                             p_ach = self.max_ramp_up + last_P[i]
                             np[i] = 0
@@ -268,10 +268,10 @@ class BatteryInverterFleet(FleetInterface):
                             p_ach = self.max_power_charge
                             np[i] = 0
                     else:
-                        p_ach = self.P_injected[i] 
+                        p_ach = self.P_togrid[i] 
 
                     if nq[i] == 1:
-                        q_ach = self.Q_injected[i] + q_req
+                        q_ach = self.Q_togrid[i] + q_req
                         if (q_ach-last_Q[i]) > self.max_ramp_up:
                             q_ach = self.max_ramp_up + last_Q[i]
                             nq[i] = 0
@@ -279,7 +279,7 @@ class BatteryInverterFleet(FleetInterface):
                             q_ach = self.max_ramp_down + last_Q[i]
                             nq[i] = 0
                     else:
-                        q_ach = self.Q_injected[i] 
+                        q_ach = self.Q_togrid[i] 
                     
                     S_req = float(numpy.sqrt(p_ach**2 + q_ach**2))
                     
@@ -318,8 +318,8 @@ class BatteryInverterFleet(FleetInterface):
 
                             p_ach = (Ppos + Pneg)
                             q_ach =  q_ach
-                            self.P_injected[i] = p_ach
-                            self.Q_injected[i] = q_ach
+                            self.P_togrid[i] = p_ach
+                            self.Q_togrid[i] = q_ach
                         # run function for CRM model type
                         elif self.model_type == 'CRM':
                             # convert AC power p_ach to DC power pdc
@@ -365,12 +365,12 @@ class BatteryInverterFleet(FleetInterface):
                             v1_update[i] = self.v1[i] + dt *( (1/(self.r1*self.c1))*self.v1[i] + (1/(self.c1))*ibat_update[i])
                             v2_update[i] = self.v2[i] + dt *( (1/(self.r2*self.c2))*self.v2[i] + (1/(self.c2))*ibat_update[i])
                             vbat_update[i] = (v1_update[i]  + v2_update[i] + self.voc[i] + ibat_update[i]*self.r0) *self.n_cells
-                            self.P_injected[i] = p_ach
-                            self.Q_injected[i] = q_ach
+                            self.P_togrid[i] = p_ach
+                            self.Q_togrid[i] = q_ach
 
             # at the end of looping through the devices, add up their power to determine if the request has been met
-            p_tot = sum(self.P_injected)
-            q_tot = sum(self.Q_injected)
+            p_tot = sum(self.P_togrid)
+            q_tot = sum(self.Q_togrid)
         # update SoC
         self.soc = soc_update
         if self.model_type == 'CRM':
@@ -380,8 +380,8 @@ class BatteryInverterFleet(FleetInterface):
             self.ibat = ibat_update
             self.vbat = (self.v1 + self.v2 + self.voc + self.ibat*self.r0) *self.n_cells
         # once the power request has been met, or all devices are at their limits, return the response variables
-        response.P_injected = p_tot
-        response.Q_injected = q_tot  
+        response.P_togrid = p_tot
+        response.Q_togrid = q_tot  
         response.soc = numpy.average(self.soc)
         response.E = numpy.average(self.soc) * self.energy_capacity / 100.0
         return response 

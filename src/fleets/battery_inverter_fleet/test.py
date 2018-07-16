@@ -43,13 +43,13 @@ def fleet_test(Fleet):
     # print the forecasted achivable power schedule
     """ for i in range(n):
         rsp = FORCAST[i]
-        P[i] = rsp.P_injected """
+        P[i] = rsp.P_togrid """
 
     # process the requests 
     i = 0
     for req in requests:
         Fleet.process_request(req)
-        Pach[i] = sum(Fleet.P_injected)
+        Pach[i] = sum(Fleet.P_togrid)
         for j in range(Fleet.num_of_devices):
             SOC[i,j] = Fleet.soc[j] # show that process_request function updates the SoC
         #V[i] = Fleet.vbat
@@ -106,7 +106,7 @@ def integration_test(Fleet):
                 responses = Fleet.forecast(requests)
 
                 for T in numpy.arange(0, n):
-                    Power[T] = responses[T].P_injected
+                    Power[T] = responses[T].P_togrid
                 
                 SoCFin = responses[n-1].soc  # get final SoC
                 [P2, Cost, Able] = Fleet.cost(SoCFin, SoC0, del_t)  # retreeve how much power it would take to return to SoC0
