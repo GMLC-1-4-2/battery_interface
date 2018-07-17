@@ -1,0 +1,4 @@
+Vehicle_id,Model,Wh_mi,Number_of_cells,Ah_usable,V_SOC_0,V_SOC_1,V_SOC_2,R_SOC_0,R_SOC_1,R_SOC_2,AC_Watts_Losses_0,AC_Watts_Losses_1,AC_Watts_Losses_2,Max_Charger_AC_Watts,Total_Vehicles,Sitting_cars_per
+Vehicle 1,2015 BMW i3,200,1,94,349.714,0.78346,-0.00797948,0.0620451,0.000604299,-4.78E-06,66.3995,0.0355906,2.24E-06,7700,100000,10
+Vehicle 2,Vehicle 2,200,96,86,3.4217,0.016799,0.00022834,0.06,0,0,0,0,0,7700,50000,8
+Vehicle 3,Vehicle 3,200,120,66,3.6,0,0,0.06,0,0,0,0,0,3300,50000,5
