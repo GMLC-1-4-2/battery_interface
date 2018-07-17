@@ -26,9 +26,9 @@ class ElectricVehiclesFleet(FleetInterface):
         # Number of subfleets that are going to be simulated
         self.N_SubFleets = 100
         # Location of working path
-        cwd = os.getcwd() + '\data'
+        dirname = os.path.dirname(__file__)
         # Read the vehicle models and store them in a pandas dataframe
-        self.df_VehicleModels = pd.read_csv(cwd + '\\vehicle_models.csv')    
+        self.df_VehicleModels = pd.read_csv(os.path.join(dirname,'data/vehicle_models.csv' ))  
         # Number of vehicle models
         self.N_Models = self.df_VehicleModels.shape[0]
         # Total number of vehicles
@@ -52,10 +52,11 @@ class ElectricVehiclesFleet(FleetInterface):
         peak = 1/3                                          # Peak in 1/3 of the range
         self.lambd = peak/(((self.a-1)/self.a)**(1/self.a)) # Shape value      
         # Read data from NHTS survey
-        self.df_Miles     = pd.read_table(cwd + '\\TRPMILES_filt.txt', delim_whitespace=True, header=None)
-        self.df_StartTime = pd.read_table(cwd + '\\STRTTIME_filt.txt', delim_whitespace=True, header=None)
-        self.df_EndTime   = pd.read_table(cwd + '\\ENDTIME_filt.txt' , delim_whitespace=True, header=None)
-        self.df_WhyTo     = pd.read_table(cwd + '\\WHYTO_filt.txt'   , delim_whitespace=True, header=None)
+        
+        self.df_Miles     = pd.read_table(os.path.join(dirname,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
+        self.df_StartTime = pd.read_table(os.path.join(dirname,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
+        self.df_EndTime   = pd.read_table(os.path.join(dirname,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
+        self.df_WhyTo     = pd.read_table(os.path.join(dirname,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
         
         # Percentage of cars that are charged at work/other places: Statistical studies from real data
         self.ChargedAtWork_per  = 0.17
@@ -94,7 +95,7 @@ class ElectricVehiclesFleet(FleetInterface):
         else:
             return t + 24*3600
     
-    def process_request(self, ts, P_req, Q_req):
+    def process_request(self, fleet_request):
         """
         Request for timestep ts
 
@@ -104,7 +105,7 @@ class ElectricVehiclesFleet(FleetInterface):
         :return res: an instance of FleetResponse
         """
         # call simulate method with proper inputs
-        FleetResponse = self.simulate(P_req,Q_req, self.SOC, self.time, self.dt)
+        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, self.dt)
 
         return FleetResponse
     

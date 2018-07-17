@@ -15,9 +15,9 @@ from electric_vehicles_fleet import ElectricVehiclesFleet
 fleet_test = ElectricVehiclesFleet()
 
 # Time stamp to start the simulation
-ts = datetime(2018, 7, 12, 7, 0, 00, 000000)
-dt = 1                                     # time step (in seconds)
-seconds_of_simulation = 5*60               # (in seconds)
+ts = datetime(2018, 7, 12, 4, 0, 00, 000000)
+dt = 60*5                                  # time step (in seconds)
+seconds_of_simulation = 3600*2             # (in seconds)
 t = np.arange(0,seconds_of_simulation,dt) 
 
 # Initialization of important variables in the constructor
@@ -26,8 +26,8 @@ fleet_test.time = fleet_test.get_time_of_the_day(ts)
 fleet_test.dt = dt
 
 # Power requested (kW): comment/uncomment
-#power_request = 380000 + 400000*np.sin(0.1*t)*np.exp(-0.0001*t)
-power_request = 250000*(t*np.exp(-40*t/(np.pi*seconds_of_simulation)))
+power_request = 380000 + 400000*np.sin(0.1*t)*np.exp(-0.0001*t)
+#power_request = 250000*(t*np.exp(-40*t/(np.pi*seconds_of_simulation)))
 #power_request  = 100000*np.ones([len(t),])
 
 # List of requests
@@ -72,12 +72,16 @@ plt.xlabel('Time (sec)', fontsize = 14, fontweight = 'bold')
 plt.ylabel('Energy stored (GW.h)', fontsize = 14, fontweight = 'bold')
 
 # Test 2: test process_request method
+# Initialization of important variables in the constructor
+fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
+fleet_test.time = fleet_test.get_time_of_the_day(ts)
+fleet_test.dt = dt
 
 # process the requests 
 SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
 i = 0
 for req in requests:
-    fleet_test.process_request(req.ts_req, req.P_req, req.Q_req)
+    fleet_test.process_request(req)
     # The SOC change!
     SOC_time[:,i] = fleet_test.SOC
     i+=1
