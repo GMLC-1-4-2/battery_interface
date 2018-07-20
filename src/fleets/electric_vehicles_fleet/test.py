@@ -1,4 +1,4 @@
-# Test the ElectricVehiclesFleet class
+# Testing the ElectricVehiclesFleet class
 
 from datetime import datetime
 import numpy as np
@@ -9,26 +9,24 @@ from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 from electric_vehicles_fleet import ElectricVehiclesFleet
 
+###############################################################################
 # Test 1: test request and forecast methods
 
-# Instantiation of an object of the ElectricVehiclesFleet class
-fleet_test = ElectricVehiclesFleet()
-
 # Time stamp to start the simulation
-ts = datetime(2018, 7, 12, 4, 0, 00, 000000)
-dt = 60*5                                  # time step (in seconds)
-seconds_of_simulation = 3600*2             # (in seconds)
-t = np.arange(0,seconds_of_simulation,dt) 
+ts = datetime(2018, 7, 20, 10, 0, 00, 000000)
 
-# Initialization of important variables in the constructor
-fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
-fleet_test.time = fleet_test.get_time_of_the_day(ts)
+# Instantiation of an object of the ElectricVehiclesFleet class
+fleet_test = ElectricVehiclesFleet(ts)
+
+dt = 60*30                                   # time step (in seconds)
+seconds_of_simulation = 3600*15              # (in seconds)
+t = np.arange(0,seconds_of_simulation,dt)    # array of time in seconds 
+
+# Initialization of the time step 
 fleet_test.dt = dt
 
-# Power requested (kW): comment/uncomment
-power_request = 380000 + 400000*np.sin(0.1*t)*np.exp(-0.0001*t)
-#power_request = 250000*(t*np.exp(-40*t/(np.pi*seconds_of_simulation)))
-#power_request  = 100000*np.ones([len(t),])
+# Power requested (kW): test
+power_request = 100000*(1 + np.cos(2*np.pi*(t/seconds_of_simulation)))
 
 # List of requests
 requests = []
@@ -71,6 +69,7 @@ plt.xlim([0,max(t)])
 plt.xlabel('Time (sec)', fontsize = 14, fontweight = 'bold')
 plt.ylabel('Energy stored (GW.h)', fontsize = 14, fontweight = 'bold')
 
+###############################################################################
 # Test 2: test process_request method
 # Initialization of important variables in the constructor
 fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)

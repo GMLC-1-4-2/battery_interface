@@ -4,19 +4,13 @@ The following readme.txt describes the structure of the class ElectricVehiclesFl
 Describes its functionality, methods, and attributes.
 @authors: mduoba@anl.gov 
 	  afernandezcanosa@anl.gov
-Last update: 07/12/2018
+Last update: 07/20/2018
 Argonne National Laboratory (ANL) - Grid Modernization Lab Consortium (GMLC)
 --------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 HOW TO RUN A SIMPLE "test.py":
 
-First, instantiate the ElectricVehiclesFleet as usual in python (fleet_test = ElectricVehiclesFleet()). After that, define the "ts" in which the request must
-be made by using the datetime.datetime library. Because of the singularities of this fleet, a local time must be specified inside the class before calling the 
-"forecast" or "response" method. For example,
-
-fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
-fleet_test.time = fleet_test.get_time_of_the_day(ts)
-fleet_test.dt = 180 # step size in seconds
+First, instantiate the ElectricVehiclesFleet as usual in python (fleet_test = ElectricVehiclesFleet(ts)). 
 
 It is important to mention that each sub fleet is connected or disconnected depending on the schedule, their charging strategy, etc.
 

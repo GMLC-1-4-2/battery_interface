@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 07/13/2018
+Last update: 07/20/2018
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
@@ -15,10 +15,11 @@ from fleet_response  import FleetResponse
 import numpy as np
 import pandas as pd
 import os
+from scipy.stats import truncnorm
 
 class ElectricVehiclesFleet(FleetInterface):
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, ts):
         """
         Constructor
         """
@@ -62,9 +63,39 @@ class ElectricVehiclesFleet(FleetInterface):
         self.ChargedAtWork_per  = 0.17
         self.ChargedAtOther_per = 0.02
 
-        # Initial state of charge of all the subfleets => Depends on the time when the simulation starts: pseudo-random
+        # Initialize local time of the class
+        self.initial_time = self.get_time_of_the_day(ts)
+        self.time = self.get_time_of_the_day(ts)
+        self.dt = 1
+        
+        # Mix of charging strategies: charging right away, start charging at midnight, start charging to be fully charged before the TCIN (percentage included)
+        self.strategies = [ ['right away', 'midnight', 'tcin'], [0.4, 0.3, 0.3] ]
+        # Charging strategy corresponding to each sub fleet
+        self.monitor_strategy = []
+        for i in range(len(self.strategies[0])):
+            self.monitor_strategy = self.monitor_strategy + [self.strategies[0][i]]*int(self.strategies[1][i]*self.N_SubFleets)
+        
+        # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
+        self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
+
+        # Initial state of charge of all the subfleets => Depends on the baseline simulations (SOC curves)
         np.random.seed(0)
-        self.SOC = np.random.uniform(0.65, 0.85, self.N_SubFleets)
+        self.SOC = np.zeros([self.N_SubFleets,]); i = 0
+        for strategy in self.monitor_strategy:
+            if strategy == 'right away':
+                self.SOC[i] = truncnorm.rvs(((0 - self.df_SOC_curves['SOC_mean_RightAway'][self.initial_time])/self.df_SOC_curves['SOC_std_RightAway'][self.initial_time]), 
+                                            ((1 - self.df_SOC_curves['SOC_mean_RightAway'][self.initial_time])/self.df_SOC_curves['SOC_std_RightAway'][self.initial_time]), 
+                                            loc = self.df_SOC_curves['SOC_mean_RightAway'][self.initial_time], scale = self.df_SOC_curves['SOC_std_RightAway'][self.initial_time], size = 1)
+            elif strategy == 'midnight':
+                self.SOC[i] = truncnorm.rvs(((0 - self.df_SOC_curves['SOC_mean_Midnight'][self.initial_time])/self.df_SOC_curves['SOC_std_Midnight'][self.initial_time]), 
+                                            ((1 - self.df_SOC_curves['SOC_mean_Midnight'][self.initial_time])/self.df_SOC_curves['SOC_std_Midnight'][self.initial_time]), 
+                                            loc = self.df_SOC_curves['SOC_mean_Midnight'][self.initial_time], scale = self.df_SOC_curves['SOC_std_Midnight'][self.initial_time], size = 1)
+            else:
+                self.SOC[i] = truncnorm.rvs(((0 - self.df_SOC_curves['SOC_mean_TCIN'][self.initial_time])/self.df_SOC_curves['SOC_std_TCIN'][self.initial_time]), 
+                                            ((1 - self.df_SOC_curves['SOC_mean_TCIN'][self.initial_time])/self.df_SOC_curves['SOC_std_TCIN'][self.initial_time]), 
+                                            loc = self.df_SOC_curves['SOC_mean_TCIN'][self.initial_time], scale = self.df_SOC_curves['SOC_std_TCIN'][self.initial_time], size = 1)
+            i += 1
+            
         # Calculate the voltage to calculate the range in the function to match the schedule: It is conservative to say that V = V_OC 
         self.Voltage = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
                                             self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
@@ -73,18 +104,7 @@ class ElectricVehiclesFleet(FleetInterface):
         
         # Schedules of all the sub fleets
         self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(0,self.SOC,self.Voltage)
-        # Mix of charging strategies: charging right away, start charging at midnight, start charging to be fully charged before the TCIN (percentage included)
-        self.strategies = [ ['right away', 'midnight', 'tcin'], [0.4, 0.3, 0.3] ]
-        # Charging strategy corresponding to each sub fleet
-        self.monitor_strategy = []
-        for i in range(len(self.strategies[0])):
-            self.monitor_strategy = self.monitor_strategy + [self.strategies[0][i]]*int(self.strategies[1][i]*self.N_SubFleets)\
         
-        # Initialize local time of the class
-        self.initial_time = 0
-        self.time = 0
-        self.dt = 0
-    
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the discharge and charge of the subfleets """
         h, m, s = ts.hour, ts.minute, ts.second
@@ -513,8 +533,3 @@ class ElectricVehiclesFleet(FleetInterface):
         In this example, the kwargs can be {"voltage_threshold": new_value}
         """
         pass
-        
-    
-call_test = ElectricVehiclesFleet()
-
-
