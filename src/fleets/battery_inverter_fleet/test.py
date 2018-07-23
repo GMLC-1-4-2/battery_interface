@@ -1,29 +1,29 @@
 import sys
-from datetime import datetime, timedelta
 from os.path import dirname, abspath
-import numpy
-import scipy.io as spio
-import matplotlib.pyplot as plt
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
-sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import scipy.io as spio
+import csv
+import copy
+import numpy
 
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-from battery_inverter_fleet import BatteryInverterFleet
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 
-def fleet_test():
-    fleet = BatteryInverterFleet('config_CRM.ini')
-
+def fleet_test(Fleet):
+    
     mat = spio.loadmat('ERM_model_validation.mat', squeeze_me=True)
     t = mat['TT']
-    P = -fleet.num_of_devices* mat['PP']
+    P = -Fleet.num_of_devices* mat['PP']
     S = mat['SS']
 
-    #n = len(t)
-    n = 1000
+    n = len(t)
     Pach = numpy.zeros((n))
-    SOC = numpy.zeros((n,fleet.num_of_devices))
+    SOC = numpy.zeros((n,Fleet.num_of_devices))
     #V = numpy.zeros(n)
 
     requests = []
@@ -31,7 +31,7 @@ def fleet_test():
     
     dt = timedelta(hours=0.000092593) #hours
     for i in range(n):
-        req = FleetRequest(ts, dt, p=P[i], q=0.0)
+        req = FleetRequest(ts=ts,sim_step=dt,p=P[i],q=0.0)
         requests.append(req)
 
     """ # print the initial SoC
@@ -43,15 +43,15 @@ def fleet_test():
     # print the forecasted achivable power schedule
     """ for i in range(n):
         rsp = FORCAST[i]
-        P[i] = rsp.P_injected """
+        P[i] = rsp.P_togrid """
 
     # process the requests 
     i = 0
     for req in requests:
-        fleet.process_request(req)
-        Pach[i] = sum(fleet.P_injected)
-        for j in range(fleet.num_of_devices):
-            SOC[i,j] = fleet.soc[j] # show that process_request function updates the SoC
+        Fleet.process_request(req)
+        Pach[i] = sum(Fleet.P_togrid)
+        for j in range(Fleet.num_of_devices):
+            SOC[i,j] = Fleet.soc[j] # show that process_request function updates the SoC
         #V[i] = Fleet.vbat
         i = i + 1
 
@@ -73,46 +73,63 @@ def fleet_test():
     plt.plot(t, V) """
     plt.show()
 
-def integration_test():
+
+def integration_test(Fleet):
 
     # Establish the test variables
     n = 24
-    dt = timedelta(hours=1)
-    SoC0 = 50
-    t = numpy.linspace(0, (n - 1), n)
+    del_t = timedelta(hours=1.0)
+    #dt = del_t.total_seconds()
+    SoC0 = copy.copy(numpy.mean(Fleet.soc))
+    #t = numpy.linspace(0, (n - 1), n)
     EffMatrix = numpy.zeros((n, n))
     ts = datetime.utcnow()
     print(n)
 
     for i in numpy.arange(0, n):
+        print(i)
+        if i == 1:
+            print(i)
         for j in numpy.arange(0, n):
             if i != j:
-                Fleet = BatteryInverterFleet('config_ERM.ini')
-                Fleet.soc = SoC0  # initialize SoC
+                #Fleet = BatteryInverterFleet('config_ERM.ini')
+                #Fleet.soc = SoC0  # initialize SoC
                 Power = numpy.zeros(n)  # initialize Power
-                Power[i] = Fleet.max_power_charge
-                Power[j] = Fleet.max_power_discharge
+                Power[i] = Fleet.max_power_charge*Fleet.num_of_devices
+                Power[j] = Fleet.max_power_discharge*Fleet.num_of_devices
                 # simulate the system with SoC0 and Power requests
+                requests = []
                 for T in numpy.arange(0, n):
-                    req = FleetRequest(ts,dt,Power[T],0.0)
-                    Fleet.process_request(req)
+                    req = FleetRequest(ts,del_t,Power[T],0.0)
+                    requests.append(req)
+                    
+                responses = Fleet.forecast(requests)
+
+                for T in numpy.arange(0, n):
+                    Power[T] = responses[T].P_togrid
                 
-                SoCFin = Fleet.soc  # get final SoC
-                [P2, Cost, Able] = Fleet.cost(SoCFin, SoC0, dt)  # retreeve how much power it would take to return to SoC0
+                SoCFin = responses[n-1].soc  # get final SoC
+                [P2, Cost, Able] = Fleet.cost(SoCFin, SoC0, del_t)  # retreeve how much power it would take to return to SoC0
+                
                 P2Charge = max(P2,0)
                 P2Discharge = min(P2,0)
-                EffMatrix[i, j] = -(Power[j] +P2Discharge)/ (
+                if (Power[i] + P2Charge) != 0:
+                    EffMatrix[i, j] = -(Power[j] +P2Discharge)/ (
                             Power[i] + P2Charge)  # calculate efficiency      DISCHARGE_ENERGY / CHARGE_ENERGY
-                if P2<0:
-                    print('err')
+                else:
+                    EffMatrix[i, j] = 0
                 if Able == 0:
                     EffMatrix[i, j] = 0
 
     print(EffMatrix)
+    with open('EffMatrix.csv', 'w') as csvfile:
+        writer = csv.writer(csvfile, delimiter=",")
+        writer.writerows(EffMatrix)           
 
 
 if __name__ == '__main__':
-    fleet_test()
-    #integration_test()
-
+    Fleet = BatteryInverterFleet('ERM')
+    fleet_test(Fleet)
+    Fleet.soc = 50.0*numpy.ones(Fleet.num_of_devices)
+    integration_test(Fleet)
 
