@@ -8,7 +8,7 @@ from fleet_response import FleetResponse
 
 class FleetInterface:
     """
-    This class is base class for all services
+    This class is base class for all fleets
     """
 
     def __init__(self, *args, **kwargs):
@@ -25,8 +25,9 @@ class FleetInterface:
         :return fleet_response: an instance of FleetResponse
         """
         fleet_response = FleetResponse()
-        fleet_response2 = FleetResponse()
-		
+        fleet_response.ts = fleet_request.ts_req
+        fleet_response.P_service = 0.8*fleet_request.P_req
+
         return fleet_response
 
     def forecast(self, fleet_requests):
