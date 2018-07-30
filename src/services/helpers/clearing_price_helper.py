@@ -1,6 +1,6 @@
 import pandas as pd
 
-class ExcelHelper(object):
+class ClearingPriceHelper(object):
 
     def read_clearing_prices(self, input_data_file_path, local_day, local_hour):
 
@@ -17,5 +17,5 @@ class ExcelHelper(object):
         return {"MCP": matching_row_series['MCP'], "REG_CCP": matching_row_series['REG_CCP'], "REG_PCP": matching_row_series['REG_PCP']}
 
     def _get_sheet_name(self, local_day):
-
-        return "August_2017"
+        timestamp = pd.Timestamp(local_day)
+        return timestamp.strftime("%B_%Y")

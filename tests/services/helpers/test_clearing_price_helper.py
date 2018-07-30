@@ -1,24 +1,28 @@
 import unittest
 import os
-from services.helpers.excel_helper import ExcelHelper
+from services.helpers.clearing_price_helper import ClearingPriceHelper
 
 
-class TestExcelHelper(unittest.TestCase):
+class TestClearingPriceHelper(unittest.TestCase):
 
     def setUp(self):
-        self.excel_helper = ExcelHelper()
+        self.clearing_price_helper = ClearingPriceHelper()
 
-    def test_read_from_sheet(self):
+    def test_read_clearing_price_from_sheet(self):
 
         local_day = "01-AUG-2017"
         local_hour = "00"
 
         input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "fixtures/files/historical-ancillary-service-data-2017.xls"))
 
-        actual_clearing_prices = self.excel_helper.read_clearing_prices(input_data_file_path, local_day, local_hour)
+        actual_clearing_prices = self.clearing_price_helper.read_clearing_prices(input_data_file_path, local_day, local_hour)
 
         #print("actual_clearing_prices: ", actual_clearing_prices)
 
         expected_clearing_prices = {"MCP": 9.870000000000001, "REG_CCP": 2.84, "REG_PCP": 7.03}
 
         self.assertEqual(actual_clearing_prices, expected_clearing_prices)
+
+    def test_historical_regulation_signal(self):
+
+        day = '2017-08-01'
