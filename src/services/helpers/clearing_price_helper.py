@@ -2,19 +2,20 @@ import pandas as pd
 
 class ClearingPriceHelper(object):
 
-    def read_clearing_prices(self, input_data_file_path, local_day, local_hour):
+    def read_and_store_clearing_prices(self, input_data_file_path, sheet_name):
 
-        sheet_name = self._get_sheet_name(local_day)
+        #sheet_name = self._get_sheet_name(local_day)
 
-        excel_data = pd.read_excel(input_data_file_path, sheet_name)
-        #print("excel_data.head(): ", excel_data.head())
-        #print("type(excel_data['LOCALDAY'][0])", type(excel_data['LOCALDAY'][0]))
-        #print("type(excel_data['LOCALHOUR'])", type(excel_data['LOCALHOUR']))
+        excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name)
+        regulated_prices_data_frame = excel_data[excel_data['SERVICE'] == "REG"]
+        regulated_prices_data_frame = regulated_prices_data_frame[['LOCALDAY', "LOCALHOUR", 'MCP', 'REG_CCP', 'REG_PCP']]
+        regulated_prices_data_frame['LOCAL_DAY_HOUR'] = regulated_prices_data_frame['LOCALDAY'] + " " + regulated_prices_data_frame['LOCALHOUR'].map(str) + ":00:00"
+        regulated_prices_data_frame['LOCAL_DAY_HOUR'] = regulated_prices_data_frame['LOCAL_DAY_HOUR'].apply(lambda x: pd.Timestamp(x))
+        regulated_prices_data_frame = regulated_prices_data_frame[['LOCAL_DAY_HOUR', 'MCP', 'REG_CCP', 'REG_PCP']]
+        regulated_prices_data_frame = regulated_prices_data_frame.set_index('LOCAL_DAY_HOUR')
+        regulated_prices_dictionary = regulated_prices_data_frame.T.to_dict('list')
 
-        matching_row_data_frame = excel_data[(excel_data['LOCALDAY'] == local_day) & (excel_data['LOCALHOUR'] == int(local_hour)) & (excel_data['SERVICE'] == "REG")]
-        matching_row_series = matching_row_data_frame.iloc[0]
-
-        return {"MCP": matching_row_series['MCP'], "REG_CCP": matching_row_series['REG_CCP'], "REG_PCP": matching_row_series['REG_PCP']}
+        return regulated_prices_dictionary
 
     def _get_sheet_name(self, local_day):
         timestamp = pd.Timestamp(local_day)
