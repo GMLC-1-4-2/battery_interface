@@ -7,3 +7,4 @@ pandas
 csv
 math
 copy
+inflection
