@@ -7,8 +7,8 @@ class FleetFactory(object):
         module_name = f"fleets.{fleet_name}.{fleet_name}"
         class_name = inflection.camelize(fleet_name)
 
-        print("module: ", module_name)
-        print("class_name: ", class_name)
+        #print("module: ", module_name)
+        #print("class_name: ", class_name)
 
         module = importlib.import_module(module_name)
         klass = getattr(module, class_name)

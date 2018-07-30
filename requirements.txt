@@ -8,3 +8,4 @@ csv
 math
 copy
 inflection
+xlrd
