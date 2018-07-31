@@ -23,7 +23,7 @@ class FleetRequest:
         self.Timestep = sim_step
 
         # Real power request
-        self.P_request = 0#p
+        self.P_request = p
 
         # Reactive power request
         self.Q_request = q

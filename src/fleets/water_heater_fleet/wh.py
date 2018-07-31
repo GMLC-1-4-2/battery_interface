@@ -2,51 +2,62 @@
 """
 Created on Tue Oct 24 08:38:56 2017
 super simple water heater model
-@author: chuck booten, jeff maguire, xin jin
+@author: Chuck Booten (NREL), Jeff Maguire (NREL), Xin Jin (NREL)
 """
 from WH_Response import WHResponse
-
+import math
+from math import pi
 
 class WaterHeater():
     def __init__(self, Tamb = 50, RHamb= 45, Tmains = 50, hot_draw = 0, control_signal = 'none', Capacity = 50, Type = 'ER', Location = 'Conditioned', service_calls_accepted = 0, max_service_calls = 100, time_step = 60, forecast_draw = 0):
         #Declare constants
-        self.Tdeadband = 1 #delta F
+        self.Tdeadband = 10 #delta F
         self.E_heat = 4.5 #kW
-        self.UA = 10 #W/K
-        self.Tmin = 105 # deg F
-        self.Tmax = 160 # deg F
+        self.UA = 10. #W/K
+        self.Tmin = 105. # deg F
+        self.Tmax = 160. # deg F
         self.Capacity = Capacity # gallons
         self.max_service_calls = int(max_service_calls)
 
-
-        
-    def execute(self,Ttank, Tset, Tamb, RHamb, Tmains, hot_draw, control_signal, Type, service_calls_accepted, Element_on, timestep, forecast_draw, IsForecast):
-        (response) = self.WH(Ttank, Tset,Tamb,Tmains,hot_draw, control_signal, Type, Element_on, service_calls_accepted, self.max_service_calls, timestep, forecast_draw, IsForecast)
+    def execute(self, Ttank, Tset, Tamb, RHamb, Tmains, hot_draw, control_signal, Type, service_calls_accepted, Element_on, timestep, forecast_draw, IsForecast):
+        (response) = self.WH(Ttank, Tset, Tamb, Tmains, hot_draw, control_signal, Type, Element_on, service_calls_accepted, self.max_service_calls, timestep, forecast_draw, IsForecast)
         
         return response #Ttank, Tset, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, Eservice, is_available_add, is_available_shed, ElementOn, Eused, PusedMax
         
-    def WH(self,Tlast, Tset, Tamb_ts,Tmains_ts,hot_draw_ts, control_signal_ts, Type, Element_on_ts, service_calls_accepted_ts, max_service_calls, timestep, forecast_draw, is_forecast):
+    def WH(self, Tlast, Tset, Tamb_ts, Tmains_ts, hot_draw_ts, control_signal_ts, Type, Element_on_ts, service_calls_accepted_ts, max_service_calls, timestep, forecast_draw, is_forecast):
 #############################################################################
+
+        
         response = () #initialize
         #        Baseline operation
-        Eloss_ts = self.UA*(Tlast-Tamb_ts)    
-        dT_from_hot_draw = (hot_draw_ts)/self.Capacity*(Tlast - Tmains_ts)# hot_draw is in gal for the timestep
-        dT_loss = Eloss_ts*timestep*60/(3.79*self.Capacity*4810) #3.79 kg/gal of water, 4810 is J/kgK heat capacity of water, timestep units are minutes
-        Edel_ts = hot_draw_ts * 4180 * 3.79 * (Tlast-Tmains_ts)
+        Eloss_ts = self.UA*(Tlast-float(Tamb_ts[0])) 
+        dT_from_hot_draw = (hot_draw_ts[0])/self.Capacity*(Tlast - float(Tmains_ts[0]))# hot_draw is in gal for the timestep
+        dT_loss = Eloss_ts*(timestep.seconds)/(3.79*self.Capacity*4810) #3.79 kg/gal of water, 4810 is J/kgK heat capacity of water, timestep units are minutes
+        Edel_ts = hot_draw_ts[0] * 4180 * 3.79 * (Tlast-float(Tmains_ts[0]))
         
         if Tlast < Tset - self.Tdeadband:
             Eused_baseline_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
-        elif Element_on_ts == 1 and Tlast < Tset + self.Tdeadband:
+            dT_power_input = (Eused_baseline_ts*timestep.seconds)/(3.79*self.Capacity*4810)
+            Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
+            if Ttank_ts > Tset:
+                Eused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep.seconds
+                Ttank_ts = Tset
+        elif Element_on_ts == 1 and Tlast < Tset:
             Eused_baseline_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
+            dT_power_input = (Eused_baseline_ts*timestep.seconds)/(3.79*self.Capacity*4810)
+            Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
+            if Ttank_ts > Tset:
+                Eused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep.seconds
+                Ttank_ts = Tset
         else:
             Eused_baseline_ts = 0
             Element_on_ts = 0
-            
+        
   ###########################################################################          
         #modify operation based on control signal 
-        if control_signal_ts  < 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+        if control_signal_ts < 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
             Eused_ts = 0 #make sure it stays off
             Element_on_ts = 0
             service_calls_accepted_ts += 1
@@ -76,8 +87,8 @@ class WaterHeater():
         #could change this at some point based on signals
         Tset_ts = Tset
         
-        dT_power_input = Eused_ts*timestep*60/(3.79*self.Capacity*4810)#timestep is in minutes so mult by 60 to get seconds
-        Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
+        dT_power_input = (Eused_ts*timestep.seconds)/(3.79*self.Capacity*4810)
+        Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw
     
 #        Calculate more parameters to be passed up
         SOC = (Ttank_ts - self.Tmin)/(self.Tmax - self.Tmin)
@@ -99,19 +110,10 @@ class WaterHeater():
             COP = 1
             
         Texpected = Tlast - dT_from_hot_draw - dT_loss
-        PusedMax_ts = (self.Tmax - Texpected)*(3.79*self.Capacity*4810)/COP/(60*timestep) # units: [W]  3.79 kg/gal of water, 4810 is J/kgK heat capacity of water
+        PusedMax_ts = (self.Tmax - Texpected)*(3.79*self.Capacity*4810)/COP/timestep.seconds # units: [W]  3.79 kg/gal of water, 4810 is J/kgK heat capacity of water
         
-        Available_Capacity_Add = (1-SOC)*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_add_ts/(timestep*60) #/timestep converts from Joules to Watts, 3.79 = kg/gal, 4180 heat cap of water J/kgK
-        Available_Capacity_Shed = SOC*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_shed_ts/(timestep*60) #/timestep*60 converts from Joules to Watts,
-        
- ###################################################################################### 
-        # if this is just a forecast, reset the tank to the conditions from the last step
-        if is_forecast == 1:
-            Ttank_ts = Tlast
-            SOC = (Ttank_ts - self.Tmin)/(self.Tmax - self.Tmin)
-            Available_Capacity_Add = (1-SOC)*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_add_ts/(timestep*60) #/timestep converts from Joules to Watts, 3.79 = kg/gal, 4180 heat cap of water J/kgK
-            Available_Capacity_Shed = SOC*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_shed_ts/(timestep*60) #/timestep*60 converts from Joules to Watts,
-            service_calls_accepted_ts = service_calls_accepted_ts - 1
+        Available_Capacity_Add = float((1-SOC)*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_add_ts/(timestep.seconds)) #/timestep converts from Joules to Watts, 3.79 = kg/gal, 4180 heat cap of water J/kgK
+        Available_Capacity_Shed = float(SOC*self.Capacity*3.79*4180*(self.Tmax - self.Tmin)*isAvailable_shed_ts/(timestep.seconds)) #/timestep*60 converts from Joules to Watts,
         
         response = WHResponse()
         
@@ -122,7 +124,7 @@ class WaterHeater():
         response.Eloss = Eloss_ts
         response.Edel = Edel_ts
         response.ElementOn = Element_on_ts
-        response.Eservice = Eservice_ts
+        response.Eservice = float(Eservice_ts)
         response.SOC = SOC
         response.AvailableCapacityAdd = Available_Capacity_Add
         response.AvailableCapacityShed = Available_Capacity_Shed

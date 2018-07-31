@@ -10,7 +10,7 @@ import os
 import random
 
 # this is the actual water heater model
-from wh_4 import WaterHeater
+from wh import WaterHeater
 
 from WHFleet_Response import WHFleetResponse
 
@@ -122,7 +122,6 @@ class WaterHeaterFleet():
         
     
     #    Initializing the water heater models
-        #TODO: Should this be Tamb[start_hr] etc?
         whs = [WaterHeater(Tamb[0], RHamb[0], Tmains[0], 0, ServiceRequest.P_request, Capacity[number], Type[number], Location[number], 0, MaxServiceCalls[number]) for number in range(self.numWH)]
         FleetResponse.P_service = 0
         FleetResponse.P_service_max = 0
@@ -130,8 +129,7 @@ class WaterHeaterFleet():
         FleetResponse.P_injected_max = 0
         FleetResponse.P_forecast = 0
 #        print(type(ServiceRequest.P_request))
-        P_request_perWH = ServiceRequest.P_request / self.numWH # this is only for the first step
-#        print(P_request_perWH)
+        P_request_perWH = ServiceRequest.P_request[0] / self.numWH # this is only for the first step
         
         FleetResponse.Q_injected = 0
         FleetResponse.Q_service = 0
@@ -152,7 +150,8 @@ class WaterHeaterFleet():
             servsum = 0
             NumDevicesToCall = 0
             laststep = step - 1
-    
+            P_request_perWH = ServiceRequest.P_request[step] / max(NumDevicesToCall,1)
+
 #            decision making about which WH to call on for service, check if available at last step, if so then 
 #            check for SoC > self.minSOC and Soc < self.maxSOC, whatever number that is, divide the total needed and ask for that for each
 #            decided to add max and min SoC limits just in case, they might not matter but wanted limits other than just whether a device was available 
@@ -169,9 +168,6 @@ class WaterHeaterFleet():
                         NumDevicesToCall += 1
                     elif P_request_perWH < 0 and FleetResponse.IsAvailableShed[n][laststep] > 0 and FleetResponse.SoC[n][laststep] > self.minSOC and FleetResponse.AvailableCapacityShed[n][laststep] > self.minCapacityShed:
                         NumDevicesToCall += 1          
-      
-            P_request_perWH = ServiceRequest.P_request / max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
-        
         
         
             for wh in whs: #loop through water heatesr
@@ -197,10 +193,10 @@ class WaterHeaterFleet():
                 FleetResponse.ServiceProvided[number][step] = response.Eservice
                 servsum += response.Eservice
                 #FleetResponse.TotalServiceProvidedPerWH[number] = TotalServiceProvidedPerWH[number] + ServiceProvided[number][step]
-                Eloss += response.Eloss[0]
-                Edel += response.Edel[0]
+                Eloss += response.Eloss
+                Edel += response.Edel
                 FleetResponse.P_injected += response.Eused
-                FleetResponse.P_injected_max += response.PusedMax[0]
+                FleetResponse.P_injected_max += response.PusedMax
                 number += 1
 
                 
@@ -244,6 +240,7 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
             break
     start_hr = (start_day-1) * 24. + start_hour
     
+    timestep_min = timestep_min.seconds / 60.
     num_steps_per_hr = int(np.ceil((60./float(timestep_min))))# how many hourly steps do you need to take if timestep is in minutes
     num_hrs = int(np.ceil(float(num_steps) / float(num_steps_per_hr)))
     num_mins = int(np.ceil(float(num_steps) * float(timestep_min )))
