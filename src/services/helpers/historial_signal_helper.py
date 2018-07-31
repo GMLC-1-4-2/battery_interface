@@ -18,8 +18,15 @@ class HistoricalSignalHelper(object):
         beginning_of_the_day = pd.Timestamp(f"{start_time.year}-{start_time.month}-{start_time.day}")
         series_for_day = self._signals[beginning_of_the_day]
         series_in_range = series_for_day[datetime.time(start_time.hour, start_time.minute, start_time.second):datetime.time(end_time.hour, end_time.minute, end_time.second)]
-        return series_in_range.values
+        series_in_range_with_datetime_index = self._convert_index_to_datetime(series_in_range, start_time)
+        return series_in_range_with_datetime_index.to_dict()
 
     @property
     def signals(self):
         return self._signals
+
+    def _convert_index_to_datetime(self, series, start_time):
+        index_list = series.index.tolist()
+        datetime_index_list = [datetime.datetime.combine(start_time, index) for index in index_list]
+        series.index = datetime_index_list
+        return series

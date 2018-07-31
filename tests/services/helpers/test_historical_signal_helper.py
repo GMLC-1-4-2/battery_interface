@@ -2,6 +2,7 @@ import unittest
 import os
 from dateutil import parser
 import numpy as np
+import datetime
 from services.helpers.historial_signal_helper import HistoricalSignalHelper
 
 class TestHistoricalSignalHelper(unittest.TestCase):
@@ -25,7 +26,14 @@ class TestHistoricalSignalHelper(unittest.TestCase):
         # expected_signals = np.array(['-0.49734288814011735', '-0.4978015549937998',
         #                              '-0.498587711999932', '-0.49966560301435453',
         #                              '-0.48042063823334713', '-0.4735139582609288'])
-        expected_signals = np.array([-0.497343, -0.497802, -0.498588, -0.499666, -0.480421, -0.473514])
+        #expected_signals = np.array([-0.497343, -0.497802, -0.498588, -0.499666, -0.480421, -0.473514])
+        expected_signals = {datetime.datetime(2017, 8, 2, 0, 0): -0.49734288814011735,
+                            datetime.datetime(2017, 8, 2, 0, 0, 2): -0.4978015549937998,
+                            datetime.datetime(2017, 8, 2, 0, 0, 4): -0.498587711999932,
+                            datetime.datetime(2017, 8, 2, 0, 0, 6): -0.49966560301435453,
+                            datetime.datetime(2017, 8, 2, 0, 0, 8): -0.48042063823334713,
+                            datetime.datetime(2017, 8, 2, 0, 0, 10): -0.4735139582609288}
 
         #np.testing.assert_array_equal(actual_signals, expected_signals)
-        np.testing.assert_allclose(actual_signals, expected_signals, rtol = 1e-6, atol = 0)
+        #np.testing.assert_allclose(actual_signals, expected_signals, rtol = 1e-6, atol = 0)
+        self.assertEqual(actual_signals, expected_signals)
