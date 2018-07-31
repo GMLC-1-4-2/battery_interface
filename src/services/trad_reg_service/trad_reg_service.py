@@ -22,8 +22,10 @@ from fleet_response import FleetResponse
 from fleet_config import FleetConfig
 
 # from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
-from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+#from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
+from battery_inverter_fleet import BatteryInverterFleet
+from grid_info import GridInfo
 
 class TradRegService():
     """
@@ -34,10 +36,12 @@ class TradRegService():
         self.sim_time_step = timedelta(hours=1)
 
         #self.fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-        self.fleet = FleetInterface() #temporary for the purpose of getting dummy response
+        self.fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+        self.grid = GridInfo('Grid_Info_DATA_2.csv')
+        
 
 
-    def request_loop(self, filename='08 2017.csv'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
+    def request_loop(self, filename = '08 2017.csv'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
 
         start_time = parser.parse("2017-08-01 16:00:00")
         end_time = parser.parse("2017-08-01 21:00:00")
@@ -52,14 +56,15 @@ class TradRegService():
             ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
             if start_time <= ts < end_time:
                 sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
-                p = row[1][1]  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
+                p = row[1][1]*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
 
                 request, response = self.request(ts, sim_step, p)
                 requests.append(request)
                 responses.append(response)
 
-        print(requests)
-        print(responses)
+        #print(requests)
+        #print(responses)
+
 
         # # Store the responses in a text file.
         # with open('results.txt', 'w') as the_file:
@@ -96,20 +101,40 @@ class TradRegService():
             hourly_results[cur_time]['reg_clr_pr_credit'] = self.Reg_clr_pr_credit(hourly_results[cur_time]['RMCP'], hourly_results[cur_time]['perf_score'][0], hourly_results[cur_time]['hr_int_MW'])
 
             # Move to the next hour.
-            cur_time += one_hour
+            cur_time += one_hour 
+        
+
+        # Plot request and response signals and state of charge (SoC).
+        P_request = [r.P_req for r in requests]
+        P_responce = [r.P_service for r in responses]
+        SOC = [r.soc for r in responses]
+        n = len(P_request)
+        t = np.asarray(range(n))*(2/3600)
+        plt.figure(1)
+        plt.subplot(211)
+        plt.plot(t, P_request, label='P Request')
+        plt.plot(t, P_responce, label='P Responce')
+        plt.ylabel('Power (kW)')
+        plt.legend(loc='upper right')
+        plt.subplot(212)
+        plt.plot(t, SOC, label='SoC')
+        plt.ylabel('SoC (%)')
+        plt.xlabel('Time (hours)')
+        plt.legend(loc='lower right')
+        plt.show()
 
         return hourly_results
 
 
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
-        fleet_response = self.fleet.process_request(fleet_request)
-
+        fleet_response = self.fleet.process_request(fleet_request,self.grid)
+        #print(fleet_response.P_service)
         return fleet_request, fleet_response
 
 
     # Score the performance of device fleets (based on PJM Manual 12).
-    # Take 65 min worth of 2s data (should contain 1,950 data values).
+    # Take 65 min worth of 10s data (should contain 1,950 data values).
     def perf_score (self, request_array, response_array):
         max_corr_array = []
         max_index_array = []
@@ -129,17 +154,22 @@ class TradRegService():
 
             # If the regulation signal is nearly constant, then correlation score is calculated as:
             # 1 - absoluate of difference btw slope of request and response signals (determined by linear regression).
-            std_dev = np.std(x)
-            if std_dev < 0.001: #need to vet the threshold later, not specified in PJM manual.
+            std_dev_x = np.std(x)
+            std_dev_y = np.std(y)
+            if std_dev_x < 0.01: # need to vet the threshold later, not specified in PJM manual.
                 axis = np.array(np.arange(30.))
                 coeff_x = np.polyfit(axis, x, 1) # linear regression when degree = 1.
                 coeff_y = np.polyfit(axis, y, 1)
                 slope_x = coeff_x[0]
                 slope_y = coeff_y[0]
-                corr_score_val = 1 - abs(slope_x - slope_y) # from PJM manual 12.
+                corr_score_val = max(0, 1 - abs(slope_x - slope_y)) # from PJM manual 12.
                 max_index_array = np.append(max_index_array, 0)
                 max_corr_array = np.append(max_corr_array, corr_score_val) # r cannot be calc'd for constant values in one or both arrays.
-
+            # when request signal varies but response signal is constant, correlation and delay scores will be zero.
+            elif std_dev_y < 0.00001:
+                corr_score_val = 0
+                max_index_array = np.append(max_index_array, 30)
+                max_corr_array = np.append(max_corr_array, corr_score_val)
             else:
                 # Calculate correlation btw the 5-min input signal and thirty 5-min response signals,
                 # each is delayed at an additional 10s than the previous one; store results.
@@ -166,19 +196,20 @@ class TradRegService():
                 # Find the maximum score in the 5-min; store it.
                 max_corr_array = np.append(max_corr_array, corr_score[max_index])  # this is the correlation score array
 
-                # Calculate the coincident delay score associated with max correlation in each 5min period.
-                delay_score = np.absolute((10 * max_index_array - 5 * 60) / (5 * 60))  # array
+            # Calculate the coincident delay score associated with max correlation in each 5min period.
+            delay_score = np.absolute((10 * max_index_array - 5 * 60) / (5 * 60))  # array
 
-                # Calculate error at 10s intervals and store in an array.
-                error = np.absolute(y - x) / (np.absolute(x).mean())
-                # Calculate 5-min average Precision Score as the average error.
-                prec_score = 1 - 1 / 30 * error.sum()
-                prec_score_array = np.append(prec_score_array, prec_score)
+            # Calculate error at 10s intervals and store in an array.
+            error = np.absolute(y - x) / (np.absolute(x).mean())
+            # Calculate 5-min average Precision Score as the average error.
+            prec_score = max(0, 1 - 1 / 30 * error.sum())
+            prec_score_array = np.append(prec_score_array, prec_score)
 
-            #     # for debug use
-            #     print('delay_score:', delay_score)
-            #     print('max_index_array:', max_index_array)
-            #     print('max_corr_array:', max_corr_array)
+        # for debug use
+        print('delay_score:', delay_score)
+        print('max_index_array:', max_index_array)
+        print('max_corr_array:', max_corr_array)
+        print('prec_score_array:', prec_score_array)
 
         # calculate average "delay", "correlation" and "precision" scores for the hour.
         Delay_score = delay_score.mean()
@@ -191,7 +222,7 @@ class TradRegService():
         #     plt.show()
 
         # Calculate the hourly overall Performance Score.
-        Perf_score = (Delay_score + Corr_score + Prec_score) / 3
+        Perf_score = (Delay_score + Corr_score + Prec_score)/3
 
         # # Plotting and Printing results
         # x_axis_sig = np.arange(request_array[0:360].size)
@@ -223,14 +254,8 @@ class TradRegService():
     # based on PJM Manual 28 (need to verify definition, not found in manual).
     def Hr_int_reg_MW (self, input_sig):
         # Take one hour of 2s RegA data
-        RegA_array = input_sig[1:1800]
-        #     print(RegA_array)
-        #     x_axis = np.arange(RegA_array.size)
-        #     plt.plot(x_axis, RegA_array,"b")
-        #     plt.show()
-        Hourly_Int_Reg_MW = np.absolute(RegA_array).sum() * 2 / 3600
-        print(Hourly_Int_Reg_MW)
-
+        Hourly_Int_Reg_MW = np.absolute(input_sig).sum() * 2 / 3600
+        # print(Hourly_Int_Reg_MW)
         return Hourly_Int_Reg_MW
 
 
@@ -280,9 +305,9 @@ class TradRegService():
             Reg_RMPCP_Credit = reg_MW * pf_score * mi_ratio * RMPCP
         Reg_Clr_Pr_Credit = Reg_RMCCP_Credit + Reg_RMPCP_Credit
 
-        print("Reg_Clr_Pr_Credit:", Reg_Clr_Pr_Credit)
-        print("Reg_RMCCP_Credit:", Reg_RMCCP_Credit)
-        print("Reg_RMPCP_Credit:", Reg_RMPCP_Credit)
+        # print("Reg_Clr_Pr_Credit:", Reg_Clr_Pr_Credit)
+        # print("Reg_RMCCP_Credit:", Reg_RMCCP_Credit)
+        # print("Reg_RMPCP_Credit:", Reg_RMPCP_Credit)
 
         # "Lost opportunity cost credit" (for energy sources providing regulation) is not considered,
         # because it does not represent economic value of the provided service.
@@ -306,6 +331,7 @@ if __name__ == '__main__':
     # Test request_loop()
     fleet_response = service.request_loop()
     print(fleet_response)
+    
     
 
 
