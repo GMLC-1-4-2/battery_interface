@@ -1,6 +1,6 @@
 import unittest
 import os
-import pandas as pd
+from dateutil import parser
 from services.helpers.clearing_price_helper import ClearingPriceHelper
 
 class TestClearingPriceHelper(unittest.TestCase):
@@ -21,6 +21,6 @@ class TestClearingPriceHelper(unittest.TestCase):
         #print("actual_clearing_prices: ", actual_clearing_prices)
 
         #expected_clearing_prices = {"MCP": 9.870000000000001, "REG_CCP": 2.84, "REG_PCP": 7.03}
-        expected_clearing_price_for_first_hour = [9.870000000000001, 2.84, 7.03]
+        expected_clearing_price_for_first_hour = (9.870000000000001, 2.84, 7.03)
 
-        self.assertEqual(actual_clearing_prices[pd.Timestamp('2017-08-01 00:00:00')], expected_clearing_price_for_first_hour)
+        self.assertEqual(actual_clearing_prices[parser.parse('2017-08-01 00:00:00')], expected_clearing_price_for_first_hour)

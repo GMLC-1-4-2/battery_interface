@@ -1,4 +1,5 @@
 import pandas as pd
+from dateutil import parser
 
 class ClearingPriceHelper(object):
 
@@ -10,10 +11,10 @@ class ClearingPriceHelper(object):
         regulated_prices_data_frame = excel_data[excel_data['SERVICE'] == "REG"]
         regulated_prices_data_frame = regulated_prices_data_frame[['LOCALDAY', "LOCALHOUR", 'MCP', 'REG_CCP', 'REG_PCP']]
         regulated_prices_data_frame['LOCAL_DAY_HOUR'] = regulated_prices_data_frame['LOCALDAY'] + " " + regulated_prices_data_frame['LOCALHOUR'].map(str) + ":00:00"
-        regulated_prices_data_frame['LOCAL_DAY_HOUR'] = regulated_prices_data_frame['LOCAL_DAY_HOUR'].apply(lambda x: pd.Timestamp(x))
+        regulated_prices_data_frame['LOCAL_DAY_HOUR'] = regulated_prices_data_frame['LOCAL_DAY_HOUR'].apply(lambda x: parser.parse(x))
         regulated_prices_data_frame = regulated_prices_data_frame[['LOCAL_DAY_HOUR', 'MCP', 'REG_CCP', 'REG_PCP']]
         regulated_prices_data_frame = regulated_prices_data_frame.set_index('LOCAL_DAY_HOUR')
-        regulated_prices_dictionary = regulated_prices_data_frame.T.to_dict('list')
+        regulated_prices_dictionary = regulated_prices_data_frame.T.apply(tuple).to_dict()
 
         return regulated_prices_dictionary
 
