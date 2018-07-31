@@ -16,7 +16,8 @@ class TestClearingPriceHelper(unittest.TestCase):
 
         input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "fixtures/files/historical-ancillary-service-data-2017.xls"))
 
-        actual_clearing_prices = self.clearing_price_helper.read_and_store_clearing_prices(input_data_file_path, sheet_name)
+        self.clearing_price_helper.read_and_store_clearing_prices(input_data_file_path, sheet_name)
+        actual_clearing_prices = self.clearing_price_helper.clearing_prices
 
         #print("actual_clearing_prices: ", actual_clearing_prices)
 

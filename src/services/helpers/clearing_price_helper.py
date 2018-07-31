@@ -15,8 +15,11 @@ class ClearingPriceHelper(object):
         regulated_prices_data_frame = regulated_prices_data_frame[['LOCAL_DAY_HOUR', 'MCP', 'REG_CCP', 'REG_PCP']]
         regulated_prices_data_frame = regulated_prices_data_frame.set_index('LOCAL_DAY_HOUR')
         regulated_prices_dictionary = regulated_prices_data_frame.T.apply(tuple).to_dict()
+        self._clearing_prices = regulated_prices_dictionary
 
-        return regulated_prices_dictionary
+    @property
+    def clearing_prices(self):
+        return self._clearing_prices
 
     def _get_sheet_name(self, local_day):
         timestamp = pd.Timestamp(local_day)
