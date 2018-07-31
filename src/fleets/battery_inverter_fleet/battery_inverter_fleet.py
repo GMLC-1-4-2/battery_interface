@@ -15,8 +15,8 @@ import math
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-
 from grid_info import GridInfo
+
 
 class BatteryInverterFleet(FleetInterface):
     """
@@ -57,6 +57,7 @@ class BatteryInverterFleet(FleetInterface):
             Location_list = self.config.get(config_header, 'Locations', fallback=0)
             list_hold = Location_list.split(',')
             self.location = [int(e) for e in list_hold]
+
             # system states
             self.t = float(self.config.get(config_header, 't', fallback=10))
             self.soc = float(self.config.get(config_header, 'soc', fallback=10))
@@ -70,6 +71,7 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=10))
             self.P_req =float( self.config.get(config_header, 'P_req', fallback=10))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=10))
+
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
@@ -87,8 +89,10 @@ class BatteryInverterFleet(FleetInterface):
                         self.soc[i] = self.max_soc
                     if self.soc[i] < self.min_soc:
                         self.soc[i] = self.min_soc
+
             self.P_service = numpy.repeat(self.P_service,self.num_of_devices)
             self.Q_service = numpy.repeat(self.Q_service,self.num_of_devices)
+
         elif self.model_type == "CRM":
             self.energy_capacity = float(self.config.get(config_header, 'EnergyCapacity', fallback=10))
             # inverter parameters
@@ -152,9 +156,11 @@ class BatteryInverterFleet(FleetInterface):
             self.c2 = float(self.config.get(config_header, 'C2', fallback=0))
             # fleet parameters
             self.num_of_devices = int(self.config.get(config_header, 'NumberOfDevices', fallback=10))
+
             Location_list = self.config.get(config_header, 'Locations', fallback=0)
             list_hold = Location_list.split(',')
             self.location = [int(e) for e in list_hold]
+
             # battery system states
             self.t = float(self.config.get(config_header, 't', fallback=0))
             self.soc = float(self.config.get(config_header, 'soc', fallback=50))
@@ -174,11 +180,13 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=1))
             self.P_req = float(self.config.get(config_header, 'P_req', fallback=0))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=0))
+
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.es = float(self.config.get(config_header, 'es', fallback=5.3))
+
             self.fleet_model_type = self.config.get(config_header, 'FleetModelType', fallback='Uniform')
             if self.fleet_model_type == 'Uniform':
                 self.soc = numpy.repeat(self.soc,self.num_of_devices)
@@ -198,6 +206,7 @@ class BatteryInverterFleet(FleetInterface):
             self.pdc = numpy.repeat(self.pdc,self.num_of_devices)
             self.maxp = numpy.repeat(self.maxp,self.num_of_devices)
             self.minp = numpy.repeat(self.minp,self.num_of_devices)
+
             self.P_service = numpy.repeat(self.P_service,self.num_of_devices)
             self.Q_service = numpy.repeat(self.Q_service,self.num_of_devices)
         else: 
@@ -235,12 +244,15 @@ class BatteryInverterFleet(FleetInterface):
         :param fleet_request: an instance of FleetRequest
         :return res: an instance of FleetResponse
         """
+
         ts = fleet_request.ts_req
+
         dt = fleet_request.sim_step
         p_req = fleet_request.P_req
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
+
         fleet_response = self.run(Grid, p_req, q_req,ts, dt)
 
         return fleet_response
@@ -357,6 +369,7 @@ class BatteryInverterFleet(FleetInterface):
 
         p_tot = sum(self.P_service)
         q_tot = sum(self.Q_service)    
+
         # update SoC
         self.soc = soc_update
         if self.model_type == 'CRM':
@@ -677,4 +690,3 @@ class BatteryInverterFleet(FleetInterface):
         # change config
 
         pass
-

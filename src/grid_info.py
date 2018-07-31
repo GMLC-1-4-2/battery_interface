@@ -12,11 +12,21 @@ class GridInfo:
     """
 
     def __init__(self, *args, **kwargs):
-        self.voltage = 1.0
-        self.frequency = 60.0
+        self.__voltage = 1.0  # Private. Use get_voltage to get the value
+        self.__frequency = 60.0  # Private. Use get_frequency to get the frequency
 
     def get_voltage(self, location):
-        return self.voltage
+        """
+        To be changed later
+        :param location:
+        :return:
+        """
+        return self.__voltage
 
     def get_frequency(self, location):
-        return self.frequency
+        """
+        To be changed later
+        :param location:
+        :return:
+        """
+        return self.__frequency

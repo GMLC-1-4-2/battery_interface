@@ -1,17 +1,23 @@
-from datetime import datetime, timedelta
-import numpy
-#import sys
-#from os.path import dirname, abspath
-#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
+import sys
+from os.path import dirname, abspath
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
+
 
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 from battery_inverter_fleet import BatteryInverterFleet
 from grid_info import GridInfo
+
 import matplotlib.pyplot as plt
 import scipy.io as spio
 import csv
 import copy
+import numpy
+
+from fleet_request import FleetRequest
+from fleet_response import FleetResponse
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+
 
 def fleet_test(Fleet,Grid):
     
@@ -60,6 +66,7 @@ def fleet_test(Fleet,Grid):
             print(str(100*i/n) + ' %') """
         if numpy.mod(i,10000) == 0:
             print(str(100*i/n) + ' %')
+
         for j in range(Fleet.num_of_devices):
             SOC[i,j] = Fleet.soc[j] # show that process_request function updates the SoC
         #V[i] = Fleet.vbat
@@ -91,6 +98,7 @@ def fleet_test(Fleet,Grid):
     plt.ylabel('Voltage (V)')
     plt.legend(loc='lower right')
     plt.show()
+
 
 def integration_test(Fleet):
     # Establish the test variables
@@ -154,4 +162,3 @@ if __name__ == '__main__':
     fleet_test(Fleet,Grid)
     #Fleet.soc = 50.0*numpy.ones(Fleet.num_of_devices)
     #integration_test(Fleet)
-
