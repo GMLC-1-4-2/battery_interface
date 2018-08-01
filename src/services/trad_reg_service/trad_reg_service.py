@@ -56,7 +56,8 @@ class TradRegService():
             ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
             if start_time <= ts < end_time:
                 sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
-                p = row[1][1]*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
+                # Code below which determines "Assigned Regulation (MW)" (AReg) needs to be generalized for all device fleets rather than just for battery.
+                p = row[1][1]*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4  ###
 
                 request, response = self.request(ts, sim_step, p)
                 requests.append(request)
