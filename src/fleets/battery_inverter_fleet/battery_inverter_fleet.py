@@ -15,6 +15,7 @@ import math
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
+from grid_info import GridInfo
 
 
 class BatteryInverterFleet(FleetInterface):
@@ -52,7 +53,11 @@ class BatteryInverterFleet(FleetInterface):
             self.self_discharge_power = float(self.config.get(config_header, 'SelfDischargePower', fallback=0))
             self.max_ramp_up = float(self.config.get(config_header, 'MaxRampUp', fallback=10))
             self.max_ramp_down = float(self.config.get(config_header, 'MaxRampDown', fallback=10))
-            self.num_of_devices = int(self.config.get(config_header, 'NumberOfDevices', fallback=10))
+            self.num_of_devices = int(self.config.get(config_header, 'NumberOfDevices', fallback=1))
+            Location_list = self.config.get(config_header, 'Locations', fallback=0)
+            list_hold = Location_list.split(',')
+            self.location = [int(e) for e in list_hold]
+
             # system states
             self.t = float(self.config.get(config_header, 't', fallback=10))
             self.soc = float(self.config.get(config_header, 'soc', fallback=10))
@@ -66,8 +71,9 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=10))
             self.P_req =float( self.config.get(config_header, 'P_req', fallback=10))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=10))
-            self.P_togrid = float(self.config.get(config_header, 'P_togrid', fallback=0))
-            self.Q_togrid = float(self.config.get(config_header, 'Q_togrid', fallback=0))
+
+            self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
+            self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.es = float(self.config.get(config_header, 'es', fallback=10))
@@ -83,8 +89,10 @@ class BatteryInverterFleet(FleetInterface):
                         self.soc[i] = self.max_soc
                     if self.soc[i] < self.min_soc:
                         self.soc[i] = self.min_soc
-            self.P_togrid = numpy.repeat(self.P_togrid,self.num_of_devices)
-            self.Q_togrid = numpy.repeat(self.Q_togrid,self.num_of_devices)
+
+            self.P_service = numpy.repeat(self.P_service,self.num_of_devices)
+            self.Q_service = numpy.repeat(self.Q_service,self.num_of_devices)
+
         elif self.model_type == "CRM":
             self.energy_capacity = float(self.config.get(config_header, 'EnergyCapacity', fallback=10))
             # inverter parameters
@@ -148,6 +156,11 @@ class BatteryInverterFleet(FleetInterface):
             self.c2 = float(self.config.get(config_header, 'C2', fallback=0))
             # fleet parameters
             self.num_of_devices = int(self.config.get(config_header, 'NumberOfDevices', fallback=10))
+
+            Location_list = self.config.get(config_header, 'Locations', fallback=0)
+            list_hold = Location_list.split(',')
+            self.location = [int(e) for e in list_hold]
+
             # battery system states
             self.t = float(self.config.get(config_header, 't', fallback=0))
             self.soc = float(self.config.get(config_header, 'soc', fallback=50))
@@ -167,12 +180,13 @@ class BatteryInverterFleet(FleetInterface):
             self.deff = float(self.config.get(config_header, 'deff', fallback=1))
             self.P_req = float(self.config.get(config_header, 'P_req', fallback=0))
             self.Q_req = float(self.config.get(config_header, 'Q_req', fallback=0))
-            self.P_togrid = float(self.config.get(config_header, 'P_togrid', fallback=0))
-            self.Q_togrid = float(self.config.get(config_header, 'Q_togrid', fallback=0))
+
+            self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
+            self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.P_service = float(self.config.get(config_header, 'P_service', fallback=0))
             self.Q_service = float(self.config.get(config_header, 'Q_service', fallback=0))
             self.es = float(self.config.get(config_header, 'es', fallback=5.3))
-            
+
             self.fleet_model_type = self.config.get(config_header, 'FleetModelType', fallback='Uniform')
             if self.fleet_model_type == 'Uniform':
                 self.soc = numpy.repeat(self.soc,self.num_of_devices)
@@ -192,39 +206,116 @@ class BatteryInverterFleet(FleetInterface):
             self.pdc = numpy.repeat(self.pdc,self.num_of_devices)
             self.maxp = numpy.repeat(self.maxp,self.num_of_devices)
             self.minp = numpy.repeat(self.minp,self.num_of_devices)
-            self.P_togrid = numpy.repeat(self.P_togrid,self.num_of_devices)
-            self.Q_togrid = numpy.repeat(self.Q_togrid,self.num_of_devices)
+
+            self.P_service = numpy.repeat(self.P_service,self.num_of_devices)
+            self.Q_service = numpy.repeat(self.Q_service,self.num_of_devices)
         else: 
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
+        
+        # autonomous operation
+        self.FW21_Enabled = self.config.get('FW', 'FW21_Enabled', fallback='FALSE')
+        self.VV11_Enabled = self.config.get('VV', 'VV11_Enabled', fallback='FALSE')
+        if self.FW21_Enabled == 'TRUE':
+            GFreq_list = self.config.get('FW', 'GFreq', fallback=0.005)
+            GP_list = self.config.get('FW', 'GP', fallback=0.005)
+            CFreq_list = self.config.get('FW', 'CFreq', fallback=0.005)
+            CP_list = self.config.get('FW', 'CP', fallback=0.005)
+            list_hold = GFreq_list.split(',')
+            self.GFreq = [float(e) for e in list_hold]
+            list_hold = GP_list.split(',')
+            self.GP = [float(e) for e in list_hold]
+            list_hold = CFreq_list.split(',')
+            self.CFreq = [float(e) for e in list_hold]
+            list_hold = CP_list.split(',')
+            self.CP = [float(e) for e in list_hold]
+        if self.VV11_Enabled == 'TRUE':
+            Vset_list = self.config.get('VV', 'Vset', fallback=0.005)
+            Qset_list = self.config.get('VV', 'Qset', fallback=0.005)
+            list_hold = Vset_list.split(',')
+            self.Vset = [float(e) for e in list_hold]
+            list_hold = Qset_list.split(',')
+            self.Qset = [float(e) for e in list_hold]
 
-    def process_request(self, fleet_request):
+    def process_request(self, fleet_request, Grid):
         """
         The expectation that configuration will have at least the following
         items
-
         :param fleet_request: an instance of FleetRequest
-
         :return res: an instance of FleetResponse
         """
+
+        ts = fleet_request.ts_req
+
         dt = fleet_request.sim_step
         p_req = fleet_request.P_req
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        fleet_response = self.run(p_req, q_req, dt)
+
+        fleet_response = self.run(Grid, p_req, q_req,ts, dt)
 
         return fleet_response
 
-    def run(self, P_req=[0], Q_req=[0], del_t=timedelta(hours=1)):
+    def frequency_watt(self, Grid, p_req = 0,ts=datetime.utcnow(),location=0):
+        f = Grid.get_frequency(ts,location)
+        n = len(self.GFreq)
+        k = len(self.CFreq)
+        pmin = self.GP[0]
+        pmax = self.CP[0]
+        p_mod = copy.copy(p_req)
+        for i in range(n-1):
+            if f>self.GFreq[i] and f<self.GFreq[i+1] :
+                m =  (self.GP[i] - self.GP[i+1]) / (self.GFreq[i] - self.GFreq[i+1]) 
+                pmin = self.GP[i] + m * (f - self.GFreq[i])
+        if f>self.GFreq[n-1]:
+            pmin = self.GP[n-1]
+        for i in range(k-1):
+            if f>self.CFreq[i] and f<self.CFreq[i+1] :
+                m =  (self.CP[i] - self.CP[i+1]) / (self.CFreq[i] - self.CFreq[i+1]) 
+                pmax = self.CP[i] + m * (f - self.CFreq[i]) 
+        if f>self.CFreq[k-1]:   
+            pmax = self.CP[k-1]
+        if p_req>pmax  :
+            p_mod=pmax
+        if p_req<pmin  :
+            p_mod=pmin   
+        return p_mod
+
+    def volt_var(self, Grid, ts=datetime.utcnow(),location=0):
+        v = Grid.get_voltage(ts,location)
+        n = len(self.Vset)
+        q_req = self.Qset[0]
+        for i in range(n-1):
+            if v>self.Vset[i] and v<self.Vset[i+1] :
+                m =  (self.Qset[i] - self.Qset[i+1]) / (self.Vset[i] - self.Vset[i+1]) 
+                q_req = self.Qset[i] + m * (v - self.Vset[i])
+        return q_req
+
+    def run(self, Grid, P_req=[0], Q_req=[0],ts=datetime.utcnow(), del_t=timedelta(hours=1)):
         np = numpy.ones(self.num_of_devices,int)
         nq = numpy.ones(self.num_of_devices,int)
-        p_req = P_req/self.num_of_devices
-        q_req = Q_req/self.num_of_devices
-        p_tot = 0
-        q_tot = 0
+        p_none = 0
+        q_none = 0
+        if P_req==None:
+            P_req = 0
+            p_req = 0
+            p_none = 1
+        else:
+            p_req = P_req/self.num_of_devices
+        if Q_req==None:
+            Q_req = 0
+            q_req = 0
+            q_none = 1
+        else:
+            q_req = Q_req/self.num_of_devices
+        p_tot = 0.0
+        q_tot = 0.0
         dt = del_t.total_seconds() / 3600.0 
         self.t = self.t + dt
+
+        p_FW = numpy.zeros(self.num_of_devices,float)
+        q_VV = numpy.zeros(self.num_of_devices,float)
         
         response = FleetResponse()
 
@@ -239,138 +330,46 @@ class BatteryInverterFleet(FleetInterface):
             vbat_update = self.vbat
 
         for i in range(self.num_of_devices):
-            last_P[i] = self.P_togrid[i]
-            last_Q[i] = self.Q_togrid[i]
-            self.P_togrid[i] = 0
-            self.Q_togrid[i] = 0
-        TOL = 0.000001  # tolerance
-        while ((p_tot < P_req-TOL or p_tot > P_req+TOL) or (q_tot < Q_req-TOL or q_tot > Q_req+TOL)) and sum(np)!=0 and sum(nq)!=0: #continue looping through devices until the power needs are met or all devices are at their limits
+            last_P[i] = self.P_service[i]
+            last_Q[i] = self.Q_service[i]
+            self.P_service[i] = 0
+            self.Q_service[i] = 0
+        TOL = 0.000001  # tolerance 
+        one_pass = 1 #guarantees at least one pass through the control loop
+        while ((p_tot < P_req-TOL or p_tot > P_req+TOL) or (q_tot < Q_req-TOL or q_tot > Q_req+TOL)) and sum(np)!=0 and sum(nq)!=0 or one_pass == 1: #continue looping through devices until the power needs are met or all devices are at their limits
+            one_pass = 0
             # distribute the requested power equally among the devices that are not at their limits
             p_req = (P_req - p_tot)/sum(np)
-            q_req = (Q_req - q_tot)/sum(nq)
+            q_req = (Q_req - q_tot)/sum(nq) 
             for i in range(self.num_of_devices):
-                if np[i] == 1 or nq[i] == 1:
-
-                    #  Max ramp rate and apparent power limit checking
-                    if np[i] == 1 :
-                        p_ach = self.P_togrid[i] + p_req
-                        if (p_ach-last_P[i]) > self.max_ramp_up:
-                            p_ach = self.max_ramp_up + last_P[i]
-                            np[i] = 0
-                        elif (p_ach-last_P[i]) < self.max_ramp_down:
-                            p_ach = self.max_ramp_down + last_P[i]
-                            np[i] = 0
-                            
-                        if p_ach < self.max_power_discharge:
-                            p_ach  = self.max_power_discharge
-                            np[i] = 0
-                        if p_ach > self.max_power_charge:
-                            p_ach = self.max_power_charge
-                            np[i] = 0
-                    else:
-                        p_ach = self.P_togrid[i] 
-
-                    if nq[i] == 1:
-                        q_ach = self.Q_togrid[i] + q_req
-                        if (q_ach-last_Q[i]) > self.max_ramp_up:
-                            q_ach = self.max_ramp_up + last_Q[i]
-                            nq[i] = 0
-                        elif (q_ach-last_Q[i]) < self.max_ramp_down:
-                            q_ach = self.max_ramp_down + last_Q[i]
-                            nq[i] = 0
-                    else:
-                        q_ach = self.Q_togrid[i] 
-                    
-                    S_req = float(numpy.sqrt(p_ach**2 + q_ach**2))
-                    
-                    # watt priority
-                    if S_req > self.max_apparent_power:
-                        q_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - p_ach**2)) * numpy.sign(q_ach))
-                        S_req = self.max_apparent_power
-                    # var priority
-                    """ if S_req > self.max_apparent_power:
-                        p_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - q_ach**2)) * numpy.sign(p_ach))
-                        S_req = self.max_apparent_power """
-                    # check power factor limit
-                    if p_ach != 0.0: 
-                        if float(numpy.abs(S_req/p_ach)) < self.min_pf:
-                            q_ach =  float(numpy.sqrt(numpy.abs((p_ach/self.min_pf)**2 - p_ach**2)) * numpy.sign(q_ach))
-
-                    
-                    if np[i] == 1:
-                        # run function for ERM model type
-                        if self.model_type == 'ERM':
-                            # Calculate SoC_update and Power Achieved
-                            Ppos = min(self.max_power_charge, max(p_ach, 0))
-                            Pneg = max(self.max_power_discharge, min(p_ach, 0))
-                            soc_update[i] = self.soc[i] + float(100) * dt * (Pneg + (
-                                Ppos * self.energy_efficiency) + self.self_discharge_power) / self.energy_capacity
-                            if soc_update[i] > self.max_soc:
-                                Ppos = (self.energy_capacity * (self.max_soc - self.soc[i]) / (
-                                    float(100) * dt) - self.self_discharge_power) / self.energy_efficiency
-                                soc_update[i] = self.max_soc
-                                np[i] = 0
-                            if soc_update[i] < self.min_soc:
-                                Pneg = self.energy_capacity * (self.min_soc - self.soc[i]) / (
-                                    float(100) * dt) - self.self_discharge_power
-                                soc_update[i] = self.min_soc
-                                np[i] = 0                                    
-
-                            p_ach = (Ppos + Pneg)
-                            q_ach =  q_ach
-                            self.P_togrid[i] = p_ach
-                            self.Q_togrid[i] = q_ach
-                        # run function for CRM model type
-                        elif self.model_type == 'CRM':
-                            # convert AC power p_ach to DC power pdc
-                            pdc_update[i] = self.coeff_2*(p_ach**2)+self.coeff_1*(p_ach)+self.coeff_0 
-
-                            # convert DC power pdc to DC current
-                            b = ((self.v1[i] + self.v2[i]+ self.voc[i])*self.n_cells) 
-                            a = self.r0 * self.n_cells 
-                            c = -pdc_update[i] * 1000
-                            ibat_update[i] = (-b+numpy.sqrt(b**2 - 4*a*c))/(2*a)
-                            
-                            # calculate dynamic voltages
-                            v1_update[i] = self.v1[i] + dt *( (1/(self.r1*self.c1))*self.v1[i] + (1/(self.c1))*ibat_update[i])
-                            v2_update[i] = self.v2[i] + dt *( (1/(self.r2*self.c2))*self.v2[i] + (1/(self.c2))*ibat_update[i])
-                            vbat_update[i] = (v1_update[i]  + v2_update[i] + self.voc[i] + ibat_update[i]*self.r0) *self.n_cells
-
-                            # Calculate SoC and Power Achieved
-                            Ipos = min(self.max_current_charge, max(ibat_update[i], 0))
-                            Ineg = max(self.max_current_discharge, min(ibat_update[i], 0))
-                            soc_update[i] = self.soc[i] + float(100) * dt * (Ineg + (
-                                Ipos * self.coulombic_efficiency) + self.self_discharge_current) / self.charge_capacity
-                            if soc_update[i] > self.max_soc:
-                                Ipos = self.charge_capacity *((self.max_soc - self.soc[i] )/ (float(100) * dt) - self.self_discharge_current) / self.coulombic_efficiency
-                                soc_update[i] = self.max_soc
-                                np[i] = 0
-                                pdc_update[i]  = Ipos *vbat_update[i] / 1000
-                                if self.coeff_2 != 0:
-                                    p_ach = (-self.coeff_1 +float(numpy.sqrt(self.coeff_1**2 - 4*self.coeff_2*(self.coeff_0-pdc_update[i]))))/(2*self.coeff_2)
-                                else: 
-                                    p_ach  = (pdc_update[i] - self.coeff_0)/self.coeff_1
-                            if soc_update[i] < self.min_soc:
-                                Ineg = self.charge_capacity * (self.min_soc - self.soc[i]) / (
-                                    float(100) * dt) - self.self_discharge_current
-                                soc_update[i] = self.min_soc
-                                np[i] = 0                                    
-                                pdc_update[i]  = Ineg *vbat_update[i] / 1000
-                                if self.coeff_2 != 0:
-                                    p_ach = (-self.coeff_1 +float(numpy.sqrt(self.coeff_1**2 - 4*self.coeff_2*(self.coeff_0-pdc_update[i]))))/(2*self.coeff_2)
-                                else: 
-                                    p_ach  = (pdc_update[i] - self.coeff_0)/self.coeff_1
-                            
-                            ibat_update[i] = Ipos + Ineg
-                            v1_update[i] = self.v1[i] + dt *( (1/(self.r1*self.c1))*self.v1[i] + (1/(self.c1))*ibat_update[i])
-                            v2_update[i] = self.v2[i] + dt *( (1/(self.r2*self.c2))*self.v2[i] + (1/(self.c2))*ibat_update[i])
-                            vbat_update[i] = (v1_update[i]  + v2_update[i] + self.voc[i] + ibat_update[i]*self.r0) *self.n_cells
-                            self.P_togrid[i] = p_ach
-                            self.Q_togrid[i] = q_ach
-
+                if self.model_type == 'ERM':
+                    soc_update[i] = self.run_soc_update(p_req,q_req,np,nq,last_P,last_Q,i,dt)
+                if self.model_type == 'CRM':
+                    [soc_update[i],pdc_update[i],ibat_update[i],vbat_update[i],v1_update[i],v2_update[i]] = \
+                         self.run_soc_update(p_req,q_req,np,nq,last_P,last_Q,i,dt)
             # at the end of looping through the devices, add up their power to determine if the request has been met
-            p_tot = sum(self.P_togrid)
-            q_tot = sum(self.Q_togrid)
+            p_tot = sum(self.P_service)
+            q_tot = sum(self.Q_service)
+        
+        # after all the power needs have been placed and met, then make adjustments based on autonomous operation settings 
+        for i in range(self.num_of_devices) :
+            p_req = self.P_service[i]
+            q_req = self.Q_service[i]
+            # determin if VV11 or FW21 change the p_req or q_req
+            if self.FW21_Enabled == 'TRUE':
+                p_mod = self.frequency_watt(Grid,p_req,ts,self.location[i])
+            if self.VV11_Enabled == 'TRUE':
+                if q_none == 1:
+                    q_mod = self.volt_var(Grid,ts,self.location[i])
+            if self.model_type == 'ERM':
+                soc_update[i] = self.run_soc_update(p_req=(p_mod-p_req),q_req=(q_mod-q_req),np=numpy.ones(self.num_of_devices),nq=numpy.ones(self.num_of_devices),last_P=last_P,last_Q=last_Q,i=i,dt=dt)
+            if self.model_type == 'CRM':
+                [soc_update[i],pdc_update[i],ibat_update[i],vbat_update[i],v1_update[i],v2_update[i]] = \
+                    self.run_soc_update(p_req=p_req,q_req=q_req,np=numpy.ones(self.num_of_devices),nq=numpy.ones(self.num_of_devices),last_P=last_P,last_Q=last_Q,i=i,dt=dt)
+
+        p_tot = sum(self.P_service)
+        q_tot = sum(self.Q_service)    
+
         # update SoC
         self.soc = soc_update
         if self.model_type == 'CRM':
@@ -380,12 +379,132 @@ class BatteryInverterFleet(FleetInterface):
             self.ibat = ibat_update
             self.vbat = (self.v1 + self.v2 + self.voc + self.ibat*self.r0) *self.n_cells
         # once the power request has been met, or all devices are at their limits, return the response variables
-        response.P_togrid = p_tot
-        response.Q_togrid = q_tot  
+        response.P_service = p_tot
+        response.Q_service = q_tot  
         response.soc = numpy.average(self.soc)
         response.E = numpy.average(self.soc) * self.energy_capacity / 100.0
         return response 
     
+    def run_soc_update(self,p_req=0,q_req=0,np=1,nq=1,last_P=0,last_Q=0,i=0,dt=1):
+        if np[i] == 1 or nq[i] == 1:
+            #  Max ramp rate and apparent power limit checking
+            if np[i] == 1 :
+                p_ach = self.P_service[i] + p_req
+                if (p_ach-last_P[i]) > self.max_ramp_up:
+                    p_ach = self.max_ramp_up + last_P[i]
+                    np[i] = 0
+                elif (p_ach-last_P[i]) < self.max_ramp_down:
+                    p_ach = self.max_ramp_down + last_P[i]
+                    np[i] = 0
+                    
+                if p_ach < self.max_power_discharge:
+                    p_ach  = self.max_power_discharge
+                    np[i] = 0
+                if p_ach > self.max_power_charge:
+                    p_ach = self.max_power_charge
+                    np[i] = 0
+            else:
+                p_ach = self.P_service[i] 
+
+            if nq[i] == 1:
+                q_ach = self.Q_service[i] + q_req
+                if (q_ach-last_Q[i]) > self.max_ramp_up:
+                    q_ach = self.max_ramp_up + last_Q[i]
+                    nq[i] = 0
+                elif (q_ach-last_Q[i]) < self.max_ramp_down:
+                    q_ach = self.max_ramp_down + last_Q[i]
+                    nq[i] = 0
+            else:
+                q_ach = self.Q_service[i] 
+            
+            S_req = float(numpy.sqrt(p_ach**2 + q_ach**2))
+            
+            # watt priority
+            if S_req > self.max_apparent_power:
+                q_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - p_ach**2)) * numpy.sign(q_ach))
+                S_req = self.max_apparent_power
+            # var priority
+            """ if S_req > self.max_apparent_power:
+                p_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - q_ach**2)) * numpy.sign(p_ach))
+                S_req = self.max_apparent_power """
+            # check power factor limit
+            if p_ach != 0.0: 
+                if float(numpy.abs(S_req/p_ach)) < self.min_pf:
+                    q_ach =  float(numpy.sqrt(numpy.abs((p_ach/self.min_pf)**2 - p_ach**2)) * numpy.sign(q_ach))
+            if np[i] == 1:
+                # run function for ERM model type
+                if self.model_type == 'ERM':
+                    # Calculate SoC_update and Power Achieved
+                    Ppos = min(self.max_power_charge, max(p_ach, 0))
+                    Pneg = max(self.max_power_discharge, min(p_ach, 0))
+                    soc_update = self.soc[i] + float(100) * dt * (Pneg + (
+                        Ppos * self.energy_efficiency) + self.self_discharge_power) / self.energy_capacity
+                    if soc_update > self.max_soc:
+                        Ppos = (self.energy_capacity * (self.max_soc - self.soc[i]) / (
+                            float(100) * dt) - self.self_discharge_power) / self.energy_efficiency
+                        soc_update = self.max_soc
+                        np[i] = 0
+                    if soc_update < self.min_soc:
+                        Pneg = self.energy_capacity * (self.min_soc - self.soc[i]) / (
+                            float(100) * dt) - self.self_discharge_power
+                        soc_update = self.min_soc
+                        np[i] = 0                                    
+
+                    p_ach = (Ppos + Pneg)
+                    q_ach =  q_ach
+                    self.P_service[i] = p_ach
+                    self.Q_service[i] = q_ach
+                    return  soc_update
+                # run function for CRM model type
+                elif self.model_type == 'CRM':
+                    # convert AC power p_ach to DC power pdc
+                    pdc_update = self.coeff_2*(p_ach**2)+self.coeff_1*(p_ach)+self.coeff_0 
+
+                    # convert DC power pdc to DC current
+                    b = ((self.v1[i] + self.v2[i]+ self.voc[i])*self.n_cells) 
+                    a = self.r0 * self.n_cells 
+                    c = -pdc_update * 1000
+                    ibat_update = (-b+numpy.sqrt(b**2 - 4*a*c))/(2*a)
+                    
+                    # calculate dynamic voltages
+                    v1_update = self.v1[i] + dt *( (1/(self.r1*self.c1))*self.v1[i] + (1/(self.c1))*ibat_update)
+                    v2_update = self.v2[i] + dt *( (1/(self.r2*self.c2))*self.v2[i] + (1/(self.c2))*ibat_update)
+                    vbat_update = (v1_update  + v2_update + self.voc[i] + ibat_update*self.r0) *self.n_cells
+
+                    # Calculate SoC and Power Achieved
+                    Ipos = min(self.max_current_charge, max(ibat_update, 0))
+                    Ineg = max(self.max_current_discharge, min(ibat_update, 0))
+                    soc_update = self.soc[i] + float(100) * dt * (Ineg + (
+                        Ipos * self.coulombic_efficiency) + self.self_discharge_current) / self.charge_capacity
+                    if soc_update > self.max_soc:
+                        Ipos = self.charge_capacity *((self.max_soc - self.soc[i] )/ (float(100) * dt) - self.self_discharge_current) / self.coulombic_efficiency
+                        soc_update = self.max_soc
+                        np[i] = 0
+                        pdc_update  = Ipos *vbat_update / 1000
+                        if self.coeff_2 != 0:
+                            p_ach = (-self.coeff_1 +float(numpy.sqrt(self.coeff_1**2 - 4*self.coeff_2*(self.coeff_0-pdc_update))))/(2*self.coeff_2)
+                        else: 
+                            p_ach  = (pdc_update[i] - self.coeff_0)/self.coeff_1
+                    if soc_update < self.min_soc:
+                        Ineg = self.charge_capacity * (self.min_soc - self.soc[i]) / (
+                            float(100) * dt) - self.self_discharge_current
+                        soc_update = self.min_soc
+                        np[i] = 0                                    
+                        pdc_update  = Ineg *vbat_update / 1000
+                        if self.coeff_2 != 0:
+                            p_ach = (-self.coeff_1 +float(numpy.sqrt(self.coeff_1**2 - 4*self.coeff_2*(self.coeff_0-pdc_update))))/(2*self.coeff_2)
+                        else: 
+                            p_ach  = (pdc_update - self.coeff_0)/self.coeff_1
+                    
+                    ibat_update = Ipos + Ineg
+                    v1_update = self.v1[i] + dt *( (1/(self.r1*self.c1))*self.v1[i] + (1/(self.c1))*ibat_update)
+                    v2_update = self.v2[i] + dt *( (1/(self.r2*self.c2))*self.v2[i] + (1/(self.c2))*ibat_update)
+                    vbat_update = (v1_update  + v2_update + self.voc[i] + ibat_update*self.r0) *self.n_cells
+                    self.P_service[i] = p_ach
+                    self.Q_service[i] = q_ach
+                    return  [soc_update, pdc_update, ibat_update, vbat_update, v1_update, v2_update]
+        
+
     def voc_update(self): 
         s = self.soc/100
         for i in range(self.num_of_devices):
@@ -520,9 +639,7 @@ class BatteryInverterFleet(FleetInterface):
     def forecast(self, requests):
         """
         Forecast feature
-
         :param fleet_requests: list of fleet requests
-
         :return res: list of service responses
         """
         responses = []
@@ -547,7 +664,7 @@ class BatteryInverterFleet(FleetInterface):
             ES = self.es
             # Iterate and process each request in fleet_requests
             for req in requests:
-                FleetResponse = self.run(req.P_req,req.Q_req,req.sim_step)
+                FleetResponse = self.run(req.P_req,req.Q_req,req.ts_req,req.sim_step)
                 res = FleetResponse
                 responses.append(res)
             # reset the model
@@ -573,4 +690,3 @@ class BatteryInverterFleet(FleetInterface):
         # change config
 
         pass
-
