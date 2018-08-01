@@ -8,13 +8,13 @@ from dateutil import parser
 from datetime import datetime, timedelta
 from os.path import dirname, abspath
 import numpy
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
@@ -25,6 +25,9 @@ from fleet_config import FleetConfig
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 from battery_inverter_fleet import BatteryInverterFleet
+from services.helpers.historial_signal_helper import HistoricalSignalHelper
+from services.helpers.clearing_price_helper import ClearingPriceHelper
+
 from grid_info import GridInfo
 
 class TradRegService():
@@ -35,36 +38,48 @@ class TradRegService():
     def __init__(self, *args, **kwargs):
         self.sim_time_step = timedelta(hours=1)
 
-        #self.fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-        self.fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+        self._historial_signal_helper = HistoricalSignalHelper()
+        self._clearing_price_helper = ClearingPriceHelper()
+
         self.grid = GridInfo('Grid_Info_DATA_2.csv')
-        
 
+    def request_loop(self, historial_signal_filename = '08 2017.xlsx', service_type = "Traditional", start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
+                     clearing_price_filename = 'historical-ancillary-service-data-2017.xls', clearing_price_sheet_name = 'August_2017'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
 
-    def request_loop(self, filename = '08 2017.csv'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
-
-        start_time = parser.parse("2017-08-01 16:00:00")
-        end_time = parser.parse("2017-08-01 21:00:00")
+        # start_time = parser.parse("2017-08-01 16:00:00")
+        # end_time = parser.parse("2017-08-01 21:00:00")
         # Read Regulation control signal (RegA) from file: 2-sec interval.
-        df_RegA = pd.read_csv(filename, usecols=[0,1], header=0)
+        # df_RegA = pd.read_csv(filename, usecols=[0,1], header=0)
 
         # March through time (btw. start_time & end_time), store requested MW and responded MW every 2-sec in lists.
+        # requests = []
+        # responses = []
+        # for row in df_RegA.iterrows():
+        #     ts = row[1][0] # extract time stamp w/i a tuple.
+        #     ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
+        #     if start_time <= ts < end_time:
+        #         sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
+        #         p = row[1][1]*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
+        #
+        #         request, response = self.request(ts, sim_step, p)
+        #         requests.append(request)
+        #         responses.append(response)
+
+        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, service_type)
+
+        signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
+
+        sim_step = timedelta(seconds=2)
         requests = []
         responses = []
-        for row in df_RegA.iterrows():
-            ts = row[1][0] # extract time stamp w/i a tuple.
-            ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
-            if start_time <= ts < end_time:
-                sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
-                p = row[1][1]*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
-
-                request, response = self.request(ts, sim_step, p)
-                requests.append(request)
-                responses.append(response)
+        # TODO: power must be adjusted in the case of battery, i.e. power*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4
+        for timestamp, power in signals.items():
+            request, response = self.request(timestamp, sim_step, power)
+            requests.append(request)
+            responses.append(response)
 
         #print(requests)
         #print(responses)
-
 
         # # Store the responses in a text file.
         # with open('results.txt', 'w') as the_file:
@@ -76,6 +91,7 @@ class TradRegService():
         #         print(p_service)
         #         the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
 
+        self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, clearing_price_sheet_name)
 
         # Calculate hourly performance score and store in a dictionary.
         hourly_results = {}
@@ -97,12 +113,12 @@ class TradRegService():
             hourly_results[cur_time] = {}
             hourly_results[cur_time]['perf_score'] = self.perf_score(request_array_10s, response_array_10s)
             hourly_results[cur_time]['hr_int_MW'] = self.Hr_int_reg_MW(request_array_2s)
-            hourly_results[cur_time]['RMCP'] = self.get_RMCP()
+            #hourly_results[cur_time]['RMCP'] = self.get_RMCP()
+            hourly_results[cur_time]['RMCP'] = self._clearing_price_helper.clearing_prices[cur_time]
             hourly_results[cur_time]['reg_clr_pr_credit'] = self.Reg_clr_pr_credit(hourly_results[cur_time]['RMCP'], hourly_results[cur_time]['perf_score'][0], hourly_results[cur_time]['hr_int_MW'])
 
             # Move to the next hour.
-            cur_time += one_hour 
-        
+            cur_time += one_hour
 
         # Plot request and response signals and state of charge (SoC).
         P_request = [r.P_req for r in requests]
@@ -110,25 +126,25 @@ class TradRegService():
         SOC = [r.soc for r in responses]
         n = len(P_request)
         t = np.asarray(range(n))*(2/3600)
-        plt.figure(1)
-        plt.subplot(211)
-        plt.plot(t, P_request, label='P Request')
-        plt.plot(t, P_responce, label='P Responce')
-        plt.ylabel('Power (kW)')
-        plt.legend(loc='upper right')
-        plt.subplot(212)
-        plt.plot(t, SOC, label='SoC')
-        plt.ylabel('SoC (%)')
-        plt.xlabel('Time (hours)')
-        plt.legend(loc='lower right')
-        plt.show()
+        # plt.figure(1)
+        # plt.subplot(211)
+        # plt.plot(t, P_request, label='P Request')
+        # plt.plot(t, P_responce, label='P Responce')
+        # plt.ylabel('Power (kW)')
+        # plt.legend(loc='upper right')
+        # plt.subplot(212)
+        # plt.plot(t, SOC, label='SoC')
+        # plt.ylabel('SoC (%)')
+        # plt.xlabel('Time (hours)')
+        # plt.legend(loc='lower right')
+        # plt.show()
 
         return hourly_results
 
 
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
-        fleet_response = self.fleet.process_request(fleet_request,self.grid)
+        fleet_response = self._fleet.process_request(fleet_request,self.grid)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response
 
@@ -262,17 +278,17 @@ class TradRegService():
     # looks up the regulation market clearing price (RMCP).
     # the RMCP and its components are stored in a 1-dimensional array.
     # Use Aug 1st, 2017, 4-5PM data.
-    def get_RMCP(self): ### needs to be expanded to include date and time in keywords.
-        raw_pr_dataframe = pd.read_excel('historical-ancillary-service-data-2017.xls',
-                                         sheetname='August_2017', header=0)
-        #     print(raw_pr_dataframe)
-
-        raw_pr_array = raw_pr_dataframe.values  # convert from pandas dataframe to numpy array.
-        RMCP = raw_pr_array[80][4]  # Regulation Market Clearing Price.
-        RMCCP = raw_pr_array[80][6]  # Regulation Market Capability Clearing Price.
-        RMPCP = raw_pr_array[80][7]  # Regulation Market Performance Clearing Price.
-
-        return (RMCP, RMPCP, RMCCP)
+    # def get_RMCP(self): ### needs to be expanded to include date and time in keywords.
+    #     raw_pr_dataframe = pd.read_excel('historical-ancillary-service-data-2017.xls',
+    #                                      sheetname='August_2017', header=0)
+    #     #     print(raw_pr_dataframe)
+    #
+    #     raw_pr_array = raw_pr_dataframe.values  # convert from pandas dataframe to numpy array.
+    #     RMCP = raw_pr_array[80][4]  # Regulation Market Clearing Price.
+    #     RMCCP = raw_pr_array[80][6]  # Regulation Market Capability Clearing Price.
+    #     RMPCP = raw_pr_array[80][7]  # Regulation Market Performance Clearing Price.
+    #
+    #     return (RMCP, RMPCP, RMCCP)
 
 
     # calculates hourly "Regulation Market Clearing Price Credit" for a device fleet for the regulation service provided.
@@ -318,21 +334,31 @@ class TradRegService():
 
     def change_config(self):
         fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
-        self.fleet.change_config(fleet_config)
+        self._fleet.change_config(fleet_config)
 
     # def normalize_p(self, p):
     #     return p
+
+    @property
+    def fleet(self):
+        self._fleet
+
+    @fleet.setter
+    def fleet(self, value):
+        self._fleet = value
 
 
 # run from this file
 if __name__ == '__main__':
     service = TradRegService()
     
+    #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
+    fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+    service.fleet = fleet
+
     # Test request_loop()
     fleet_response = service.request_loop()
     print(fleet_response)
-    
-    
 
 
 #cd C:\Users\jingjingliu\gmlc-1-4-2\battery_interface\src\services\trad_reg_service\
