@@ -25,7 +25,6 @@ from fleet_config import FleetConfig
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 from battery_inverter_fleet import BatteryInverterFleet
-from services.helpers.fleet_factory import FleetFactory
 from services.helpers.historial_signal_helper import HistoricalSignalHelper
 from services.helpers.clearing_price_helper import ClearingPriceHelper
 
@@ -36,14 +35,8 @@ class TradRegService():
     This class implements FleetInterface so that it can communicate with a fleet
     """
 
-    #def __init__(self, *args, **kwargs):
-    def __init__(self, *args, fleet_name = "battery_inverter_fleet"):
+    def __init__(self, *args, **kwargs):
         self.sim_time_step = timedelta(hours=1)
-
-        #self.fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-        self.fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
-        #self._fleet_factory = FleetFactory()
-        #self.fleet = self._fleet_factory.get_instance(fleet_name)
 
         self._historial_signal_helper = HistoricalSignalHelper()
         self._clearing_price_helper = ClearingPriceHelper()
@@ -66,7 +59,7 @@ class TradRegService():
         #     ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
         #     if start_time <= ts < end_time:
         #         sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
-        #         p = row[1][1]*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
+        #         p = row[1][1]*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
         #
         #         request, response = self.request(ts, sim_step, p)
         #         requests.append(request)
@@ -79,7 +72,7 @@ class TradRegService():
         sim_step = timedelta(seconds=2)
         requests = []
         responses = []
-        # TODO: power must be adjusted in the case of battery, i.e. power*(self.fleet.max_power_discharge*self.fleet.num_of_devices)*0.4
+        # TODO: power must be adjusted in the case of battery, i.e. power*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4
         for timestamp, power in signals.items():
             request, response = self.request(timestamp, sim_step, power)
             requests.append(request)
@@ -152,7 +145,7 @@ class TradRegService():
 
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
-        fleet_response = self.fleet.process_request(fleet_request,self.grid)
+        fleet_response = self._fleet.process_request(fleet_request,self.grid)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response
 
@@ -342,15 +335,26 @@ class TradRegService():
 
     def change_config(self):
         fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
-        self.fleet.change_config(fleet_config)
+        self._fleet.change_config(fleet_config)
 
     # def normalize_p(self, p):
     #     return p
+
+    @property
+    def fleet(self):
+        self._fleet
+
+    @fleet.setter
+    def fleet(self, value):
+        self._fleet = value
 
 
 # run from this file
 if __name__ == '__main__':
     service = TradRegService()
+    #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
+    fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+    service.fleet = fleet
 
     # Test request_loop()
     fleet_response = service.request_loop()
