@@ -120,7 +120,6 @@ class TradRegService():
             # Move to the next hour.
             cur_time += one_hour
 
-
         # Plot request and response signals and state of charge (SoC).
         P_request = [r.P_req for r in requests]
         P_responce = [r.P_service for r in responses]
@@ -352,6 +351,7 @@ class TradRegService():
 # run from this file
 if __name__ == '__main__':
     service = TradRegService()
+    
     #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
     fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
     service.fleet = fleet
@@ -359,8 +359,6 @@ if __name__ == '__main__':
     # Test request_loop()
     fleet_response = service.request_loop()
     print(fleet_response)
-
-
 
 
 #cd C:\Users\jingjingliu\gmlc-1-4-2\battery_interface\src\services\trad_reg_service\
