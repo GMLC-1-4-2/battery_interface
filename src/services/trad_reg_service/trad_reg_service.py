@@ -5,29 +5,25 @@
 
 import sys
 from dateutil import parser
-from datetime import datetime, timedelta
+from datetime import timedelta
 from os.path import dirname, abspath
 
-import numpy
 #import matplotlib.pyplot as plt
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 import numpy as np
-import pandas as pd
 #import matplotlib.pyplot as plt
 
-from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
-from fleet_response import FleetResponse
 from fleet_config import FleetConfig
 
 # from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 from battery_inverter_fleet import BatteryInverterFleet
-from services.helpers.historical_signal_helper import HistoricalSignalHelper
-from services.helpers.clearing_price_helper import ClearingPriceHelper
+from helpers.historical_signal_helper import HistoricalSignalHelper
+from helpers.clearing_price_helper import ClearingPriceHelper
 
 from grid_info import GridInfo
 
@@ -83,15 +79,15 @@ class TradRegService():
         #print(requests)
         #print(responses)
 
-        # # Store the responses in a text file.
-        # with open('results.txt', 'w') as the_file:
-        # ### should add a step to clean the file first.
-        #     for r in responses:
-        #         ts = r.ts
-        #         p_togrid = r.P_togrid
-        #         p_service = r.P_service
-        #         print(p_service)
-        #         the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
+        # Store the responses in a text file.
+        with open('results.txt', 'w') as the_file:
+        ### should add a step to clean the file first.
+            for r in responses:
+                ts = r.ts
+                p_togrid = r.P_togrid
+                p_service = r.P_service
+                print(p_service)
+                the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
 
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, clearing_price_sheet_name)
 

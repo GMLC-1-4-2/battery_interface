@@ -1,7 +1,7 @@
 import unittest
 import os
 from dateutil import parser
-from services.helpers.clearing_price_helper import ClearingPriceHelper
+from services.trad_reg_service.helpers.clearing_price_helper import ClearingPriceHelper
 
 class TestClearingPriceHelper(unittest.TestCase):
 
