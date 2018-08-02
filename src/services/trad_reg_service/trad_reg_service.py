@@ -7,6 +7,7 @@ import sys
 from dateutil import parser
 from datetime import datetime, timedelta
 from os.path import dirname, abspath
+
 import numpy
 #import matplotlib.pyplot as plt
 
@@ -25,7 +26,7 @@ from fleet_config import FleetConfig
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 from battery_inverter_fleet import BatteryInverterFleet
-from services.helpers.historial_signal_helper import HistoricalSignalHelper
+from services.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.helpers.clearing_price_helper import ClearingPriceHelper
 
 from grid_info import GridInfo

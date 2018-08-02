@@ -3,7 +3,7 @@ import os
 from dateutil import parser
 import numpy as np
 import datetime
-from services.helpers.historial_signal_helper import HistoricalSignalHelper
+from services.helpers.historical_signal_helper import HistoricalSignalHelper
 
 class TestHistoricalSignalHelper(unittest.TestCase):
 
