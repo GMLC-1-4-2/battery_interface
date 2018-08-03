@@ -15,7 +15,7 @@ class TestHistoricalSignalHelper(unittest.TestCase):
         start_time = parser.parse("2017-08-02 00:00:00")
         end_time = parser.parse("2017-08-02 00:00:10")
 
-        input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "fixtures/files/08_2017_reduced_size.xlsx"))
+        input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "fixtures/files/08_2017_reduced_size.xlsx"))
 
         self.historial_signal_helper.read_and_store_historical_signals(input_data_file_path, sheet_name)
         actual_signals = self.historial_signal_helper.signals_in_range(start_time, end_time)
