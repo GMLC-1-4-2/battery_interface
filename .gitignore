@@ -3,7 +3,7 @@ __pycache__
 .idea
 *.pyc
 
-# copied from an online example: https://github.com/github/gitignore/blob/master/Python.gitignore
+### copied from an online example: https://github.com/github/gitignore/blob/master/Python.gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -108,3 +108,8 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+### End of copy of online .gitignore example
+
+# File to hold results by trad_reg_service
+src/services/trad_reg_service/results.txt
