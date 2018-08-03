@@ -9,7 +9,7 @@ class TestHistoricalSignalHelper(unittest.TestCase):
     def setUp(self):
         self.historial_signal_helper = HistoricalSignalHelper()
 
-    def test_read_historial_signal_from_sheet(self):
+    def test_get_historial_signal_in_range_within_the_same_day(self):
 
         sheet_name = "Traditional"
         start_time = parser.parse("2017-08-02 00:00:00")
@@ -35,4 +35,23 @@ class TestHistoricalSignalHelper(unittest.TestCase):
 
         #np.testing.assert_array_equal(actual_signals, expected_signals)
         #np.testing.assert_allclose(actual_signals, expected_signals, rtol = 1e-6, atol = 0)
+        self.assertEqual(actual_signals, expected_signals)
+
+    def test_get_historial_signal_in_range_encompassing_multiple_days(self):
+
+        sheet_name = "Traditional"
+        start_time = parser.parse("2017-08-03 23:59:54")
+        end_time = parser.parse("2017-08-04 00:00:02")
+
+        input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "fixtures/files/08_2017_reduced_size.xlsx"))
+
+        self.historial_signal_helper.read_and_store_historical_signals(input_data_file_path, sheet_name)
+        actual_signals = self.historial_signal_helper.signals_in_range(start_time, end_time)
+
+        expected_signals = {datetime.datetime(2017, 8, 3, 23, 59, 54): 0.2383686104732162,
+                            datetime.datetime(2017, 8, 3, 23, 59, 56): 0.2371792581707951,
+                            datetime.datetime(2017, 8, 3, 23, 59, 58): 0.23626120505479414,
+                            datetime.datetime(2017, 8, 4, 0, 0, 0): 0.23557409084697634,
+                            datetime.datetime(2017, 8, 4, 0, 0, 2): 0.23508375252473068}
+
         self.assertEqual(actual_signals, expected_signals)
