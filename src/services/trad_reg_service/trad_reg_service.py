@@ -5,28 +5,25 @@
 
 import sys
 from dateutil import parser
-from datetime import datetime, timedelta
+from datetime import timedelta
 from os.path import dirname, abspath
-import numpy
+
 #import matplotlib.pyplot as plt
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 import numpy as np
-import pandas as pd
 #import matplotlib.pyplot as plt
 
-from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
-from fleet_response import FleetResponse
 from fleet_config import FleetConfig
 
 # from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
 from battery_inverter_fleet import BatteryInverterFleet
-from services.helpers.historial_signal_helper import HistoricalSignalHelper
-from services.helpers.clearing_price_helper import ClearingPriceHelper
+from helpers.historical_signal_helper import HistoricalSignalHelper
+from helpers.clearing_price_helper import ClearingPriceHelper
 
 from grid_info import GridInfo
 
@@ -59,7 +56,8 @@ class TradRegService():
         #     ts = parser.parse("2017-08-01 " + ts) # combine time stamp with date. ### hard-coded right now, extract date from column name later.
         #     if start_time <= ts < end_time:
         #         sim_step = timedelta(seconds=2) ### doesn't seem to be useful, but don't delete w/o confirmation.
-        #         p = row[1][1]*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4  ### need to multiple a "AReg" value from the fleet - "Assigned Regulation (MW)"
+        # TODO: Code below which determines "Assigned Regulation (MW)" (AReg) needs to be generalized for all device fleets rather than just for battery.
+        # p = row[1][1] * (self.fleet.max_power_discharge * self.fleet.num_of_devices) * 0.4  ###
         #
         #         request, response = self.request(ts, sim_step, p)
         #         requests.append(request)
@@ -72,7 +70,7 @@ class TradRegService():
         sim_step = timedelta(seconds=2)
         requests = []
         responses = []
-        # TODO: power must be adjusted in the case of battery, i.e. power*(self._fleet.max_power_discharge*self._fleet.num_of_devices)*0.4
+
         for timestamp, power in signals.items():
             request, response = self.request(timestamp, sim_step, power)
             requests.append(request)
@@ -81,15 +79,15 @@ class TradRegService():
         #print(requests)
         #print(responses)
 
-        # # Store the responses in a text file.
-        # with open('results.txt', 'w') as the_file:
-        # ### should add a step to clean the file first.
-        #     for r in responses:
-        #         ts = r.ts
-        #         p_togrid = r.P_togrid
-        #         p_service = r.P_service
-        #         print(p_service)
-        #         the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
+        # Store the responses in a text file.
+        with open('results.txt', 'w') as the_file:
+        ### should add a step to clean the file first.
+            for r in responses:
+                ts = r.ts
+                p_togrid = r.P_togrid
+                p_service = r.P_service
+                print(p_service)
+                the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
 
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, clearing_price_sheet_name)
 
@@ -119,7 +117,6 @@ class TradRegService():
 
             # Move to the next hour.
             cur_time += one_hour
-
 
         # Plot request and response signals and state of charge (SoC).
         P_request = [r.P_req for r in requests]
@@ -352,6 +349,7 @@ class TradRegService():
 # run from this file
 if __name__ == '__main__':
     service = TradRegService()
+    
     #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
     fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
     service.fleet = fleet
@@ -359,8 +357,6 @@ if __name__ == '__main__':
     # Test request_loop()
     fleet_response = service.request_loop()
     print(fleet_response)
-
-
 
 
 #cd C:\Users\jingjingliu\gmlc-1-4-2\battery_interface\src\services\trad_reg_service\
