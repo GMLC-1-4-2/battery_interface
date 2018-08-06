@@ -306,14 +306,14 @@ class ElectricVehiclesFleet(FleetInterface):
                 total_energy += energy_per_subfleet
             
             # response outputs 
-            response.P_injected = power_demanded
-            response.Q_injected = 0
-            response.Q_service  = 0
-            response.P_service  = 0
+            response.P_togrid  = power_demanded
+            response.Q_togrid  = 0
+            response.Q_service = 0
+            response.P_service = 0
             
             response.P_service_max  = 0
             response.Q_service_max  = 0
-            response.P_injected_max = max_power_demanded
+            response.P_togrid_max = max_power_demanded
             response.E = total_energy
             response.P_dot = 0
             response.Q_dot = 0

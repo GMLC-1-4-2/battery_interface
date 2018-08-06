@@ -46,8 +46,8 @@ power_response = []
 max_power_response = []
 energy_stored = np.zeros([len(t),])
 for i in range(len(t)):  
-    power_response.append(FORECAST[i].P_injected)
-    max_power_response.append(FORECAST[i].P_injected_max)
+    power_response.append(FORECAST[i].P_togrid)
+    max_power_response.append(FORECAST[i].P_togrid_max)
     energy_stored[i] = FORECAST[i].E
     
 plt.figure(figsize = (12,8))
