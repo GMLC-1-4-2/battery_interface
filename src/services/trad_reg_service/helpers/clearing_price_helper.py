@@ -3,9 +3,9 @@ from dateutil import parser
 
 class ClearingPriceHelper(object):
 
-    def read_and_store_clearing_prices(self, input_data_file_path, sheet_name):
+    def read_and_store_clearing_prices(self, input_data_file_path, start_time):
 
-        #sheet_name = self._get_sheet_name(local_day)
+        sheet_name = self._get_sheet_name(start_time)
 
         excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name)
         regulated_prices_data_frame = excel_data[excel_data['SERVICE'] == "REG"]
