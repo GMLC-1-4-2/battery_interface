@@ -3,6 +3,7 @@ import os
 from dateutil import parser
 import datetime
 from services.trad_reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
+from services.exceptions.datetime_validation_exception import DatetimeValidationException
 
 class TestHistoricalSignalHelper(unittest.TestCase):
 
@@ -55,3 +56,21 @@ class TestHistoricalSignalHelper(unittest.TestCase):
                             datetime.datetime(2017, 8, 4, 0, 0, 2): 0.23508375252473068}
 
         self.assertEqual(actual_signals, expected_signals)
+
+    def test_date_out_of_range(self):
+
+        sheet_name = "Traditional"
+        start_time = parser.parse("2017-08-31 23:00:00")
+        end_time = parser.parse("2017-09-01 00:00:00")
+
+        input_data_file_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "fixtures/files/08_2017_reduced_size.xlsx"))
+
+        self.historial_signal_helper.read_and_store_historical_signals(input_data_file_path, sheet_name)
+
+        with self.assertRaises(DatetimeValidationException) as context:
+            self.historial_signal_helper.signals_in_range(start_time, end_time)
+
+        self.assertTrue("Start time: year = 2017 month = 8, End time: year = 2017 month = 9. Start date and end date must be in the same month. Currently, range in multiple months is not supported." in str(context.exception))
+
+if __name__ == '__main__':
+    unittest.main()

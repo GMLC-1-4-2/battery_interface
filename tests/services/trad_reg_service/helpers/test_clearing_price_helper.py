@@ -26,3 +26,6 @@ class TestClearingPriceHelper(unittest.TestCase):
         expected_clearing_price_for_first_hour = (9.870000000000001, 2.84, 7.03)
 
         self.assertEqual(actual_clearing_prices[parser.parse('2017-08-01 00:00:00')], expected_clearing_price_for_first_hour)
+
+if __name__ == '__main__':
+    unittest.main()

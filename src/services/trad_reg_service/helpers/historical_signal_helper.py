@@ -1,5 +1,6 @@
 import pandas as pd
 import datetime
+from services.exceptions.datetime_validation_exception import DatetimeValidationException
 
 class HistoricalSignalHelper(object):
 
@@ -14,6 +15,9 @@ class HistoricalSignalHelper(object):
         self._signals = excel_data
 
     def signals_in_range(self, start_time, end_time):
+        if start_time.year != end_time.year or start_time.month != end_time.month:
+            raise DatetimeValidationException("Start time: year = {} month = {}, End time: year = {} month = {}. Start date and end date must be in the same month. Currently, range in multiple months is not supported.".format(start_time.year, start_time.month, end_time.year, end_time.month))
+
         if start_time.date() == end_time.date():
             return self._signals_in_range_within_the_same_day(start_time, end_time)
         else:
