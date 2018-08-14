@@ -1,23 +1,17 @@
-import sys
-from os.path import dirname, abspath
-sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-
+from datetime import datetime, timedelta
+import numpy
+#import sys
+#from os.path import dirname, abspath
+#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 from battery_inverter_fleet import BatteryInverterFleet
 from grid_info import GridInfo
-
 import matplotlib.pyplot as plt
 import scipy.io as spio
 import csv
 import copy
-import numpy
-
-from fleet_request import FleetRequest
-from fleet_response import FleetResponse
-from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
-
 
 def fleet_test(Fleet,Grid):
     
@@ -36,7 +30,7 @@ def fleet_test(Fleet,Grid):
 
     requests = []
     ts = datetime.utcnow()
-    dt = timedelta(hours=0.000092593) #hours
+    dt = timedelta(hours=0.000277777778) #hours
     for i in range(n):
         req = FleetRequest(ts=(ts+i*dt),sim_step=dt,p=P[i],q=None)
         requests.append(req)
@@ -66,7 +60,6 @@ def fleet_test(Fleet,Grid):
             print(str(100*i/n) + ' %') """
         if numpy.mod(i,10000) == 0:
             print(str(100*i/n) + ' %')
-
         for j in range(Fleet.num_of_devices):
             SOC[i,j] = Fleet.soc[j] # show that process_request function updates the SoC
         #V[i] = Fleet.vbat
@@ -98,7 +91,6 @@ def fleet_test(Fleet,Grid):
     plt.ylabel('Voltage (V)')
     plt.legend(loc='lower right')
     plt.show()
-
 
 def integration_test(Fleet):
     # Establish the test variables
@@ -134,7 +126,7 @@ def integration_test(Fleet):
                     Power[T] = responses[T].P_service
                 
                 SoCFin = responses[n-1].soc  # get final SoC
-                [P2, Cost, Able] = Fleet.cost(SoCFin, SoC0, del_t)  # retreeve how much power it would take to return to SoC0
+                [P2, Cost, Able] = Fleet.cost(SoCFin, SoC0, del_t)  # calculate how much power it would take to return to SoC0
                 
                 P2Charge = max(P2,0)
                 P2Discharge = min(P2,0)
@@ -153,7 +145,7 @@ def integration_test(Fleet):
 
 
 if __name__ == '__main__':
-    Fleet = BatteryInverterFleet('ERM')
+    Fleet = BatteryInverterFleet('CRM')
     location = 0
     i = 0
     Grid = GridInfo('Grid_Info_DATA_2.csv')
@@ -162,3 +154,4 @@ if __name__ == '__main__':
     fleet_test(Fleet,Grid)
     #Fleet.soc = 50.0*numpy.ones(Fleet.num_of_devices)
     #integration_test(Fleet)
+
