@@ -10,13 +10,14 @@ class HistoricalSignalHelper(object):
         # TODO: For now, drop the last row.
         #       Convert the index to multiple indices with hour, minute, and second.
         #       Or convert to Pandas.TimeDelta.
+        # Note: It turned out that the first row value of the next column is same as the last row value of the given column.
+        #       Thus, when stacking all the columns, the last row values must be removed.
         excel_data = excel_data.drop(excel_data.index[len(excel_data.index) - 1])
 
         self._signals = excel_data
 
     def signals_in_range(self, start_time, end_time):
-        if start_time.year != end_time.year or start_time.month != end_time.month:
-            raise DatetimeValidationException("Start time: year = {} month = {}, End time: year = {} month = {}. Start date and end date must be in the same month. Currently, range in multiple months is not supported.".format(start_time.year, start_time.month, end_time.year, end_time.month))
+        self._validate_date_range(start_time, end_time)
 
         if start_time.date() == end_time.date():
             return self._signals_in_range_within_the_same_day(start_time, end_time)
@@ -49,3 +50,17 @@ class HistoricalSignalHelper(object):
         datetime_index_list = [datetime.datetime.combine(start_time, index) for index in index_list]
         series.index = datetime_index_list
         return series
+
+    def _validate_date_range(self, start_time, end_time):
+        if start_time > end_time:
+            raise DatetimeValidationException("Start time: {}, End time: {}. Start time must not be after end time.".format(start_time, end_time))
+
+        if start_time.year != end_time.year or start_time.month != end_time.month:
+            raise DatetimeValidationException("Start time: year = {} month = {}, End time: year = {} month = {}. Start date and end date must be in the same month. Currently, range in multiple months is not supported.".format(start_time.year, start_time.month, end_time.year, end_time.month))
+
+        first_day_in_data = self._signals.columns[0]
+        if start_time < first_day_in_data or end_time < first_day_in_data:
+            raise DatetimeValidationException("Start time: year = {} month = {}, End time: year = {} month = {}. Input data: year = {} month = {}. Start time and end time must be within the date range of given data.".format(start_time.year, start_time.month, end_time.year, end_time.month, first_day_in_data.year, first_day_in_data.month))
+        last_day_in_data = self._signals.columns[len(self._signals.columns) - 1]
+        if start_time > last_day_in_data or end_time > last_day_in_data:
+            raise DatetimeValidationException("Start time: year = {} month = {}, End time: year = {} month = {}. Input data: year = {} month = {}. Start time and end time must be within the date range of given data.".format(start_time.year, start_time.month, end_time.year, end_time.month, last_day_in_data.year, last_day_in_data.month))
