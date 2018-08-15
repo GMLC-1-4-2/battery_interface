@@ -12,7 +12,7 @@ import random
 # this is the actual water heater model
 from wh import WaterHeater
 
-from WHFleet_Response import WHFleetResponse
+from WHFleet_Response import FleetResponse
 
 class WaterHeaterFleet():
     def __init__(self, Steps = 100, Timestep = 60, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40):
@@ -34,6 +34,12 @@ class WaterHeaterFleet():
         self.TypeMasterList = ['ER','ER','ER','ER','ER','ER','ER','ER','ER','HP'] #elec_resis 90% and HPWH 10%
         self.LocationMasterList =['living','living','living','living','unfinished basement'] #80% living, 20% unfinished basement for now
         self.MaxServiceCallMasterList = [100,80,80, 200, 150, 110, 50, 75, 100] # this is the max number of annual service calls for load add/shed.
+        
+    def process_request(self, ServiceRequest):
+        
+        response = ExecuteFleet()
+        
+        return response
         
     def ExecuteFleet(self, ServiceRequest): #Steps, Timestep, P_request, Q_request, forecast, StartHr
         
@@ -115,8 +121,6 @@ class WaterHeaterFleet():
         AvailableCapacityShedInit = [0 for y in range(self.numWH)]
         IsAvailableAddInit = [0 for y in range(self.numWH)]
         IsAvailableShedInit = [0 for y in range(self.numWH)]
-        
-        FleetResponse = WHFleetResponse(self.numWH, ServiceRequest.Steps)
     
         ##################################
         
@@ -125,24 +129,30 @@ class WaterHeaterFleet():
         whs = [WaterHeater(Tamb[0], RHamb[0], Tmains[0], 0, ServiceRequest.P_request, Capacity[number], Type[number], Location[number], 0, MaxServiceCalls[number]) for number in range(self.numWH)]
         FleetResponse.P_service = 0
         FleetResponse.P_service_max = 0
-        FleetResponse.P_injected = 0
-        FleetResponse.P_injected_max = 0
+        FleetResponse.P_togrid = 0
+        FleetResponse.P_togrid_max = 0
+        FleetResponse.P_togrid_min = 0
         FleetResponse.P_forecast = 0
+        FleetResponse.E = 0
+        FleetResponse.C = 0
 #        print(type(ServiceRequest.P_request))
         P_request_perWH = ServiceRequest.P_request[0] / self.numWH # this is only for the first step
         
-        FleetResponse.Q_injected = 0
+        FleetResponse.Q_togrid = 0
         FleetResponse.Q_service = 0
         FleetResponse.Q_service_max = 0
-        FleetResponse.Q_forecast = 0
+        FleetResponse.Q_togrid_max = 0
+        FleetResponse.Q_togrid_min = 0
         Eloss = 0
         Edel = 0
+        
+        TotalServiceCallsAcceptedPerWH = 0 * range(self.numWH)
         # run through fleet once as a forecast just to get initial conditions
         number = 0
         for w in whs:
             fcst = 1 #setting the forecast to 1 for this initialization only
 #            ttank, tset, SoCInit, AvailableCapacityAddInit, AvailableCapacityShedInit, ServiceCallsAcceptedInit, eservice, IsAvailableAddInit, IsAvailableShedInit, elementon, eused, pusedmax
-            response = w.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, FleetResponse.ServiceCallsAccepted[number][0], FleetResponse.elementOn[number][0], ServiceRequest.Timestep, draw_fleet_ave[0], fcst) #forecast = 1
+            response = w.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[0], fcst) #forecast = 1
             number += 1
            
         for step in range(ServiceRequest.Steps):    
@@ -164,64 +174,57 @@ class WaterHeaterFleet():
                         NumDevicesToCall += 1
             elif step > 0:
                 for n in range(self.numWH):
-                    if P_request_perWH > 0 and FleetResponse.IsAvailableAdd[n][laststep] > 0 and FleetResponse.SoC[n][laststep] < self.maxSOC and FleetResponse.AvailableCapacityAdd[n][laststep] > self.minCapacityAdd:
+                    if P_request_perWH > 0 and response.AvailableCapacityAdd > 0 and response.SOC < self.maxSOC and response.AvailableCapacityAdd > self.minCapacityAdd:
                         NumDevicesToCall += 1
-                    elif P_request_perWH < 0 and FleetResponse.IsAvailableShed[n][laststep] > 0 and FleetResponse.SoC[n][laststep] > self.minSOC and FleetResponse.AvailableCapacityShed[n][laststep] > self.minCapacityShed:
+                    elif P_request_perWH < 0 and response.AvailableCapacityShed > 0 and response.SOC > self.minSOC and response.AvailableCapacityShed > self.minCapacityShed:
                         NumDevicesToCall += 1          
         
         
             for wh in whs: #loop through water heatesr
                 if step == 0: #ttank, tset, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, eservice, isAvailableAdd, isAvailableShed, elementon, eused, pusedmax
-                    response = wh.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, FleetResponse.ServiceCallsAccepted[number][0], FleetResponse.elementOn[number][0],ServiceRequest.Timestep, draw_fleet_ave[0], ServiceRequest.Forecast)
+                    response = wh.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[0], ServiceRequest.Forecast)
                 else:
-                    TsetLast = FleetResponse.Tset[number][laststep]
-                    TtankLast = FleetResponse.Ttank[number][laststep]  
-#                    ttank, tset, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, eservice, isAvailableAdd, isAvailableShed , elementon, eused, pusedmax
-                    response = wh.execute(TtankLast, TsetLast, Tamb[number][step], RHamb[number][step], Tmains[number][step], draw[number][step], P_request_perWH, Type, FleetResponse.ServiceCallsAccepted[number][laststep], FleetResponse.elementOn[number][laststep], ServiceRequest.Timestep, draw_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast) #min([step,ServiceRequest.Steps-1]) is to provide a forecast for the average fleet water draw for the next timestep while basically ignoring the last timestep forecast
+                    TsetLast = response.Tset
+                    TtankLast = response.Ttank 
+                    response = wh.execute(TtankLast, TsetLast, Tamb[number][step], RHamb[number][step], Tmains[number][step], draw[number][step], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast) #min([step,ServiceRequest.Steps-1]) is to provide a forecast for the average fleet water draw for the next timestep while basically ignoring the last timestep forecast
 
-                #assign returned parameters to associated lists to be recorded
-                FleetResponse.Tset[number][step] = response.Tset
-                FleetResponse.Ttank[number][step] = response.Ttank
-                FleetResponse.dTtank_set [number][step] = response.Ttank - response.Tset
-                FleetResponse.SoC[number][step] = response.SOC
-                FleetResponse.IsAvailableAdd[number][step] = response.IsAvailableAdd
-                FleetResponse.IsAvailableShed[number][step] = response.IsAvailableShed
-                FleetResponse.elementOn[number][step] = response.ElementOn
-                FleetResponse.AvailableCapacityAdd[number][step] = response.AvailableCapacityAdd
-                FleetResponse.AvailableCapacityShed[number][step] = response.AvailableCapacityShed
-                FleetResponse.ServiceCallsAccepted[number][step] = response.ServiceCallsAccepted
-                FleetResponse.ServiceProvided[number][step] = response.Eservice
                 servsum += response.Eservice
                 #FleetResponse.TotalServiceProvidedPerWH[number] = TotalServiceProvidedPerWH[number] + ServiceProvided[number][step]
                 Eloss += response.Eloss
                 Edel += response.Edel
-                FleetResponse.P_injected += response.Eused
-                FleetResponse.P_injected_max += response.PusedMax
+                FleetResponse.P_togrid += response.Eused
+                FleetResponse.P_togrid_max += response.PusedMax
+                FleetResponse.P_togrid_min += response.PusedMin
                 number += 1
 
+                # Available Energy stored at the end of the most recent timestep (kWh)
+                FleetResponse.E += response.Estored
+                FleetResponse.C += response.SOC / (self.numWH)
+                FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED, DOES NOT CONSIDER LOAD ADD WHICH WILL BE DIFFERENT
+                
+            FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
+            FleetResponse.P_dot_down = FleetResponse.P_togrid / ServiceRequest.Timestep.seconds
+            FleetResponse.P_service_min  = 0
+            FleetResponse.Q_dot_up       = 0
+            FleetResponse.Q_dot_down     = 0
+            FleetResponse.dT_hold_limit  = None
+            FleetResponse.T_restore      = None
+            FleetResponse.Strike_price   = None
+            FleetResponse.SOC_cost       = None
                 
             TotalServiceProvidedPerTimeStep[step] += servsum
-            if FleetResponse.P_injected > 0:
-                FleetResponse.eta_charge = (FleetResponse.P_injected - Eloss)/(FleetResponse.P_injected)
+            if FleetResponse.P_togrid > 0:
+                FleetResponse.Eff_charge = (FleetResponse.P_togrid - Eloss)/(FleetResponse.P_togrid)
             else:
-                FleetResponse.eta_charge = 0
-            FleetResponse.eta_discharge = (Edel)/(Edel + Eloss)
-                    
-        for n in range(number):
-            TotalServiceCallsAcceptedPerWH[n] = FleetResponse.ServiceCallsAccepted[n][step]
+                FleetResponse.Eff_charge = 0
+            FleetResponse.Eff_discharge = (Edel)/(Edel + Eloss)
             
-        for m in range(ServiceRequest.Steps):
-            FleetResponse.P_service += TotalServiceProvidedPerTimeStep[m]
-            for q in range(number):
-               FleetResponse.P_service_max += FleetResponse.AvailableCapacityShed[n][m] # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED, DOES NOT CONSIDER LOAD ADD WHICH WILL BE DIFFERENT
-            
-
         if ServiceRequest.Forecast == 1:
             FleetResponse.P_forecast = FleetResponse.P_service
         else:
             FleetResponse.P_forecast = 0
     
-        return FleetResponse #P_injected, Q_injected, P_service, Q_service, P_injected_max, P_service_max, Q_service_max, P_forecast, Q_forecast, eta_charge, eta_discharge
+        return FleetResponse
     
     ###########################################################################
     

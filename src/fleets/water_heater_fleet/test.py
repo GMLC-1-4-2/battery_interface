@@ -83,14 +83,13 @@ def main():
     
     #calling fleet
     FleetResponse = fleet.ExecuteFleet(ServiceRequest)
-
     
     #Gather data to plot and look at the results
     #for y in range FleetResponse[0].AvailableCapacityAdd:
         
     #for x in range(len(FleetResponse)):
     #    for y in range FleetResponse[0].AvailableCapacityAdd:
-        
+    a=1
 ############################################################################
     #Plotting load add/shed responses
     '''
