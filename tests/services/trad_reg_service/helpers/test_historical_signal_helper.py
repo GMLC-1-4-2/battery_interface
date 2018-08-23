@@ -117,5 +117,16 @@ class TestHistoricalSignalHelper(unittest.TestCase):
 
         self.assertTrue("Start time: year = 2017 month = 9, End time: year = 2017 month = 9. Start time and end time must be within the date range of given data: between 2017-08-01 00:00:00 and 2017-08-10 23:59:58." in str(context.exception))
 
+    def test_infer_filename_from_datatime(self):
+
+        sheet_name = "Traditional"
+        start_time = parser.parse("2017-08-01 00:00:00")
+
+        actual_filename = self.historial_signal_helper.get_input_filename(start_time)
+
+        expected_filename = '08 2017.xlsx'
+
+        self.assertEqual(actual_filename, expected_filename)
+
 if __name__ == '__main__':
     unittest.main()
