@@ -7,5 +7,4 @@ pandas
 csv
 math
 copy
-inflection
 xlrd

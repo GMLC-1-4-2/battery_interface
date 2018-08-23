@@ -41,7 +41,7 @@ class TradRegService():
         self.grid = GridInfo('Grid_Info_DATA_2.csv')
 
     def request_loop(self, historial_signal_filename = '08 2017.xlsx', service_type = "Traditional", start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
-                     clearing_price_filename = 'historical-ancillary-service-data-2017.xls', clearing_price_sheet_name = 'August_2017'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
+                     clearing_price_filename = 'historical-ancillary-service-data-2017.xls'): ### (TODO) add keywords for date and start hour, duration. add serv_type 'trad_reg'(default), 'dynm_reg'
 
         # start_time = parser.parse("2017-08-01 16:00:00")
         # end_time = parser.parse("2017-08-01 21:00:00")
@@ -89,7 +89,7 @@ class TradRegService():
                 print(p_service)
                 the_file.write("{p_togrid},{p_service}\n".format(p_togrid=p_togrid, p_service=p_service))
 
-        self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, clearing_price_sheet_name)
+        self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
         # Calculate hourly performance score and store in a dictionary.
         hourly_results = {}
@@ -339,7 +339,7 @@ class TradRegService():
 
     @property
     def fleet(self):
-        self._fleet
+        return self._fleet
 
     @fleet.setter
     def fleet(self, value):
@@ -349,13 +349,15 @@ class TradRegService():
 # run from this file
 if __name__ == '__main__':
     service = TradRegService()
-    
-    #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-    fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
-    service.fleet = fleet
+
+    #battery_inverter_fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
+    battery_inverter_fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+    service.fleet = battery_inverter_fleet
 
     # Test request_loop()
-    fleet_response = service.request_loop()
+    fleet_response = service.request_loop(historial_signal_filename = '08 2017.xlsx', service_type = "Traditional",
+                                          start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
+                                          clearing_price_filename = 'historical-ancillary-service-data-2017.xls')
     print(fleet_response)
 
 
