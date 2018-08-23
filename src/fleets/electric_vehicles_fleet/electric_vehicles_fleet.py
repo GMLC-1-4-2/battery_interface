@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 07/20/2018
+Last update: 08/06/2018
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
@@ -77,6 +77,10 @@ class ElectricVehiclesFleet(FleetInterface):
         
         # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
         self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
+        
+        # Read the baseline power from Montecarlo simulations of the different charging strategies
+        self.df_baseline_power = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
+        self.p_baseline = 0
 
         # Initial state of charge of all the subfleets => Depends on the baseline simulations (SOC curves)
         np.random.seed(0)
@@ -132,8 +136,11 @@ class ElectricVehiclesFleet(FleetInterface):
     def simulate(self, P_req, Q_req, initSOC, t, dt):
         """ Simulation part of the code: discharge, charge, ... """
 
-        p_total = P_req
-       # q_total = Q_req       # Always None in the case of battery electric vehicles
+        self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
+                           self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.time] + 
+                           self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.time])
+
+        p_total = self.p_baseline + P_req
 
         if any(initSOC) > 1 or any(initSOC) < 0:
             print('ERROR: initial SOC out of range')
@@ -306,27 +313,42 @@ class ElectricVehiclesFleet(FleetInterface):
                 total_energy += energy_per_subfleet
             
             # response outputs 
-            response.P_injected = power_demanded
-            response.Q_injected = 0
-            response.Q_service  = 0
-            response.P_service  = 0
+            response.P_togrid  = power_demanded
+            response.Q_togrid  = 0
+            response.P_service = power_demanded - self.p_baseline
+            response.Q_service = 0
             
-            response.P_service_max  = 0
-            response.Q_service_max  = 0
-            response.P_injected_max = max_power_demanded
             response.E = total_energy
-            response.P_dot = 0
-            response.Q_dot = 0
+            response.C = None
+            
+            response.P_togrid_max = max_power_demanded
+            response.P_togrid_min = power_uncontrolled
+            response.Q_togrid_max = 0
+            response.Q_togrid_min = 0
+            
+            response.P_service_max = max_power_demanded - self.p_baseline
+            response.P_service_min = power_uncontrolled - self.p_baseline
+            response.Q_service_max = 0
+            response.Q_service_min = 0
+            
+            response.P_dot_up   = 0
+            response.P_dot_down = 0
+            response.Q_dot_up   = 0
+            response.Q_dot_down = 0
+            
 
-            response.Constraints = 0
-
-            response.Loss_standby = 0
-            response.Eff_throughput = 0
+            response.Eff_charge    = 0  
+            response.Eff_discharge = 0
+    
+            response.dT_hold_limit = None
+            response.T_restore     = None
+    
+            response.Strike_price = None
+            response.SOC_cost     = None
             
             self.SOC = SOC_step
             self.time = t + dt
-
-            
+         
             # Check the outputs
             return response
     
