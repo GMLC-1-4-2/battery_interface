@@ -57,3 +57,6 @@ class FleetInterface:
         In this example, the kwargs can be {"voltage_threshold": new_value}
         """
         pass
+
+    def assigned_regulation_MW(self):
+        return 1.0
