@@ -16,20 +16,20 @@ from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 
-from grid_info import GridInfo
 
 class BatteryInverterFleet(FleetInterface):
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
 
-    def __init__(self, model_type="ERM", **kwargs):
+    def __init__(self, GridInfo, model_type="ERM", **kwargs):
         """
         Constructor
         """
         self.model_type = model_type
         config_header = self.model_type
-        
+        # establish the grid locations that the battery fleet is conected to
+        self.grid = GridInfo
         # Get cur directory
         base_path = dirname(abspath(__file__))
 
@@ -204,10 +204,15 @@ class BatteryInverterFleet(FleetInterface):
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
         
+        # fleet configuration variables
+        self.is_P_priority = bool(self.config.get('FW', 'is_P_priority', fallback=True))
+        self.is_autonomous = bool(self.config.get('FW', 'is_autonomous', fallback=False))
+        self.autonomous_threshold = self.config.get('FW', 'autonomous_threshold', fallback='None')
+
         # autonomous operation
-        self.FW21_Enabled = self.config.get('FW', 'FW21_Enabled', fallback='FALSE')
-        self.VV11_Enabled = self.config.get('VV', 'VV11_Enabled', fallback='FALSE')
-        if self.FW21_Enabled == 'TRUE':
+        self.FW21_Enabled = bool(self.config.get('FW', 'FW21_Enabled', fallback=False))
+        self.VV11_Enabled = bool(self.config.get('VV', 'VV11_Enabled', fallback=False))
+        if self.FW21_Enabled == True:
             GFreq_list = self.config.get('FW', 'GFreq', fallback=0.005)
             GP_list = self.config.get('FW', 'GP', fallback=0.005)
             CFreq_list = self.config.get('FW', 'CFreq', fallback=0.005)
@@ -220,7 +225,7 @@ class BatteryInverterFleet(FleetInterface):
             self.CFreq = [float(e) for e in list_hold]
             list_hold = CP_list.split(',')
             self.CP = [float(e) for e in list_hold]
-        if self.VV11_Enabled == 'TRUE':
+        if self.VV11_Enabled == True:
             Vset_list = self.config.get('VV', 'Vset', fallback=0.005)
             Qset_list = self.config.get('VV', 'Qset', fallback=0.005)
             list_hold = Vset_list.split(',')
@@ -228,12 +233,11 @@ class BatteryInverterFleet(FleetInterface):
             list_hold = Qset_list.split(',')
             self.Qset = [float(e) for e in list_hold]
 
-    def process_request(self, fleet_request, Grid):
+    def process_request(self, fleet_request):
         """
-        The expectation that configuration will have at least the following
-        items
+        This function takes the fleet request and repackages it for the interal run function
         :param fleet_request: an instance of FleetRequest
-        :return res: an instance of FleetResponse
+        :return fleet_response: an instance of FleetResponse
         """
         ts = fleet_request.ts_req
         dt = fleet_request.sim_step
@@ -241,12 +245,19 @@ class BatteryInverterFleet(FleetInterface):
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        fleet_response = self.run(Grid, p_req, q_req,ts, dt)
+        fleet_response = self.run(p_req, q_req,ts, dt)
 
         return fleet_response
 
-    def frequency_watt(self, Grid, p_req = 0,ts=datetime.utcnow(),location=0):
-        f = Grid.get_frequency(ts,location)
+    def frequency_watt(self, p_req = 0,ts=datetime.utcnow(),location=0):
+        """
+        This function takes the requested power, date, time, and location
+        and modifys the requested power according to the configured FW21 
+        :param p_req: real power requested, ts:datetime opject,
+               location: numerical designation for the location of the BESS
+        :return p_mod: modifyed real power based on FW21 function
+        """
+        f = self.grid.get_frequency(ts,location)
         n = len(self.GFreq)
         k = len(self.CFreq)
         pmin = self.GP[0]
@@ -270,8 +281,14 @@ class BatteryInverterFleet(FleetInterface):
             p_mod=pmin   
         return p_mod
 
-    def volt_var(self, Grid, ts=datetime.utcnow(),location=0):
-        v = Grid.get_voltage(ts,location)
+    def volt_var(self, ts=datetime.utcnow(),location=0):
+        '''
+        This function takes the date, time, and location of the BESS
+        and returns a reactive power set point according to the configured VV11 function
+        :param ts:datetime opject, location: numerical designation for the location of the BESS
+        :return q_req: reactive power set point based on FW21 function
+        '''
+        v = self.grid.get_voltage(ts,location)
         n = len(self.Vset)
         q_req = self.Qset[0]
         for i in range(n-1):
@@ -280,7 +297,17 @@ class BatteryInverterFleet(FleetInterface):
                 q_req = self.Qset[i] + m * (v - self.Vset[i])
         return q_req
 
-    def run(self, Grid, P_req=[0], Q_req=[0],ts=datetime.utcnow(), del_t=timedelta(hours=1)):
+    def run(self, P_req=[0], Q_req=[0],ts=datetime.utcnow(), del_t=timedelta(hours=1)):
+        '''
+        This function takes the real and reactive power requested, date, time, and time step and 
+        calculates the updated fleet variables as well as a FleetResponse object based on what the 
+        simulated fleet is able to provide. It does this by dividing up the requests and sending each 
+        device in the fleet its own request. If some of the fleet is unable to supply the requested 
+        power, then the remainder is devided umung the remaining devices. 
+        :param P_req: requested real power, Q_req: requested reactive power
+               ts:datetime opject, del_t: timedelta object
+        :return  fleet_response: an instance of FleetResponse 
+        '''
         np = numpy.ones(self.num_of_devices,int)
         nq = numpy.ones(self.num_of_devices,int)
         p_none = 0
@@ -341,16 +368,16 @@ class BatteryInverterFleet(FleetInterface):
             q_tot = sum(self.Q_service)
         
         # after all the power needs have been placed and met, then make adjustments based on autonomous operation settings 
-        if self.FW21_Enabled == 'TRUE' or self.VV11_Enabled == 'TRUE':
+        if (self.FW21_Enabled == True or self.VV11_Enabled == True) and self.is_autonomous == True:
             for i in range(self.num_of_devices) :
                 p_req = self.P_service[i]
                 q_req = self.Q_service[i]
                 # determin if VV11 or FW21 change the p_req or q_req
-                if self.FW21_Enabled == 'TRUE':
-                    p_mod = self.frequency_watt(Grid,p_req,ts,self.location[i])
-                if self.VV11_Enabled == 'TRUE':
+                if self.FW21_Enabled == True:
+                    p_mod = self.frequency_watt(p_req,ts,self.location[i])
+                if self.VV11_Enabled == True:
                     if q_none == 1:
-                        q_mod = self.volt_var(Grid,ts,self.location[i])
+                        q_mod = self.volt_var(ts,self.location[i])
                     if self.model_type == 'ERM':
                         soc_update[i] = self.run_soc_update(p_req=(p_mod-p_req),q_req=(q_mod-q_req),np=numpy.ones(self.num_of_devices),nq=numpy.ones(self.num_of_devices),last_P=last_P,last_Q=last_Q,i=i,dt=dt)
                     if self.model_type == 'CRM':
@@ -381,6 +408,10 @@ class BatteryInverterFleet(FleetInterface):
         return response 
     
     def run_soc_update(self,p_req=0,q_req=0,np=1,nq=1,last_P=0,last_Q=0,i=0,dt=1):
+        '''
+        This function is used by the run function to calculate the fleet state variable updates
+        for each device. 
+        '''
         if np[i] == 1 or nq[i] == 1:
             #  Max ramp rate and apparent power limit checking
             if np[i] == 1 :
@@ -415,13 +446,14 @@ class BatteryInverterFleet(FleetInterface):
             S_req = float(numpy.sqrt(p_ach**2 + q_ach**2))
             
             # watt priority
-            if S_req > self.max_apparent_power:
-                q_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - p_ach**2)) * numpy.sign(q_ach))
-                S_req = self.max_apparent_power
-            # var priority
-            """ if S_req > self.max_apparent_power:
-                p_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - q_ach**2)) * numpy.sign(p_ach))
-                S_req = self.max_apparent_power """
+            if self.is_P_priority == True:
+                if S_req > self.max_apparent_power:
+                    q_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - p_ach**2)) * numpy.sign(q_ach))
+                    S_req = self.max_apparent_power
+            else: # var priority
+                if S_req > self.max_apparent_power:
+                    p_ach = float(numpy.sqrt(numpy.abs(self.max_apparent_power**2 - q_ach**2)) * numpy.sign(p_ach))
+                    S_req = self.max_apparent_power 
             # check power factor limit
             if p_ach != 0.0: 
                 if float(numpy.abs(S_req/p_ach)) < self.min_pf:
@@ -501,6 +533,14 @@ class BatteryInverterFleet(FleetInterface):
         
 
     def voc_update(self): 
+        '''
+        This function updates the open-circuit-voltage (voc) state variable based on what type of 
+        fit has been configured into the CRM. NOTE: the CubicSline option is configured to use
+        MATLAB's 'spline' function to calculate the diferent coefficients and SoC list. 
+        NOTE: The coefficients assume VOC based on SOC in [0,1] rather than SOC in [0,100] as
+        is used everywhere else in this code. This is only for conviniance based on previously 
+        fit data sets and can be changed easily by changeing the scaling factor below from 100 to 1. 
+        '''
         s = self.soc/100
         for i in range(self.num_of_devices):
             if self.voc_model_type== "Linear":
@@ -514,13 +554,25 @@ class BatteryInverterFleet(FleetInterface):
                 for s_cnt in self.voc_model_SoC_list:
                     if s[i] > s_cnt:
                         j = j + 1
-                self.voc = self.voc_model_a[j]*(s[i]**3) + self.voc_model_b[j]*(s[i]**2) + self.voc_model_c[j]*s[i] + self.voc_model_d[j]
+                self.voc[i] = self.voc_model_a[j-1]*((s[i]-self.voc_model_SoC_list[j-1])**3) \
+                            + self.voc_model_b[j-1]*((s[i]-self.voc_model_SoC_list[j-1])**2) \
+                            + self.voc_model_c[j-1]*(s[i]-self.voc_model_SoC_list[j-1]) \
+                            + self.voc_model_d[j-1]
             else:
                 print('Error: open circuit voltage (voc) model type (voc_model_type) is not defined properly')
                 print('in config_self.ini set VocModelType=Linear or =CubicSpline')
             pass
 
-    def voc_query(self,SOC): 
+    def voc_query(self,SOC):
+        '''
+        This function chexks the open-circuit-voltage (voc) state variable based on what type of 
+        fit has been configured into the CRM. Unlike voc_update, this function does not change the 
+        self.voc state variable. NOTE: the CubicSline option is configured to use
+        MATLAB's 'spline' function to calculate the diferent coefficients and SoC list. 
+        The coefficients assume VOC based on SOC in [0,1] rather than SOC in [0,100] as
+        is used everywhere else in this code. This is only for conviniance based on previously 
+        fit data sets and can be changed easily by changeing the scaling factor below from 100 to 1. 
+        ''' 
         SOC = SOC/100
         if self.voc_model_type== "Linear":
             VOC = self.voc_model_m*SOC + self.voc_model_b
@@ -530,17 +582,28 @@ class BatteryInverterFleet(FleetInterface):
             VOC = self.voc_model_a*(SOC**3) + self.voc_model_b*(SOC**2) + self.voc_model_c*SOC + self.voc_model_d
         elif self.voc_model_type == "CubicSpline":
             j = 0
-            for s in self.voc_model_SoC_list:
-                if SOC > s:
+            for s_cnt in self.voc_model_SoC_list:
+                if SOC > s_cnt:
                     j = j + 1
-            VOC = self.voc_model_a[j]*(SOC**3) + self.voc_model_b[j]*(SOC**2) + self.voc_model_c[j]*SOC + self.voc_model_d[j]
+            VOC = self.voc_model_a[j-1]*((SOC-self.voc_model_SoC_list[j-1])**3) \
+                        + self.voc_model_b[j-1]*((SOC-self.voc_model_SoC_list[j-1])**2) \
+                        + self.voc_model_c[j-1]*(SOC-self.voc_model_SoC_list[j-1]) \
+                        + self.voc_model_d[j-1]
         else:
             print('Error: open circuit voltage (voc) model type (voc_model_type) is not defined properly')
             print('in config_self.ini set VocModelType=Linear or =CubicSpline')
         return VOC
 
     def cost(self, initSoC = 50,finSoC = 50,del_t=timedelta(hours=1)):
-        import numpy
+        '''
+        This function is for use in dynamic programing optimization and round trip efficiency calculation. 
+        :param initSoC: starting state-of-charge, finSoC: final state-of-charge
+                del_t: time between initail and fial states of charge
+        :return Power: power required to move the average fleet SoC initSoC to finSoC in del_t
+                Cost: Currently not used but is a placeholder for an internal battery degredation based cost
+                Able: returns 1 if the the transision from initSoC to finSoC is posible in del_t 
+                      returnd 0 otherwise
+        '''
         # pre-define variables
         Cost = 0
         Able = 1
@@ -628,12 +691,15 @@ class BatteryInverterFleet(FleetInterface):
                 Current = 0
 
         Power = Power*self.num_of_devices
-        Cost = Power*self.num_of_devices
-        return [Power,Cost,Able]#Power,Cost,Able
+        Cost = 0 #Power*self.num_of_devices
+        return [Power,Cost,Able]
 
     def forecast(self, requests):
         """
-        Forecast feature
+        This function repackages the list of fleet requests passed to it into the interal run function.
+        Inorder for this to be a forecast, and therfore not change the state variables of the fleet, the 
+        fleets state variables are saved before calling the run function and then the states are restored
+        to their initial values after the forecast simulation is complete.
         :param fleet_requests: list of fleet requests
         :return res: list of service responses
         """
@@ -679,10 +745,17 @@ class BatteryInverterFleet(FleetInterface):
 
     def change_config(self, fleet_config):
         """
+        This function updates the fleet configuration settings programatically.
         :param fleet_config: an instance of FleetConfig
         """
 
         # change config
+        self.is_P_priority = fleet_config.is_P_priority
+        self.is_autonomous = fleet_config.is_autonomous
+        self.autonomous_threshold = fleet_config.autonomous_threshold
 
         pass
 
+    def assigned_regulation_MW(self):
+        test_value = (self.max_power_discharge*self.num_of_devices)*0.2
+        return test_value
