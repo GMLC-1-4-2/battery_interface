@@ -6,10 +6,11 @@
 
 class FleetConfig:
     """
-    This class describes input fields required by fleets
+    This class describes configurable parameters of a fleet
     """
 
-    def __init__(self, is_P_priority=True, is_autonomous=False, autonomous_threshold=None):
+    def __init__(self, is_P_priority=True, is_autonomous=False, f_thresholds=[], v_thresholds=[]):
         self.is_P_priority = is_P_priority
         self.is_autonomous = is_autonomous
-        self.autonomous_threshold = autonomous_threshold
+        self.f_thresholds = f_thresholds
+        self.v_thresholds = v_thresholds
