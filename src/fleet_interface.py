@@ -44,7 +44,7 @@ class FleetInterface:
 
         return fleet_responses
 
-    def change_config(self, **kwargs):
+    def change_config(self, fleet_config, **kwargs):
         """
         This function is here for future use. The idea of having it is for a service to communicate with a fleet
         in a nondeterministic manner during a simulation
@@ -57,3 +57,14 @@ class FleetInterface:
         In this example, the kwargs can be {"voltage_threshold": new_value}
         """
         pass
+
+    def assigned_regulation_MW(self):
+        return 1.0
+
+    def print_performance_info(self):
+        """
+        This function is to dump the performance metrics either to screen or file or both
+        :return:
+        """
+        pass
+

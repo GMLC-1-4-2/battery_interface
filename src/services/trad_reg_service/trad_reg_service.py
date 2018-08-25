@@ -8,12 +8,10 @@ from dateutil import parser
 from datetime import timedelta
 from os.path import dirname, abspath
 
-#import matplotlib.pyplot as plt
-
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 from fleet_request import FleetRequest
 from fleet_config import FleetConfig
@@ -21,16 +19,17 @@ from fleet_config import FleetConfig
 # from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
 
-from battery_inverter_fleet import BatteryInverterFleet
-from helpers.historical_signal_helper import HistoricalSignalHelper
-from helpers.clearing_price_helper import ClearingPriceHelper
+from services.trad_reg_service.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+from services.trad_reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
+from services.trad_reg_service.helpers.clearing_price_helper import ClearingPriceHelper
 
-from grid_info import GridInfo
+from services.trad_reg_service.battery_inverter_fleet.grid_info import GridInfo
 
 class TradRegService():
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
+    _fleet = None
 
     def __init__(self, *args, **kwargs):
         self.sim_time_step = timedelta(hours=1)
@@ -38,7 +37,6 @@ class TradRegService():
         self._historial_signal_helper = HistoricalSignalHelper()
         self._clearing_price_helper = ClearingPriceHelper()
 
-        self.grid = GridInfo('Grid_Info_DATA_2.csv')
 
     def request_loop(self, service_type = "Traditional",
                      start_time = parser.parse("2017-08-01 16:00:00"),
@@ -83,7 +81,7 @@ class TradRegService():
         responses = []
 
         for timestamp, power in signals.items():
-            request, response = self.request(timestamp, sim_step, power)
+            request, response = self.request(timestamp, sim_step, power*self._fleet.assigned_regulation_MW())
             requests.append(request)
             responses.append(response)
 
@@ -135,25 +133,25 @@ class TradRegService():
         SOC = [r.soc for r in responses]
         n = len(P_request)
         t = np.asarray(range(n))*(2/3600)
-        # plt.figure(1)
-        # plt.subplot(211)
-        # plt.plot(t, P_request, label='P Request')
-        # plt.plot(t, P_responce, label='P Responce')
-        # plt.ylabel('Power (kW)')
-        # plt.legend(loc='upper right')
-        # plt.subplot(212)
-        # plt.plot(t, SOC, label='SoC')
-        # plt.ylabel('SoC (%)')
-        # plt.xlabel('Time (hours)')
-        # plt.legend(loc='lower right')
-        # plt.show()
+        plt.figure(1)
+        plt.subplot(211)
+        plt.plot(t, P_request, label='P Request')
+        plt.plot(t, P_responce, label='P Responce')
+        plt.ylabel('Power (kW)')
+        plt.legend(loc='upper right')
+        plt.subplot(212)
+        plt.plot(t, SOC, label='SoC')
+        plt.ylabel('SoC (%)')
+        plt.xlabel('Time (hours)')
+        plt.legend(loc='lower right')
+        plt.show()
 
         return hourly_results
 
 
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
-        fleet_response = self._fleet.process_request(fleet_request,self.grid)
+        fleet_response = self.fleet.process_request(fleet_request)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response
 
@@ -361,8 +359,9 @@ class TradRegService():
 if __name__ == '__main__':
     service = TradRegService()
 
-    #battery_inverter_fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-    battery_inverter_fleet =  BatteryInverterFleet() #temporary for the purpose of getting dummy response
+    #fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
+    grid = GridInfo('battery_inverter_fleet/Grid_Info_DATA_2.csv')
+    battery_inverter_fleet = BatteryInverterFleet(GridInfo=grid)  # establish the battery inverter fleet with a grid
     service.fleet = battery_inverter_fleet
 
     # Test request_loop()
