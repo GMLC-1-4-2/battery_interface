@@ -41,7 +41,6 @@ class TradRegService():
     def request_loop(self, service_type = "Traditional",
                      start_time = parser.parse("2017-08-01 16:00:00"),
                      end_time = parser.parse("2017-08-01 21:00:00"),
-                     historial_signal_filename = '08 2017.xlsx',
                      clearing_price_filename = 'historical-ancillary-service-data-2017.xls'):
         ### (TODO) add serv_type 'trad_reg'(default), 'dynm_reg'
 
@@ -71,7 +70,7 @@ class TradRegService():
         #       Thus, revisit this after the codebase becomes production ready, at which time,
         #       you may have the default directory for input files whose path can be passed in
         #       in a different way.
-        #historial_signal_filename = self._historial_signal_helper.get_input_filename(start_time)
+        historial_signal_filename = self._historial_signal_helper.get_input_filename(start_time)
         self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, service_type)
 
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
@@ -365,8 +364,8 @@ if __name__ == '__main__':
     service.fleet = battery_inverter_fleet
 
     # Test request_loop()
-    fleet_response = service.request_loop(historial_signal_filename = '08 2017.xlsx', service_type = "Traditional",
-                                          start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
+    fleet_response = service.request_loop(service_type = "Traditional",
+                                          start_time = parser.parse("2017-08-03 16:00:00"), end_time = parser.parse("2017-08-04 08:00:00"),
                                           clearing_price_filename = 'historical-ancillary-service-data-2017.xls')
     print(fleet_response)
 
