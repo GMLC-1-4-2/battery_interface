@@ -37,7 +37,7 @@ class WaterHeaterFleet():
         
     def process_request(self, ServiceRequest):
         
-        response = ExecuteFleet()
+        response = self.ExecuteFleet(ServiceRequest)
         
         return response
         

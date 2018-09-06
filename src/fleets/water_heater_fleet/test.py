@@ -79,10 +79,10 @@ def main():
     ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request, Steps, forecast) # ts,dt,Power[T],0.0)
 
     # initializing fleet
-    fleet = WaterHeaterFleet(ServiceRequest)
+    fleet = WaterHeaterFleet()
     
     #calling fleet
-    FleetResponse = fleet.ExecuteFleet(ServiceRequest)
+    FleetResponse = fleet.process_request(ServiceRequest)
     
     #Gather data to plot and look at the results
     #for y in range FleetResponse[0].AvailableCapacityAdd:
