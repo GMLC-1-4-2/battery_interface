@@ -11,11 +11,12 @@ from datetime import datetime, timedelta
 import numpy  
 import copy 
 import math
+import csv
 
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-
+from frequency_droop import FrequencyDroop
 
 class BatteryInverterFleet(FleetInterface):
     """
@@ -205,26 +206,21 @@ class BatteryInverterFleet(FleetInterface):
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
         
         # fleet configuration variables
-        self.is_P_priority = bool(self.config.get('FW', 'is_P_priority', fallback=True))
-        self.is_autonomous = bool(self.config.get('FW', 'is_autonomous', fallback=False))
-        self.autonomous_threshold = self.config.get('FW', 'autonomous_threshold', fallback='None')
+        self.is_P_priority = bool(self.config.get('Fleet configuration', 'is_P_priority', fallback=True))
+        self.is_autonomous = bool(self.config.get('Fleet configuration', 'is_autonomous', fallback=False))
 
         # autonomous operation
         self.FW21_Enabled = bool(self.config.get('FW', 'FW21_Enabled', fallback=False))
         self.VV11_Enabled = bool(self.config.get('VV', 'VV11_Enabled', fallback=False))
         if self.FW21_Enabled == True:
-            GFreq_list = self.config.get('FW', 'GFreq', fallback=0.005)
-            GP_list = self.config.get('FW', 'GP', fallback=0.005)
-            CFreq_list = self.config.get('FW', 'CFreq', fallback=0.005)
-            CP_list = self.config.get('FW', 'CP', fallback=0.005)
-            list_hold = GFreq_list.split(',')
-            self.GFreq = [float(e) for e in list_hold]
-            list_hold = GP_list.split(',')
-            self.GP = [float(e) for e in list_hold]
-            list_hold = CFreq_list.split(',')
-            self.CFreq = [float(e) for e in list_hold]
-            list_hold = CP_list.split(',')
-            self.CP = [float(e) for e in list_hold]
+            db_UF = float(self.config.get('FW', 'db_UF', fallback=0.005))
+            db_OF = float(self.config.get('FW', 'db_OF', fallback=0.005))
+            k_UF = float(self.config.get('FW', 'k_UF', fallback=0.005))
+            k_OF = float(self.config.get('FW', 'k_OF', fallback=0.005))
+            P_avl = float(self.config.get('FW', 'P_avl', fallback=0.005))
+            P_min = float(self.config.get('FW', 'P_min', fallback=0.005))
+            P_pre = float(self.config.get('FW', 'P_pre', fallback=0.005))
+            self.fw_function = FrequencyDroop(db_UF,db_OF,k_UF,k_OF,P_avl,P_min,P_pre)
         if self.VV11_Enabled == True:
             Vset_list = self.config.get('VV', 'Vset', fallback=0.005)
             Qset_list = self.config.get('VV', 'Qset', fallback=0.005)
@@ -232,6 +228,14 @@ class BatteryInverterFleet(FleetInterface):
             self.Vset = [float(e) for e in list_hold]
             list_hold = Qset_list.split(',')
             self.Qset = [float(e) for e in list_hold]
+
+        # impact metrics 
+            # end of life cost
+        self.eol_cost = float(self.config.get('impact metrics', 'eol_cost', fallback=100))
+        self.cycle_life = float(self.config.get('impact metrics', 'cycle_life', fallback=100))
+        self.soh = float(self.config.get('impact metrics', 'soh', fallback=100))
+        self.soh_init = self.soh
+        self.soh = numpy.repeat(self.soh,self.num_of_devices)
 
     def process_request(self, fleet_request):
         """
@@ -258,27 +262,8 @@ class BatteryInverterFleet(FleetInterface):
         :return p_mod: modifyed real power based on FW21 function
         """
         f = self.grid.get_frequency(ts,location)
-        n = len(self.GFreq)
-        k = len(self.CFreq)
-        pmin = self.GP[0]
-        pmax = self.CP[0]
-        p_mod = copy.copy(p_req)
-        for i in range(n-1):
-            if f>self.GFreq[i] and f<self.GFreq[i+1] :
-                m =  (self.GP[i] - self.GP[i+1]) / (self.GFreq[i] - self.GFreq[i+1]) 
-                pmin = self.GP[i] + m * (f - self.GFreq[i])
-        if f>self.GFreq[n-1]:
-            pmin = self.GP[n-1]
-        for i in range(k-1):
-            if f>self.CFreq[i] and f<self.CFreq[i+1] :
-                m =  (self.CP[i] - self.CP[i+1]) / (self.CFreq[i] - self.CFreq[i+1]) 
-                pmax = self.CP[i] + m * (f - self.CFreq[i]) 
-        if f>self.CFreq[k-1]:   
-            pmax = self.CP[k-1]
-        if p_req>pmax  :
-            p_mod=pmax
-        if p_req<pmin  :
-            p_mod=pmin   
+        self.fw_function.P_pre = p_req
+        p_mod = self.fw_function.F_W(f) 
         return p_mod
 
     def volt_var(self, ts=datetime.utcnow(),location=0):
@@ -394,12 +379,16 @@ class BatteryInverterFleet(FleetInterface):
         q_tot = sum(self.Q_service)    
         # update SoC
         self.soc = soc_update
+        # update SoH
+        if self.model_type == 'ERM':
+            self.soh = self.soh - 100*dt*abs(self.P_service)/((1+1/self.energy_efficiency)*self.cycle_life*self.energy_capacity)
         if self.model_type == 'CRM':
             self.v1 = v1_update
             self.v2 = v2_update
             self.voc_update()
             self.ibat = ibat_update
             self.vbat = (self.v1 + self.v2 + self.voc + self.ibat*self.r0) *self.n_cells
+            self.soh = self.soh - 100*dt*abs(self.ibat)/((1+1/self.coulombic_efficiency)*self.cycle_life*self.charge_capacity)
         # once the power request has been met, or all devices are at their limits, return the response variables
         response.P_service = p_tot
         response.Q_service = q_tot  
@@ -530,7 +519,19 @@ class BatteryInverterFleet(FleetInterface):
                     self.P_service[i] = p_ach
                     self.Q_service[i] = q_ach
                     return  [soc_update, pdc_update, ibat_update, vbat_update, v1_update, v2_update]
-        
+            if np[i] == 0:
+                # run function for ERM model type
+                if self.model_type == 'ERM':
+                    soc_update = self.soc[i]
+                    return  soc_update
+                if self.model_type == 'CRM':
+                    soc_update = self.soc[i]
+                    pdc_update = self.pdc[i]
+                    ibat_update = self.ibat[i]
+                    vbat_update = self.vbat[i]
+                    v1_update = self.v1[i]
+                    v2_update = self.v2[i]
+                    return  [soc_update, pdc_update, ibat_update, vbat_update, v1_update, v2_update]
 
     def voc_update(self): 
         '''
@@ -743,6 +744,20 @@ class BatteryInverterFleet(FleetInterface):
 
         return responses
 
+    def output_impact_metrics(self):   
+        impact_metrics_DATA = [["Impact Metrics File"],
+                                ["state-of-health", "initial value", "final value", "degredation cost"]]
+        for i in range(self.num_of_devices):
+            impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
+
+        total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
+        impact_metrics_DATA.append(["Total degredation cost:", str(total_cost)])
+
+        with open('impact_metrics.csv', 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(impact_metrics_DATA)     
+
+        pass
     def change_config(self, fleet_config):
         """
         This function updates the fleet configuration settings programatically.
@@ -752,7 +767,13 @@ class BatteryInverterFleet(FleetInterface):
         # change config
         self.is_P_priority = fleet_config.is_P_priority
         self.is_autonomous = fleet_config.is_autonomous
+        self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
+        self.fw_function.db_UF = self.FW_Param[0]
+        self.fw_function.db_OF = self.FW_Param[1]
+        self.fw_function.k_UF = self.FW_Param[2]
+        self.fw_function.k_OF = self.FW_Param[3]
         self.autonomous_threshold = fleet_config.autonomous_threshold
+        self.Vset = fleet_config.v_thresholds
 
         pass
 
