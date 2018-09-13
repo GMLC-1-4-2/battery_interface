@@ -746,12 +746,12 @@ class BatteryInverterFleet(FleetInterface):
 
     def output_impact_metrics(self):   
         impact_metrics_DATA = [["Impact Metrics File"],
-                                ["state-of-health", "initial value", "final value", "degredation cost"]]
+                                ["state-of-health", "initial value", "final value", "degradation cost"]]
         for i in range(self.num_of_devices):
             impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
 
         total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
-        impact_metrics_DATA.append(["Total degredation cost:", str(total_cost)])
+        impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)
