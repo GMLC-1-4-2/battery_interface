@@ -4,7 +4,7 @@ The following readme.txt describes the structure of the class ElectricVehiclesFl
 Describes its functionality, methods, and attributes.
 @authors: mduoba@anl.gov 
 	  afernandezcanosa@anl.gov
-Last update: 07/20/2018
+Last update: 09/20/2018
 Argonne National Laboratory (ANL) - Grid Modernization Lab Consortium (GMLC)
 --------------------------------------------------------------------------------------------------------------------------------------------------------------
 
