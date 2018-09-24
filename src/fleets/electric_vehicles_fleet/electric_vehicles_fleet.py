@@ -273,10 +273,9 @@ class ElectricVehiclesFleet(FleetInterface):
                                 elif (power_controlled + power_subfleet[idx]) < power_controlled_thres:
                                     power_controlled += power_subfleet[idx]
                                 else:
-                                    # Surpases the maximum power and returns the previous state
+                                    # Surpasses the maximum power and returns the previous state
                                     power_subfleet[idx] = 0
                                     SOC_step[idx] = initSOC[idx]
-                                    break
                         # However, if the time is greater, we have to start charging right away regardless the service demanded (constraint of the device)
                         elif t >= check_tcin:
                             SOC_step[idx], power_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)

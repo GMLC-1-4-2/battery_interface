@@ -76,7 +76,7 @@ leg_prop={"size": font_s-1}
     
 plt.figure(figsize = fig_s)
 plt.title(f'Initial hour of request: {ts.hour}:{ts.minute}:{ts.second} | {seconds_of_simulation/3600} hours of simulation | dt = {dt/60} min',
-          fontsize = font_s + 2, fontweight = font_w)
+          fontsize = font_s + 1, fontweight = font_w)
 plt.step(t - t[0], max_power_service, color = 'b', linewidth = lw, label = 'Max Service')
 plt.step(t - t[0], power_service, color = 'k', linewidth = lw, label = 'Service')
 plt.step(t - t[0], power_request, color = 'r', linewidth = lw, label = 'Request')
@@ -89,7 +89,7 @@ plt.ylabel('Service Power (kW)', fontsize = font_s, fontweight = font_w)
 
 plt.figure(figsize = fig_s)
 plt.title(f'Initial hour of request: {ts.hour}:{ts.minute}:{ts.second} | {seconds_of_simulation/3600} hours of simulation | dt = {dt/60} min',
-          fontsize = font_s + 2, fontweight = font_w)
+          fontsize = font_s + 1, fontweight = font_w)
 plt.plot(np.arange(0,seconds_of_simulation), power_baseline, color = 'b', linewidth = lw, label = 'Baseline')
 plt.step(t - t[0], power_response, color = 'k', linewidth = lw, label = 'Response')
 plt.step(t - t[0], power_baseline[t] + power_request, color = 'r', linewidth = lw, label = 'Baseline + Request')
@@ -102,7 +102,7 @@ plt.ylabel('Power (kW)', fontsize = font_s, fontweight = font_w)
 
 plt.figure(figsize = fig_s)
 plt.title(f'Initial hour of request: {ts.hour}:{ts.minute}:{ts.second} | {seconds_of_simulation/3600} hours of simulation | dt = {dt/60} min',
-          fontsize = font_s + 2, fontweight = font_w)
+          fontsize = font_s + 1, fontweight = font_w)
 plt.plot(t - t[0], energy_stored*1e-6, color = 'b', linewidth = lw)
 plt.grid()
 plt.xlim([0,max(t) - t[0]])
@@ -133,7 +133,7 @@ SOC_tcin = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy)
 
 plt.figure(figsize = fig_s)
 plt.title(f'Initial hour of request: {ts.hour}:{ts.minute}:{ts.second} | {seconds_of_simulation/3600} hours of simulation | dt = {dt/60} min',
-          fontsize = font_s + 2, fontweight = font_w)
+          fontsize = font_s + 1, fontweight = font_w)
 plt.plot(t - t[0], SOC_fleet_time*100, color = 'b', linewidth = lw, label = 'Fleet')
 plt.plot(t - t[0], SOC_right_away*100, 'r--', linewidth = lw, label = 'Right-away')
 plt.plot(t - t[0], SOC_midnight*100, 'k--', linewidth = lw, label = 'Midnight')
