@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 09/20/2018
+Last update: 10/01/2018
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
@@ -11,19 +11,23 @@ Author: afernandezcanosa@anl.gov
 from fleet_interface import FleetInterface
 from fleet_request   import FleetRequest
 from fleet_response  import FleetResponse
+from frequency_droop import FrequencyDroop
 
+from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import os
 from scipy.stats import truncnorm
+import csv
 
 class ElectricVehiclesFleet(FleetInterface):
     
-    def __init__(self, ts):
+    def __init__(self, GridInfo, ts):
         """
         Constructor
         """
-        
+        # Establish the properties of the grid on which the fleet is connected on
+        self.grid = GridInfo
         # Number of subfleets that are going to be simulated
         self.N_SubFleets = 100
         # Location of working path
@@ -63,7 +67,9 @@ class ElectricVehiclesFleet(FleetInterface):
         self.ChargedAtWork_per  = 0.17
         self.ChargedAtOther_per = 0.02
 
-        # Initialize local time of the class
+        # Initialize timestamps and local times of the class for future calculations
+        self.initial_ts = ts 
+        self.ts = ts
         self.initial_time = self.get_time_of_the_day(ts)
         self.time = self.get_time_of_the_day(ts)
         self.dt = 1
@@ -80,7 +86,9 @@ class ElectricVehiclesFleet(FleetInterface):
         
         # Read the baseline power from Montecarlo simulations of the different charging strategies
         self.df_baseline_power = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
-        self.p_baseline = 0
+        self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.initial_time] + 
+                           self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.initial_time] + 
+                           self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.initial_time])
 
         # Initial state of charge of all the subfleets => Depends on the baseline simulations (SOC curves)
         np.random.seed(0)
@@ -109,6 +117,46 @@ class ElectricVehiclesFleet(FleetInterface):
         # Schedules of all the sub fleets
         self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(0,self.SOC,self.Voltage)
         
+        """
+        Can this fleet operate in autonomous operation?
+        """
+        
+        # Locations of the subfleets: suppose that you only have two locations
+        self.location = np.random.randint(0,2,self.N_SubFleets)
+        
+        # Fleet configuration variables
+        self.is_P_priority = True
+        self.is_autonomous = False
+        
+        # Autonomous operation
+        self.FW21_Enabled = True
+        if self.FW21_Enabled == True:
+            # Single-sided deadband value for low-frequency, in Hz
+            db_UF = 0.036
+            # Single-sided deadband value for high-frequency, in Hz
+            db_OF = 0.036
+            # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
+            k_UF  = 0.05
+            # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
+            k_OF  = 0.05
+            # Available active power, in p.u. of the DER rating
+            P_avl = 1.0
+            # Minimum active power output due to DER prime mover constraints, in p.u. of the DER rating
+            P_min = 0.0
+            P_pre = 1.0
+            self.fw_function = FrequencyDroop(db_UF, db_OF, k_UF, k_OF, P_avl, P_min, P_pre)
+        
+        # Impact metrics of the fleet
+        # End of life cost
+        self.eol_cost = 6000
+        # Cylce life
+        self.cycle_life = 1e3
+        # State of health of the battery for all the subfleets
+        self.soh_init = np.repeat(100.0, self.N_SubFleets)
+        self.soh = np.repeat(100.0, self.N_SubFleets)
+        # Energy efficiency
+        self.energy_efficiency = 0.9
+        
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the discharge and charge of the subfleets """
         h, m, s = ts.hour, ts.minute, ts.second
@@ -121,10 +169,10 @@ class ElectricVehiclesFleet(FleetInterface):
     
     def process_request(self, fleet_request):
         """
-        Request for timestep ts
+        This function takes the fleet request and repackages it for the 
+        internal simulate method of the class
 
-        :param P_req:
-        :param Q_req:
+        :param fleet_request: an instance of FleetRequest
 
         :return res: an instance of FleetResponse
         """
@@ -133,13 +181,44 @@ class ElectricVehiclesFleet(FleetInterface):
 
         return FleetResponse
     
+    def frequency_watt(self, p_req = 0,ts=datetime.utcnow(),location=0):
+        """
+        This function takes the requested power, date, time, and location
+        and modifies the requested power according to the configured FW21 
+        :param p_req: real power requested, ts:datetime object,
+               location: numerical designation for the location of the BESS
+        :return p_mod: modified real power based on FW21 function
+        """
+        f = self.grid.get_frequency(ts,location)
+        self.fw_function.P_pre = p_req
+        p_mod = self.fw_function.F_W(f) 
+        return p_mod
+    
+    def update_soc_due_to_frequency_dropp(self, initSOC, SOC, p_tot, p_mod):
+        """
+        This method returns the modified state of charge of each subfleet 
+        due to frequency droop in the grid
+        """
+        if p_tot !=0:
+            SOC_update = initSOC + (p_mod/p_tot)*(SOC - initSOC)
+        else:
+            SOC_update = initSOC
+           
+        return SOC_update
+    
     def simulate(self, P_req, Q_req, initSOC, t, dt):
-        """ Simulation part of the code: discharge, charge, ... """
+        """ 
+        Simulation part of the code: charge, discharge, ...:
+        everything must be referenced to baseline power from Montecarlo 
+        simulations of the different charging strategies
+        """
 
+        # Baseline power is extracted from baseline simulations
         self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
                            self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.time] + 
                            self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.time])
 
+        # The total power requested must be referenced to the baseline power
         p_total = self.p_baseline + P_req
 
         if any(initSOC) > 1 or any(initSOC) < 0:
@@ -258,6 +337,10 @@ class ElectricVehiclesFleet(FleetInterface):
                 if SOC_sorted['state_subfleet'][idx] == 'home after schedule':
                     if SOC_sorted['charging_strategy'][idx] == 'right away':  # subfleets that start charging immediately -> controlled charging
                         # Check the time to start charging to meet tcin
+                        if t < self.ScheduleStartTime.iloc[idx][1]:
+                            tcin = self.ScheduleStartTime.iloc[idx][1]
+                        else:
+                            tcin = self.ScheduleStartTime.iloc[idx][1] + 24*3600
                         _,_,check_tcin = self.start_charging_to_meet_tcin(tcin, t, idx, initSOC[idx], dt)
                         # If the time is less than the time when the car must be start charging to meet tcin then:
                         if t < check_tcin:
@@ -279,25 +362,58 @@ class ElectricVehiclesFleet(FleetInterface):
                         # However, if the time is greater, we have to start charging right away regardless the service demanded (constraint of the device)
                         elif t >= check_tcin:
                             SOC_step[idx], power_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)
-                            power_controlled += power_subfleet[idx]
+                            power_controlled += power_subfleet[idx]   
+                            # Check if the subfleet is fully charged
+                            if SOC_step[idx] > 1:
+                                SOC_step[idx] = initSOC[idx]
+                                power_subfleet[idx] = 0
+            
+            """
+            Modify the power and SOC of the different subfeets according 
+            to the frequency droop regulation according to IEEE standard
+            """
+            power_aux = power_subfleet
+            for subfleet in range(self.N_SubFleets):
+                if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':
+                    if self.FW21_Enabled == True and self.is_autonomous == True:
+                        # Update the power
+                        power_subfleet[subfleet] = power_subfleet[subfleet]*self.frequency_watt(
+                                power_subfleet[subfleet],
+                                self.ts,
+                                self.location[subfleet])
+                        # Update the state of charge of the batteries of the different subfleets
+                        SOC_step[subfleet] = self.update_soc_due_to_frequency_dropp(
+                                initSOC[subfleet],
+                                SOC_step[subfleet],
+                                power_aux[subfleet],
+                                power_subfleet[subfleet])
+                    else:
+                        break
 
             # Demand of power
-            power_demanded = power_uncontrolled + power_controlled
+            power_demanded = np.sum(power_subfleet, axis = 0)
             
             # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
-            max_power_controlled = 0
             for subfleet in range(self.N_SubFleets):
                 if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
                     if self.monitor_strategy[subfleet] == 'right away':
-                        SOC_aux, power_aux = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
-                        if SOC_aux < 1:
-                            max_power_controlled += power_aux
+                        SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
+                        if self.FW21_Enabled == True and self.is_autonomous == True:
+                            # Update the power
+                            power_subfleet[subfleet] = power_subfleet[subfleet]*self.frequency_watt(
+                                    power_subfleet[subfleet],
+                                    self.ts,
+                                    self.location[subfleet])
+                        if SOC_check > 1:
+                            power_subfleet[subfleet] = 0
+
                         
-            #Maximum demand of power
-            max_power_demanded = power_uncontrolled + max_power_controlled
+            # Maximum demand of power
+            max_power_demanded = np.sum(power_subfleet, axis = 0)
             
             # Calculate the energy stored in each individual subfleet
             total_energy = 0
+            energy_per_subfleet = np.zeros([self.N_SubFleets,])
             for subfleet in range(self.N_SubFleets):
                 R = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[subfleet]],
                                             self.df_VehicleModels['R_SOC_1'][self.SubFleetId[subfleet]],
@@ -316,8 +432,8 @@ class ElectricVehiclesFleet(FleetInterface):
                                          self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet]], 
                                          self.df_VehicleModels['Number_of_cells'][self.SubFleetId[subfleet]],SOC_step[subfleet],R,ibat)
                 capacity = self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet]]
-                energy_per_subfleet = self.energy_stored_per_subfleet(SOC_step[subfleet], capacity, v, self.VehiclesSubFleet)
-                total_energy += energy_per_subfleet
+                energy_per_subfleet[subfleet] = self.energy_stored_per_subfleet(SOC_step[subfleet], capacity, v, self.VehiclesSubFleet)
+                total_energy += energy_per_subfleet[subfleet]
             
             # response outputs 
             response.P_togrid  = power_demanded
@@ -355,9 +471,16 @@ class ElectricVehiclesFleet(FleetInterface):
             
             self.SOC = SOC_step
             self.time = t + dt
+            self.ts = self.ts + timedelta(dt)
             # Restart time if it surpasses 24 hours
             if self.time > 24*3600:
                 self.time = self.time - 24*3600
+                
+            # Update the state of health of the batteries of each subfleet
+            for subfleet in range(self.N_SubFleets):
+                self.soh[subfleet] = (self.soh[subfleet] - 
+                                100*(dt/3600)*abs(power_subfleet[subfleet]) / 
+                                ((1+1/self.energy_efficiency)*self.cycle_life*energy_per_subfleet[subfleet]))
          
             # Check the outputs
             return response
@@ -531,7 +654,9 @@ class ElectricVehiclesFleet(FleetInterface):
             return SOC, 0, time_start_charging
         
     def start_charging_right_away_strategy(self, subfleet_number, SOC, dt):
-        """ Method to calculate the start-charging-right-away strategy """
+        """ 
+        Method to calculate the start-charging-right-away strategy
+        """
         v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[subfleet_number]],
                                  self.df_VehicleModels['V_SOC_1'][self.SubFleetId[subfleet_number]],
                                  self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet_number]], 
@@ -550,18 +675,43 @@ class ElectricVehiclesFleet(FleetInterface):
         SOC_step = SOC + charge_rate*dt
         
         return SOC_step, power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000
-        
     
-    def change_config(self, **kwargs):
+    def output_impact_metrics(self): 
         """
-        This function is here for future use. The idea of having it is for a service to communicate with a fleet
-        in a nondeterministic manner during a simulation
-
-        :param kwargs: a dictionary of (key, value) pairs. The exact keys are decided by a fleet.
-
-        Example: Some fleets can operate in an autonomous mode, where they're not responding to requests,
-        but watching, say, the voltage. If the voltage dips below some defined threshold (which a service might define),
-        then the fleet responds in a pre-defined way.
-        In this example, the kwargs can be {"voltage_threshold": new_value}
+        This function exports the impact metrics of each sub fleet
         """
+        impact_metrics_DATA = [["Impact Metrics File"],
+                                ["state-of-health", "initial value", "final value", "degradation cost"]]
+        for subfleet in range(self.N_SubFleets):
+            impact_metrics_DATA.append(["battery-"+str(subfleet),
+                                        str(self.soh_init[subfleet]),
+                                        str(self.soh[subfleet]),
+                                        str((self.soh_init[subfleet]-self.soh[subfleet])*self.eol_cost/100)])
+
+        total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
+        impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
+
+        with open('impact_metrics.csv', 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(impact_metrics_DATA)     
+
+        pass
+    
+    def change_config(self, fleet_config):
+        """
+        This function updates the fleet configuration settings programatically.
+        :param fleet_config: an instance of FleetConfig
+        """
+
+        # change config
+        self.is_P_priority = fleet_config.is_P_priority
+        self.is_autonomous = fleet_config.is_autonomous
+        self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
+        self.fw_function.db_UF = self.FW_Param[0]
+        self.fw_function.db_OF = self.FW_Param[1]
+        self.fw_function.k_UF  = self.FW_Param[2]
+        self.fw_function.k_OF  = self.FW_Param[3]
+        self.autonomous_threshold = fleet_config.autonomous_threshold
+        self.Vset = fleet_config.v_thresholds
+        
         pass
