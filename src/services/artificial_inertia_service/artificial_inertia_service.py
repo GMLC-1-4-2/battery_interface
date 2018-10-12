@@ -24,12 +24,13 @@ class ArtificialInertiaService():
         inittime = parser.parse("2018-10-12 00:00:00")
         delt = timedelta(seconds=2 / 60)
         cur_time = inittime
-        end_time = cur_time + timedelta(seconds=60)
+        end_time = cur_time + timedelta(seconds=1)
         while cur_time < end_time:
             fleet_request = FleetRequest(cur_time, delt)
             fleet_response = fleet_device.process_request(fleet_request)
             responses.append(fleet_response)
             cur_time += delt
+            print("{}".format(cur_time))
 
         return responses
 
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     #import numpy as np
     #import matplotlib.pyplot as plt
     from grid_info import GridInfo
-    from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+    #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
     from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 
     # Create a fleet and pass in gridinfo (contains the frequency from CSV file)
@@ -63,5 +64,6 @@ if __name__ == "__main__":
     avg = service.calculation(responses)
 
     # Plot, print to screen ...
+    print(avg)
     print(avg)
 
