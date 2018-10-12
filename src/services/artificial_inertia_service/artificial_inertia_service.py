@@ -53,7 +53,7 @@ if __name__ == "__main__":
     from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 
     # Create a fleet and pass in gridinfo (contains the frequency from CSV file)
-    grid = GridInfo('Grid_Info_DATA_2.csv')
+    grid = GridInfo('artificial_inertia.csv')
     #fleet_device = BatteryInverterFleet(GridInfo=grid)  # establish the battery inverter fleet with a grid
     fleet_device = HomeAcFleet(GridInfo=grid)
 
