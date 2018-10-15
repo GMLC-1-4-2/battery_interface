@@ -365,7 +365,7 @@ if __name__ == '__main__':
 
     # Test request_loop()
     fleet_response = service.request_loop(service_type = "Traditional",
-                                          start_time = parser.parse("2017-08-03 16:00:00"), end_time = parser.parse("2017-08-04 08:00:00"),
+                                          start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
                                           clearing_price_filename = 'historical-ancillary-service-data-2017.xls')
     print(fleet_response)
 
