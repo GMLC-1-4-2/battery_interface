@@ -25,13 +25,13 @@ class ArtificialInertiaService():
         inittime = parser.parse("2018-10-12 00:00:00")
         delt = timedelta(seconds=2 / 60)
         cur_time = inittime
-        end_time = cur_time + timedelta(seconds=1)
+        end_time = cur_time + timedelta(seconds=149)
         while cur_time < end_time:
             fleet_request = FleetRequest(cur_time, delt)
             fleet_response = fleet_device.process_request(fleet_request)
             responses.append(fleet_response)
             cur_time += delt
-            print("{}".format(cur_time))
+            # print("{}".format(cur_time))
 
         return responses
 
@@ -50,12 +50,12 @@ class ArtificialInertiaService():
 if __name__ == "__main__":
     #import numpy as np
     #import matplotlib.pyplot as plt
-    from grid_info import GridInfo
+    from grid_info_artificial_inertia import GridInfo
     #from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
     from fleets.home_ac_fleet.home_ac_fleet import HomeAcFleet
 
     # Create a fleet and pass in gridinfo (contains the frequency from CSV file)
-    grid = GridInfo('artificial_inertia.csv')
+    grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
     #fleet_device = BatteryInverterFleet(GridInfo=grid)  # establish the battery inverter fleet with a grid
     fleet_device = HomeAcFleet(GridInfo=grid)
 
@@ -65,6 +65,7 @@ if __name__ == "__main__":
     avg = service.calculation(responses)
 
     # Plot, print to screen ...
-    print(avg)
-    print(avg)
+    # print(avg)
+    # pickfreq = grid.get_frequency(parser.parse('2018-10-12 00:02:00'), 0)
+    # print(pickfreq)
 
