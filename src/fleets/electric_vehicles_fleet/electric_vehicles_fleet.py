@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 10/01/2018
+Last update: 10/24/2018
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
@@ -599,7 +599,7 @@ class ElectricVehiclesFleet(FleetInterface):
        
     def start_charging_midnight_strategy(self, charge_programmed, t_secs, subfleet_number, SOC, dt):
         """ Method to calculate the start-charging-at-midnight strategy """
-        if t_secs > charge_programmed:
+        if t_secs >= charge_programmed:
             v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[subfleet_number]],
                                      self.df_VehicleModels['V_SOC_1'][self.SubFleetId[subfleet_number]],
                                      self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet_number]], 
