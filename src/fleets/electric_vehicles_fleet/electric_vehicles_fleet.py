@@ -26,6 +26,11 @@ class ElectricVehiclesFleet(FleetInterface):
         """
         Constructor
         """
+        # Run baseline power to store baseline power and SOC if parameters 
+        # of the fleet are changed. ONLY ASSIGN TRUE IF YOU CHANGE THE 
+        # PARAMETERS OF THE FLEET AS IT WILL DRAMATICALLY INCREASE THE CPU TIME
+        self.run_baseline = False
+        self.n_days_base = 10
         # Establish the properties of the grid on which the fleet is connected on
         self.grid = GridInfo
         # Number of subfleets that are going to be simulated
@@ -56,6 +61,9 @@ class ElectricVehiclesFleet(FleetInterface):
         self.a = 3                                          # a value of the exponent
         peak = 1/3                                          # Peak in 1/3 of the range
         self.lambd = peak/(((self.a-1)/self.a)**(1/self.a)) # Shape value 
+        # Random seed for matching schedule and getting charging strategies
+        self.seed = 0
+        np.random.seed(self.seed)
         
         # Read data from NHTS survey      
         self.df_Miles     = pd.read_table(os.path.join(dirname,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
@@ -83,6 +91,9 @@ class ElectricVehiclesFleet(FleetInterface):
         # Randomize strategies among all the sub fleets    
         np.random.shuffle(self.monitor_strategy)
         
+        # Baseline simulations
+        if self.run_baseline == True:
+            self.run_baseline_simulation()
         # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
         self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
         
@@ -93,7 +104,6 @@ class ElectricVehiclesFleet(FleetInterface):
                            self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.initial_time])
 
         # Initial state of charge of all the subfleets => Depends on the baseline simulations (SOC curves)
-        np.random.seed(0)
         self.SOC = np.zeros([self.N_SubFleets,]); i = 0
         for strategy in self.monitor_strategy:
             if strategy == 'right away':
@@ -117,7 +127,7 @@ class ElectricVehiclesFleet(FleetInterface):
                                             self.df_VehicleModels['Number_of_cells'][self.SubFleetId],self.SOC,0,0)
         
         # Schedules of all the sub fleets
-        self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(0,self.SOC,self.Voltage)
+        self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(self.seed,self.SOC,self.Voltage)
         
         """
         Can this fleet operate in autonomous operation?
@@ -677,6 +687,392 @@ class ElectricVehiclesFleet(FleetInterface):
         SOC_step = SOC + charge_rate*dt
         
         return SOC_step, power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000
+
+    def run_baseline_simulation(self):
+        """ 
+        Method to run baseline simulation and store power level and SOC of 
+        the sub fleets.
+        """
+        n_days_base = self.n_days_base
+        sim_time = 24*3600
+        
+        print("Running baseline simulation ...")       
+        print("Running baseline right away charging strategy ...")
+        soc_1, power_base_1, soc_std_1 = self.run_baseline_right_away(n_days_base, sim_time)
+        
+        print("Running baseline midnight charging strategy ...")
+        soc_2, power_base_2, soc_std_2 = self.run_baseline_midnight(n_days_base, sim_time)
+        
+        print("Running baseline tcin charging strategy ... ")
+        soc_3, power_base_3, soc_std_3 = self.run_baseline_tcin(n_days_base, sim_time)
+       
+        print("Exporting baseline soc and power ...")
+        # Dataframe to import the initial soc of the sub fleets with the aim to initialize the class
+        data_soc = {'time': np.linspace(0,sim_time-1,sim_time),
+                    'SOC_mean_RightAway': soc_1, 'SOC_std_RightAway': soc_std_1,
+                    'SOC_mean_Midnight': soc_2, 'SOC_std_Midnight': soc_std_2,
+                    'SOC_mean_TCIN': soc_3, 'SOC_std_TCIN': soc_std_3}           
+        df_soc = pd.DataFrame(data=data_soc, columns=['time',
+                                                      'SOC_mean_RightAway', 'SOC_std_RightAway',
+                                                      'SOC_mean_Midnight', 'SOC_std_Midnight',
+                                                      'SOC_mean_TCIN', 'SOC_std_TCIN'])   
+        
+        df_soc[['SOC_std_RightAway', 'SOC_std_Midnight', 'SOC_std_TCIN']] = \
+        df_soc[['SOC_std_RightAway', 'SOC_std_Midnight', 'SOC_std_TCIN']].replace(0,0.02)
+
+        # Dataframe to import the baseline power with the aim to provide service power
+        data_power = {'time': np.linspace(0,2*sim_time-1,2*sim_time),
+                           'power_RightAway_kW': np.hstack((power_base_1*1e-3, power_base_1*1e-3)),
+                           'power_Midnight_kW': np.hstack((power_base_2*1e-3, power_base_2*1e-3)),
+                           'power_TCIN_kW': np.hstack((power_base_3*1e-3, power_base_3*1e-3))}            
+        df_power = pd.DataFrame(data = data_power, columns = ['time', 
+                                                              'power_RightAway_kW',
+                                                              'power_Midnight_kW',
+                                                              'power_TCIN_kW'])
+        dirname = os.path.dirname(__file__)
+        path = os.path.join(dirname,'data')
+        
+        df_soc.to_csv(os.path.join(path, r'SOC_curves_charging_modes.csv'), index = False)
+        df_power.to_csv(os.path.join(path, r'power_baseline_charging_modes.csv'), index = False)
+        print("Exported")
+        
+    def discharge_baseline(self, StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet, SOC, SOC_sf, sim_time, power_ac, v):
+        """ Method to compute discharging for the baseline case """
+        power_ac_demanded = np.zeros([self.N_SubFleets,sim_time])
+        rate_dis = np.array(self.df_VehicleModels['Wh_mi'][self.SubFleetId]/(v*self.df_VehicleModels['Ah_usable'][self.SubFleetId]))
+        j_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+        time_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+        SOC_time = np.zeros([self.N_SubFleets, sim_time])
+        
+        for i in range(self.N_SubFleets):
+            SOC_time[i][0:int(StartTime_secs.iloc[i][1])] = SOC[i]
+            for k in range(np.min(np.shape(Purpose.iloc[i]))):
+                if Purpose.iloc[i][k+1] > 0:
+                    # Sub fleet is driving
+                    t1 = int(EndTime_secs.iloc[i][k+1]) - int(StartTime_secs.iloc[i][k+1])
+                    if t1 <= 0:
+                        t1 = 1
+                    # Discharging
+                    SOC_time[i][int(StartTime_secs.iloc[i][k+1]):int(EndTime_secs.iloc[i][k+1])] = np.linspace(SOC[i], SOC[i]-rate_dis[i]*Miles.iloc[i][k+1], t1)
+                    SOC_sf[i] = SOC_sf[i] - rate_dis[i]*Miles.iloc[i][k+1]
+                    power_dc = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[i]],
+                                                     power_ac.iloc[i])
+                    v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[i]],
+                                                self.df_VehicleModels['V_SOC_1'][self.SubFleetId[i]],
+                                                self.df_VehicleModels['V_SOC_2'][self.SubFleetId[i]], 
+                                                self.df_VehicleModels['Number_of_cells'][self.SubFleetId[i]], SOC_time[i][int(EndTime_secs.iloc[i][k+1])], 0, 0)       
+                    r_batt = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['R_SOC_1'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['R_SOC_2'][self.SubFleetId[i]], SOC_time[i][int(EndTime_secs.iloc[i][k+1])])            
+                    i_batt = self.current_charging(v_oc,r_batt,power_dc)
+                    Ah_rate = i_batt/3600
+                    charging_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[i]]                        
+                    # Charging at work
+                    if Purpose.iloc[i][k+1] == 2:
+                        t = int(StartTime_secs.iloc[i][k+2]) - int(EndTime_secs.iloc[i][k+1])
+                        SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])] = np.linspace(SOC_sf[i],
+                                SOC_sf[i] + self.ChargedAtWork_per*charging_rate*t, t)
+                        if any(SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])] >= 1):
+                            j_full_charge[i] = (1 - pd.Series(SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])])).abs().idxmin()
+                            time_full_charge[i] = j_full_charge[i] + int(EndTime_secs.iloc[i][k+1])
+                            SOC_time[i][time_full_charge[i]:sim_time] = 1
+                            
+                        SOC_sf[i] = SOC_time[i][int(StartTime_secs.iloc[i][k+2])-1]
+                        power_ac_demanded[i][int(EndTime_secs.iloc[i][k+1]):
+                            int(StartTime_secs.iloc[i][k+2])] = power_ac.iloc[i]*\
+                            self.ChargedAtWork_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])                         
+                    # Charging at other places    
+                    elif Purpose.iloc[i][k+1] == 1.5:
+                        t = int(StartTime_secs.iloc[i][k+2]) - int(EndTime_secs.iloc[i][k+1])
+                        SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])] = np.linspace(SOC_sf[i], SOC_sf[i] + self.ChargedAtOther_per*charging_rate*t, t)
+                        if any(SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])] >= 1):
+                            j_full_charge[i] = (1 - pd.Series(SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])])).abs().idxmin()
+                            time_full_charge[i] = j_full_charge[i] + int(EndTime_secs.iloc[i][k+1])
+                            SOC_time[i][time_full_charge[i]:sim_time] = 1
+                            
+                        SOC_sf[i] = SOC_time[i][int(StartTime_secs.iloc[i][k+2])-1]
+                        power_ac_demanded[i][int(EndTime_secs.iloc[i][k+1]):
+                            int(StartTime_secs.iloc[i][k+2])] = power_ac.iloc[i]*\
+                            self.ChargedAtOther_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])
+                                  
+                    elif Purpose.iloc[i][k+1] == 1.0:
+                        SOC_time[i][int(EndTime_secs.iloc[i][k+1]):int(StartTime_secs.iloc[i][k+2])] = SOC_sf[i]                           
+                else:
+                    # Again, at home!
+                    SOC_time[i][int(EndTime_secs.iloc[i][k]):sim_time] = SOC_sf[i]
+                    break
+                
+        return SOC_time, SOC_sf, power_ac_demanded
+ 
+    def run_baseline_right_away(self, n_days_base, sim_time):
+        """ Method to run baseline with charging right away strategy """
+        baseline_power = np.zeros([sim_time, ])
+        baseline_soc = np.zeros([sim_time, ])   
+        baseline_std_soc = np.zeros([sim_time, ]) 
+        # Initial SOC of the sub fleets
+        SOC = np.ones([self.N_SubFleets,])
+        SOC_sf = SOC
+        power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId]
+        power_dc = np.zeros([self.N_SubFleets,])
+        
+        for day in range(n_days_base):
+            print("Day %i" %(day+1))
+            
+            v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                 self.df_VehicleModels['Number_of_cells'][self.SubFleetId],SOC,0,0)    
+            StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet = self.match_schedule(day,SOC,v)                    
+            SOC_time, SOC_sf, power_ac_demanded =\
+                self.discharge_baseline(StartTime_secs, EndTime_secs, Miles,
+                                        Purpose, MilesSubfleet, SOC, SOC_sf,
+                                        sim_time, power_ac, v)
+                
+            # CHARGING STRATEGY   
+            time_arrival_home = np.max(EndTime_secs, axis = 1)
+            SOC_arrival_home = SOC_sf
+            
+            for i in range(self.N_SubFleets):
+                power_dc[i] = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[i]],
+                                                    self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[i]],
+                                                    self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[i]],
+                                                    self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[i]],
+                                                    power_ac.iloc[i])
+            v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                        self.df_VehicleModels['Number_of_cells'][self.SubFleetId], SOC_arrival_home, 0, 0)       
+            r_batt = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_1'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_2'][self.SubFleetId], SOC_arrival_home)            
+            i_batt = self.current_charging(v_oc,r_batt,power_dc)
+            Ah_rate = i_batt/3600
+            charging_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId]
+            j_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+            time_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+            for i in range(self.N_SubFleets):
+                t = sim_time - int(time_arrival_home.iloc[i])
+                SOC_time[i][int(time_arrival_home.iloc[i]):sim_time] = np.linspace(SOC_arrival_home[i],SOC_arrival_home[i] + t*charging_rate.iloc[i], t)
+                j_full_charge[i] = (1 - pd.Series(SOC_time[i][int(time_arrival_home.iloc[i]):sim_time])).abs().idxmin()
+                time_full_charge[i] = j_full_charge[i] + int(time_arrival_home.iloc[i])
+                SOC_time[i][time_full_charge[i]:sim_time] = 1
+                
+                power_ac_demanded[i][int(time_arrival_home.iloc[i]):time_full_charge[i]] = power_ac.iloc[i]*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])
+            
+            SOC = SOC_time[:,-1]
+            SOC_sf = SOC
+            
+            baseline_power = baseline_power + power_ac_demanded.sum(axis = 0)
+            baseline_soc = baseline_soc + SOC_time.mean(axis = 0)
+            baseline_std_soc = baseline_std_soc + SOC_time.std(axis = 0)
+                    
+        return baseline_soc/n_days_base, baseline_power/n_days_base, baseline_std_soc/n_days_base    
+ 
+    def run_baseline_midnight(self, n_days_base, sim_time):
+        """ Method to run baseline with midnight charging strategy """
+        baseline_power = np.zeros([sim_time, ])
+        baseline_soc = np.zeros([sim_time, ])  
+        baseline_std_soc = np.zeros([sim_time, ])
+        # Initial SOC of the sub fleets
+        SOC = np.ones([self.N_SubFleets,])
+        SOC_sf = SOC
+        power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId]
+        power_dc = np.zeros([self.N_SubFleets,])
+        
+        for day in range(n_days_base):
+            print("Day %i" %(day+1))
+            
+            v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                 self.df_VehicleModels['Number_of_cells'][self.SubFleetId],SOC,0,0)    
+            StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet = self.match_schedule(day,SOC,v)                    
+            SOC_time, SOC_sf, power_ac_demanded =\
+                self.discharge_baseline(StartTime_secs, EndTime_secs, Miles,
+                                        Purpose, MilesSubfleet, SOC, SOC_sf,
+                                        sim_time, power_ac, v)
+            
+            # CHARGING STRATEGY   
+            time_start_charging = 20*3600*pd.Series(np.ones([self.N_SubFleets, ]))
+            SOC_arrival_home = SOC_sf
+            for i in range(self.N_SubFleets):
+                power_dc[i] = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[i]],
+                                                     power_ac.iloc[i])
+            v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                        self.df_VehicleModels['Number_of_cells'][self.SubFleetId], SOC_arrival_home, 0, 0)       
+            r_batt = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_1'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_2'][self.SubFleetId], SOC_arrival_home)            
+            i_batt = self.current_charging(v_oc,r_batt,power_dc)
+            Ah_rate = i_batt/3600
+            charging_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId]
+            j_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+            time_full_charge = np.zeros([self.N_SubFleets,], dtype = int)
+            for i in range(self.N_SubFleets):
+                t = sim_time - int(time_start_charging.iloc[i])
+                SOC_time[i][int(time_start_charging.iloc[i]):sim_time] = np.linspace(SOC_arrival_home[i],SOC_arrival_home[i] + t*charging_rate.iloc[i], t)
+                if SOC_time[i][-1] > 1:
+                    j_full_charge[i] = (1 - pd.Series(SOC_time[i][int(time_start_charging.iloc[i]):sim_time])).abs().idxmin()
+                    time_full_charge[i] = j_full_charge[i] + int(time_start_charging.iloc[i])
+                    SOC_time[i][time_full_charge[i]:sim_time] = 1
+                
+                power_ac_demanded[i][int(time_start_charging.iloc[i]):time_full_charge[i]] =\
+                    power_ac.iloc[i]*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])
+            
+            SOC = SOC_time[:,-1]
+            SOC_sf = SOC
+            
+            baseline_power = baseline_power + power_ac_demanded.sum(axis = 0)
+            baseline_soc = baseline_soc + SOC_time.mean(axis = 0)
+            baseline_std_soc = baseline_std_soc + SOC_time.std(axis = 0)
+                    
+        return baseline_soc/n_days_base, baseline_power/n_days_base, baseline_std_soc/n_days_base    
+
+    def run_baseline_tcin(self, n_days_base, sim_time):
+        """ Method to run baseline with one hour before the tcin charging strategy """
+
+        baseline_power = np.zeros([sim_time, ])
+        baseline_soc = np.zeros([sim_time, ])
+        baseline_std_soc = np.zeros([sim_time, ])
+        # Initial SOC of the sub fleets
+        SOC = np.ones([self.N_SubFleets,])
+        SOC_sf = SOC    
+        power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId]
+        power_dc_arr = np.zeros([self.N_SubFleets, ])
+        # One hour before the tcin, the sub fleets must be fully charged        
+        hours_before = 1
+                    
+        v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                 self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                 self.df_VehicleModels['Number_of_cells'][self.SubFleetId],SOC,0,0)    
+        StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet = self.match_schedule(0,SOC,v)
+        
+        time_charge_morning = np.zeros([self.N_SubFleets,], dtype = int)
+        power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId]
+        
+        for day in range(n_days_base+1):
+            if day == 0:
+                print("Burn-in day")
+            else:
+                print("Day %i" %(day))
+            
+            SOC_time_morning = np.zeros([self.N_SubFleets, sim_time])
+            power_ac_demanded = np.zeros([self.N_SubFleets, sim_time])
+            
+            for i in range(self.N_SubFleets):
+                if SOC_sf[i] < 1:
+                    power_dc = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[i]],
+                                                     power_ac.iloc[i])
+                    v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[i]],
+                                                self.df_VehicleModels['V_SOC_1'][self.SubFleetId[i]],
+                                                self.df_VehicleModels['V_SOC_2'][self.SubFleetId[i]], 
+                                                self.df_VehicleModels['Number_of_cells'][self.SubFleetId[i]], SOC_sf[i], 0, 0) 
+                    r_batt = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['R_SOC_1'][self.SubFleetId[i]],
+                                                     self.df_VehicleModels['R_SOC_2'][self.SubFleetId[i]], SOC_sf[i])
+                    i_batt = self.current_charging(v_oc,r_batt,power_dc)
+                    Ah_rate = i_batt/3600
+                    charging_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[i]]
+                    
+                    t = int(StartTime_secs.iloc[i][1]) - hours_before*3600 - time_charge_morning[i]
+                    if time_charge_morning[i] > 0:
+                        SOC_time_morning[i][0:time_charge_morning[i]] = SOC_sf[i]
+                        SOC_time_morning[i][time_charge_morning[i]:int(StartTime_secs.iloc[i][1]) - hours_before*3600] = np.linspace(SOC_sf[i], SOC_sf[i] + t*charging_rate,t)
+                        
+                    else:
+                        SOC_time_morning[i][0:int(StartTime_secs.iloc[i][1]) - hours_before*3600] = np.linspace(SOC_sf[i], SOC_sf[i] + t*charging_rate,t)                       
+                    
+                    SOC_sf[i] = SOC_time_morning[i][int(StartTime_secs.iloc[i][1]) - hours_before*3600-1]
+                    SOC_time_morning[i][int(StartTime_secs.iloc[i][1]) - hours_before*3600:int(StartTime_secs.iloc[i][1])] = 1
+                    power_ac_demanded[i][time_charge_morning[i]:int(StartTime_secs.iloc[i][1]) - hours_before*3600] = power_ac.iloc[i]*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])
+
+                else:
+                    SOC_time_morning[i][0:int(StartTime_secs.iloc[i][1])] = SOC_sf[i]
+                    
+                SOC_sf[i] = SOC_time_morning[i][int(StartTime_secs.iloc[i][1])-1]
+            
+            SOC = SOC_sf
+            v = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                     self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                     self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                     self.df_VehicleModels['Number_of_cells'][self.SubFleetId],SOC_sf,0,0)                      
+            SOC_time, SOC_sf, power_ac_demanded_dis =\
+                self.discharge_baseline(StartTime_secs, EndTime_secs, Miles,
+                                        Purpose, MilesSubfleet, SOC, SOC_sf,
+                                        sim_time, power_ac, v) 
+                
+            for i in range(self.N_SubFleets):    
+                SOC_time[i][0:int(StartTime_secs.iloc[i][1])] = SOC_time_morning[i][0:int(StartTime_secs.iloc[i][1])]
+            
+            power_ac_demanded = power_ac_demanded_dis + power_ac_demanded
+            
+            # CHARGING STRATEGY   
+            time_arrival_home = np.max(EndTime_secs, axis = 1)
+            SOC_arrival_home = SOC_sf          
+            for i in range(self.N_SubFleets):
+                power_dc_arr[i] = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[i]],
+                                                 self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[i]],
+                                                 self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[i]],
+                                                 self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[i]],
+                                                 power_ac.iloc[i])
+            v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_1'][self.SubFleetId],
+                                        self.df_VehicleModels['V_SOC_2'][self.SubFleetId], 
+                                        self.df_VehicleModels['Number_of_cells'][self.SubFleetId], SOC_arrival_home, 0, 0)       
+            r_batt = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_1'][self.SubFleetId],
+                                             self.df_VehicleModels['R_SOC_2'][self.SubFleetId], SOC_arrival_home)            
+            i_batt = self.current_charging(v_oc,r_batt,power_dc_arr)
+            Ah_rate = i_batt/3600
+            charging_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId]
+            # Variation of SOC that must be achieved
+            delta_SOC = 1 - SOC_arrival_home
+            
+            # One hour before the TCIN all the subfleets must be fully charged
+            StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet = self.match_schedule(day+1,SOC,v)
+            time_full_charge = 24*3600 + StartTime_secs.iloc[:][1] - hours_before*3600
+            time_start_charging = np.zeros([self.N_SubFleets,], dtype = int)
+            for i in range(self.N_SubFleets):
+                time_start_charging[i] = int(time_full_charge.iloc[i] - (delta_SOC[i]/charging_rate.iloc[i]))
+                t2 = sim_time - time_start_charging[i]
+                if t2 > 0:
+                    SOC_time[i][int(time_arrival_home.iloc[i]):time_start_charging[i]] = SOC_arrival_home[i]
+                    SOC_time[i][time_start_charging[i]:sim_time] = np.linspace(SOC_arrival_home[i],
+                            SOC_arrival_home[i] + t2*charging_rate.iloc[i], t2)
+                else:
+                    SOC_time[i][int(time_arrival_home.iloc[i]):sim_time] = SOC_arrival_home[i]
+                    
+                # Power demanded to the grid
+                if time_start_charging[i] < 24*3600:
+                    power_ac_demanded[i][time_start_charging[i]:sim_time] =\
+                        power_ac.iloc[i]*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[i]])
+                    time_charge_morning[i] = 0
+                else:
+                    power_ac_demanded[i][time_start_charging[i]:sim_time] = 0
+                    time_charge_morning[i] = int(time_start_charging[i] - 24*3600)
+        
+            SOC = SOC_time[:,-1]
+            SOC_sf = SOC
+            
+            # Eliminate burn-in day: tcin strategy requires this
+            if day != 0:
+                baseline_power = baseline_power + power_ac_demanded.sum(axis = 0)
+                baseline_soc = baseline_soc + SOC_time.mean(axis = 0)
+                baseline_std_soc = baseline_std_soc + SOC_time.std(axis = 0)
+
+        return baseline_soc/(n_days_base), baseline_power/(n_days_base), baseline_std_soc/(n_days_base)
     
     def output_impact_metrics(self): 
         """
