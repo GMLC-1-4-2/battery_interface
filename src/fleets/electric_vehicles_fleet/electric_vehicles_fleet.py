@@ -80,6 +80,8 @@ class ElectricVehiclesFleet(FleetInterface):
         self.monitor_strategy = []
         for i in range(len(self.strategies[0])):
             self.monitor_strategy = self.monitor_strategy + [self.strategies[0][i]]*int(self.strategies[1][i]*self.N_SubFleets)
+        # Randomize strategies among all the sub fleets    
+        np.random.shuffle(self.monitor_strategy)
         
         # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
         self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
