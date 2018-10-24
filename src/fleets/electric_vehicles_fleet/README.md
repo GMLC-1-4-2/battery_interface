@@ -1,26 +1,26 @@
-# User Manual - Fleet of Electric Cars  
+# User Manual of the `ElectricVehiclesFleet`  
 
 ## GMLC 1.4.2 - battery_interface
 ### Argonne National Laboratory - Advanced Mobility and Grid Integration Technology Research 
 
 ---
 
-### Contributors
+###  1. Contributors
   - **Michael Duoba**: mduoba@anl.gov
   - **Alejandro Fernandez Canosa**: afernandezcanosa@anl.gov
 
-### Description
+### 2. Description
  
 This document provides the guidelines to use the `ElectricVehiclesFleet` class and describes its structure and basic functionality. Assumptions of the model and singularities of this fleet are remarked here:
   - Variability in the daily schedules of electric vehicles drivers. This variability makes the availability of the fleet limited to the moments when the cars are plugged-in.
   - User of electric cars want to have the control of their own charging strategy: electric cars manufacturers allow the users to choose among various charging strategies: start charging immediately, at midnight, or at a time to be fully charged before the beginning of the next day.
   - Bidirectional charging is not considered in this model. 
 
-### Structure of the `ElectricVehiclesFleet` class:
+### 3. Structure of the `ElectricVehiclesFleet` class:
 
-### 1. Instantiation of the class: `__init__(self, GridInfo, ts)`
+### 3.1. Instantiation of the class: `__init__(self, GridInfo, ts)`
 
-#### 1.1. Important variables
+#### 3.1.1. Important variables
 
 | Name                |  Type  |  Default | Description  |
 |:-------------------:|:------:|:--------:|:-------------:|
@@ -34,15 +34,39 @@ This document provides the guidelines to use the `ElectricVehiclesFleet` class a
 | `self.strategies`  | `list` |   | Percentage of sub fleets charging with the different charging strategies. For example, `[ ['right away', 'midnight', 'tcin'], [0.4, 0.3, 0.3] ]` means that 40 % of sub fleets are charged with the first charging strategy, 30 % with the second, and 30 % with the third one. |
 
 
-#### 1.2. Other variables
+#### 3.1.2. Other variables
 
 There are several variables in the constructor that have not been described in the previous section. These variables are either derived from the important variables and other data or parameters that must not be changed without the required expertise.
 
-#### 2. Methods
+### 4. Methods
 
-Apart from the inherited methods of the `Fleet Interface` class, there are other methods that are described here:
+Apart from the inherited methods of the `FleetInterface` class, there are other methods that are described here:
 
-1. `self.simulate(self, P_req, Q_req, initSOC, t, dt)`: this method is where all the main calculations are carried out. It takes the requested active and reactive power (`P_req` and `Q_req`, respectively), the SOC at time `t_0`, the local time of the class, `t` and the time step, `dt` and returns a `response` instance with the variables inherited from the `FleetResponse` class.
+1. `self.match_schdule(self, seed, SOC, V)`: This method match daily schedules of each sub fleet of electric vehicles.
+    * Parameters:
+      * `seed`: random seed.
+      * `SOC`: array with the state of charge of all the sub fleets.
+      * `V`: array with the voltage of all the batteries of the sub fleets.
+    * Returns:
+      * `StartTime_secs`, `EndTime_secs`, `Miles`, `Purpose`, `MilesSubfleet`: essentially pandas dataframes containing the information about the schedules of the sub fleets.
+
+2. `self.simulate(self, P_req, Q_req, initSOC, t, dt)`: This method is where all the main calculations are carried out. 
+    * Prameters: 
+      * `P_req`: active power requested.
+      * `Q_req`: reactive power requested.
+      * `initSOC`: initial SOC of the sub fleets.
+      * `t`: local time of the class.
+      * `dt`: time step
+    * Returns:
+      * `response`: an instance of the `FleetResponse` class.
+      
+3. `self.run_baseline_simulation(self)`: This method is used to store baseline power and SOC from Montecarlo simulations. 
+    * Parameters:
+    * Returns:
+    
+
+
+
 
 
 
