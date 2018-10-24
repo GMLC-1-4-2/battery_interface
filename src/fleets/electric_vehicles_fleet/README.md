@@ -21,7 +21,7 @@ This document provides the guidelines to use the `ElectricVehiclesFleet` class a
 #### 1. Instantiation of the class: `__init__(self, GridInfo, ts)`
 
 ##### 1.1. Important variables
-Test
+
 1. `self.run_baseline [type = bool, default = False]`: If `True`, Montecarlo simulations to store baseline power and SOC and, therefore, instantiate the SOC of the sub fleets and provide baseline power for the service power. If no changes are made in the configuration and parameters of the fleet, this variables should be kept equal to `False` as the baseline power and SOC is maintained.
 2. `self.n_days_base [type = int, default = 10]`: Number of days with different driving schedules to average baseline power and SOC of the sub fleets.
 3. `self.N_SubFleets [type = int, default = 100]`: Number of sub fleets. Each sub fleet has homogeneous properties. That is: same vehicle model, same number of vehicles, same driving schedule, etc. The larger the number of sub fleets, the better the results, but CPU time increases as the `N_SubFleets` does so.
@@ -33,6 +33,7 @@ Test
 	`self.strategies = [ ['right away', 'midnight', 'tcin'], [0.4, 0.3, 0.3] ]` means that 40 % of sub fleets are charged with the first charging strategy, 30 % with the second, and 30 % with the third one.
 
 ##### 1.2. Other variables
+
 There are several variables in the constructor that have not been described in the previous section. These variables are either derived from the important variables and other data or parameters that must not be changed without the required expertise.
 
 #### 2. Methods
