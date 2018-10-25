@@ -19,7 +19,7 @@ from electric_vehicles_fleet import ElectricVehiclesFleet
 dirname = os.path.dirname(__file__)
 
 # Time stamp to start the simulation
-ts = datetime(2018, 9, 20, 23, 0, 00, 000000)
+ts = datetime(2018, 9, 20, 5, 0, 00, 000000)
 
 # Parameters of the grid
 grid = GridInfo(os.path.join(dirname, 'data/Grid_Info_DATA_2.csv'))
@@ -45,7 +45,7 @@ power_baseline = (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'].
 fleet_test.dt = dt
 
 # Power requested (kW): test
-power_request = 80000*(np.sin(2*np.pi*(t/seconds_of_simulation)))
+power_request = -50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 #power_request = 50000*(np.ones([len(t),]))
 
 # List of requests
