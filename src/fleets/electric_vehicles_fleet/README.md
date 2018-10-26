@@ -42,7 +42,7 @@ There are several variables in the constructor that have not been described in t
 
 Apart from the inherited methods of the `FleetInterface` class, there are other methods that are described here:
 
-1. `self.match_schdule(self, seed, SOC, V)`: This method match daily schedules of each sub fleet of electric vehicles.
+1. `self.match_schdule(self, seed, SOC, V)`: This method matches daily schedules of each sub fleet of electric vehicles.
     * Parameters:
       * `seed`: random seed.
       * `SOC`: array with the state of charge of all the sub fleets.
@@ -160,7 +160,19 @@ SOC_tcin = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy)
 plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, SOC_midnight, SOC_tcin, ts, dt, seconds_of_simulation)
 ```
 
-### 4. Notes
+### 4. Results and analysis
+
+First, the power is shown for two different 24 hours simulations with the same power requests starting at the same timestamp, but different time steps. At the beginning, most of the vehicles are plugged out while driving, at work, or other places, and therefore, the fleet will not be able to track the service very well. Once the sub fleets start arriving to home after work around 4:30 PM, the system starts tracking the service accurately. Again, at midnight, many users choose to charge their vehicles at this time, and therefore, the service is not well-tracked.
+
+The dummy service in kW used for these simulations is:
+
+<a href="https://www.codecogs.com/eqnedit.php?latex=$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" target="_blank"><img src="https://latex.codecogs.com/gif.latex?$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" title="$$ P_{\text{service}}(t) = -50,000 \left[1 + \sin(\frac{2\pi t}{T})\right]$$" /></a>
+
+![](/src/fleets/electric_vehicles_fleet/images/service_power_example.png)
+
+This simulation results show at a glance many of the singularities of the fleet that must be addressed in the integration with the services.
+
+### 5. Notes
 
 1. The total number of vehicles, which is the sum of `Total_Vehicles` in [vehicle_models.csv](/src/fleets/electric_vehicles_fleet/data/vehicle_models.csv) divided by `N_SubFleets` must have modulo zero.
 
