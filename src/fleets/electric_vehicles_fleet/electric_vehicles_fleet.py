@@ -231,7 +231,7 @@ class ElectricVehiclesFleet(FleetInterface):
                            self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.time])
 
         # The total power requested must be referenced to the baseline power
-        p_total = self.p_baseline + P_req
+        p_total = self.p_baseline - P_req
 
         if any(initSOC) > 1 or any(initSOC) < 0:
             print('ERROR: initial SOC out of range')
@@ -448,21 +448,21 @@ class ElectricVehiclesFleet(FleetInterface):
                 total_energy += energy_per_subfleet[subfleet]
             
             # response outputs 
-            response.P_togrid  = power_demanded
+            response.P_togrid  = - power_demanded
             response.Q_togrid  = 0
-            response.P_service = power_demanded - self.p_baseline
+            response.P_service = - power_demanded + self.p_baseline
             response.Q_service = 0
             
             response.E = total_energy
             response.C = None
             
-            response.P_togrid_max = max_power_demanded
-            response.P_togrid_min = power_uncontrolled
+            response.P_togrid_min = - max_power_demanded
+            response.P_togrid_max = - power_uncontrolled
             response.Q_togrid_max = 0
             response.Q_togrid_min = 0
             
-            response.P_service_max = max_power_demanded - self.p_baseline
-            response.P_service_min = power_uncontrolled - self.p_baseline
+            response.P_service_min = - max_power_demanded + self.p_baseline
+            response.P_service_max = - power_uncontrolled + self.p_baseline
             response.Q_service_max = 0
             response.Q_service_min = 0
             
