@@ -37,15 +37,15 @@ t = np.arange(local_time,local_time+seconds_of_simulation,dt) # array of time in
 # Read baseline power from Montecarlo simulations
 df_baseline = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
 
-power_baseline = (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'].iloc[local_time:local_time+seconds_of_simulation] + 
-                 fleet_test.strategies[1][1]*df_baseline['power_Midnight_kW'].iloc[local_time:local_time+seconds_of_simulation]  +
-                 fleet_test.strategies[1][2]*df_baseline['power_TCIN_kW'].iloc[local_time:local_time+seconds_of_simulation])
+power_baseline = - (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'].iloc[local_time:local_time+seconds_of_simulation] + 
+                    fleet_test.strategies[1][1]*df_baseline['power_Midnight_kW'].iloc[local_time:local_time+seconds_of_simulation]  +
+                    fleet_test.strategies[1][2]*df_baseline['power_TCIN_kW'].iloc[local_time:local_time+seconds_of_simulation])
 
 # Initialization of the time step 
 fleet_test.dt = dt
 
 # Power requested (kW): test
-power_request = -50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
+power_request = 50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 #power_request = 50000*(np.ones([len(t),]))
 
 # List of requests
