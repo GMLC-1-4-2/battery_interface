@@ -34,6 +34,7 @@ class HistoricalSignalHelper(object):
         timestamp = pd.Timestamp(start_time)
         return timestamp.strftime("%m %Y.xlsx")
 
+    # Use "dependency injection" to allow method "signals" be used as an attribute.
     @property
     def signals(self):
         return self._signals

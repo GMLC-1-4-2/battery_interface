@@ -3,12 +3,8 @@ from dateutil import parser
 
 class ClearingPriceHelper(object):
 
+    # This method returns a Dictionary containing a month-worth of hourly regulation price data indexed by datetime.
     def read_and_store_clearing_prices(self, input_data_file_path, start_time):
-        """
-        This method reads a given Excel file.
-        Thus, this method is meant to be called only once reading Excel file takes
-        a long time and we don't want to do it for getting every single value.
-        """
 
         sheet_name = self._get_sheet_name(start_time)
 
@@ -33,10 +29,12 @@ class ClearingPriceHelper(object):
         regulated_prices_dictionary = regulated_prices_data_frame.T.apply(tuple).to_dict()
         self._clearing_prices = regulated_prices_dictionary
 
+    # Use "dependency injection" to allow method "clearing_prices" be used as an attribute.
     @property
     def clearing_prices(self):
         return self._clearing_prices
 
+    # Get name of the tab in the Excel file holding price data for a whole year.
     def _get_sheet_name(self, local_day):
         timestamp = pd.Timestamp(local_day)
         return timestamp.strftime("%B_%Y")
