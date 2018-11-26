@@ -18,7 +18,17 @@ if __name__ == '__main__':
     service.fleet = battery_inverter_fleet
 
     # Test request_loop()
-    fleet_response = service.request_loop(service_type = "Traditional",
-                                          start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
+    # Use line below for testing TRADITIONAL regulation service.
+    # fleet_response = service.request_loop(service_type = "Traditional",
+    #                                       start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-01 21:00:00"),
+    #                                       clearing_price_filename = 'historical-ancillary-service-data-2017.xls')
+    # Use line below for testing DYNAMIC regulation service.
+    fleet_response = service.request_loop(service_type = "Dynamic",
+                                          start_time = parser.parse("2017-08-01 16:00:00"), end_time = parser.parse("2017-08-02 15:00:00"),
                                           clearing_price_filename = 'historical-ancillary-service-data-2017.xls')
-    print(fleet_response)
+
+    # Print results in the 2-level dictionary.
+    for key_1, value_1 in fleet_response.items():
+        print(key_1)
+        for key_2, value_2 in value_1.items():
+            print('\t\t\t\t\t\t', key_2, value_2)
