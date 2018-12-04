@@ -1,22 +1,22 @@
 from datetime import datetime, timedelta
 import numpy
-#import sys
-#from os.path import dirname, abspath
-#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-
-from fleet_request import FleetRequest
-from fleet_response import FleetResponse
-from battery_inverter_fleet import BatteryInverterFleet
-from grid_info import GridInfo
 import matplotlib.pyplot as plt
 import scipy.io as spio
 import csv
 import copy
-import math
+
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
+
+from fleet_request import FleetRequest
+from grid_info import GridInfo
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+
 
 def fleet_test(Fleet):
-    
-    mat = spio.loadmat('ERM_model_validation.mat', squeeze_me=True)
+    erm_file = join(dirname(abspath(__file__)), 'ERM_model_validation.mat')
+    mat = spio.loadmat(erm_file, squeeze_me=True)
     t = mat['TT']
     P = -Fleet.num_of_devices* mat['PP']
     S = mat['SS']
