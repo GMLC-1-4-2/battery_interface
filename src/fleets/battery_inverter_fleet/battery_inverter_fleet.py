@@ -16,7 +16,7 @@ import csv
 from fleet_interface import FleetInterface
 from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-from frequency_droop import FrequencyDroop
+from fleets.battery_inverter_fleet.frequency_droop import FrequencyDroop
 
 class BatteryInverterFleet(FleetInterface):
     """
