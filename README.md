@@ -1,10 +1,6 @@
 ## Battery Interface
 
-Implemenation of Device Models and their Battery Equivalent Interface
-
-## Features
-
-## Background
+Implementation of Device Models and their Battery Equivalent Interface
 
 ## Workflow
 
@@ -16,7 +12,7 @@ Implemenation of Device Models and their Battery Equivalent Interface
 - Commit and push your edits from your local computer up to jeff/battery_interface on github.
 - On Github, send a “pull request” to get your latest jeff/battery_interface changes incorporated into the main GMLC-1-4-2/battery_interface repository.
 
-## Environment
+## Setup Work Environment
 - Install Python3.5 or higher
 - Install pip
 - Install all dependencies:
