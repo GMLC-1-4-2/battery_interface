@@ -11,7 +11,7 @@ from datetime import timedelta
 import numpy as np
 import matplotlib.pyplot as plt
 
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
@@ -59,7 +59,7 @@ class RegService():
             request_list_2s_tot = request_list_2s_trad
             response_list_2s_tot = response_list_2s_trad
         # Returns a Dictionary containing a month-worth of hourly regulation price data indexed by datetime.
-        clearing_price_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), clearing_price_filename)
+        clearing_price_filename = join(dirname(abspath(__file__)), clearing_price_filename)
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
         # Create a dictionary to store hourly results incl. performance score, clearing price credit, etc.
         hourly_results = {}
@@ -155,7 +155,7 @@ class RegService():
 
         # Get the name of the Excel file (e.g. "08 2017.xlsx") that contains historical regulation signal data.
         historial_signal_filename = self._historial_signal_helper.get_input_filename(start_time)
-        historial_signal_filename = os.path.join(os.path.dirname(os.path.abspath(__file__)), historial_signal_filename)
+        historial_signal_filename = join(dirname(abspath(__file__)), historial_signal_filename)
 
         # Returns a DataFrame that contains data in the entire specified sheet (i.e. tab).
         self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, service_type)
