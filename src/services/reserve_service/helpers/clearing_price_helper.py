@@ -3,12 +3,12 @@ from dateutil import parser
 
 class ClearingPriceHelper(object):
 
-    # This method returns a Dictionary containing a month-worth of hourly regulation price data indexed by datetime.
+    # This method returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
     def read_and_store_clearing_prices(self, input_data_file_path, start_time):
 
         sheet_name = self._get_sheet_name(start_time)
 
-        excel_data = pd.read_excel(input_data_file_path, sheetname = sheet_name)
+        excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name)
         # Get only the data whose 'SERVICE' is 'REG':
         regulated_prices_data_frame = excel_data[excel_data['SERVICE'] == 'REG']
         # Get only the columns we need:
@@ -29,7 +29,7 @@ class ClearingPriceHelper(object):
         regulated_prices_dictionary = regulated_prices_data_frame.T.apply(tuple).to_dict()
         self._clearing_prices = regulated_prices_dictionary
 
-    # Allow method "clearing_prices" be used as an attribute.
+    # Use "dependency injection" to allow method "clearing_prices" be used as an attribute.
     @property
     def clearing_prices(self):
         return self._clearing_prices
