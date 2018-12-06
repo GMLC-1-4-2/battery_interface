@@ -29,7 +29,7 @@ class ClearingPriceHelper(object):
         regulated_prices_dictionary = regulated_prices_data_frame.T.apply(tuple).to_dict()
         self._clearing_prices = regulated_prices_dictionary
 
-    # Use "dependency injection" to allow method "clearing_prices" be used as an attribute.
+    # Allow method "clearing_prices" be used as an attribute.
     @property
     def clearing_prices(self):
         return self._clearing_prices

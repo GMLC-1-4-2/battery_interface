@@ -21,8 +21,6 @@ from services.reg_service.helpers.historical_signal_helper import HistoricalSign
 from services.reg_service.helpers.clearing_price_helper import ClearingPriceHelper
 
 
-# TODO: [minor] debate whether to change class and folder names to include dynamic regulation service.
-# TODO: [major] for Hung - need to include device fleet type as argument in the future.
 # Class for traditional regulation and dynamic regulation services.
 class RegService():
     """
@@ -31,9 +29,6 @@ class RegService():
     _fleet = None
 
     def __init__(self, *args, **kwargs):
-        # fleet's performance and economic value are evaluated for each hour.
-        self.sim_time_step = timedelta(hours=1)
-
         self._historial_signal_helper = HistoricalSignalHelper()
         self._clearing_price_helper = ClearingPriceHelper()
 
@@ -167,7 +162,6 @@ class RegService():
         responses = []
 
         # Call the "request" method to get 2s responses in a list, requests are stored in a list as well.
-        # TODO: [minor] _fleet.assigned_regulation_MW() is currently only implemented in the fleet model within the same folder but not in the "fleets" folder.
         for timestamp, normalized_signal in signals.items():
             request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_regulation_MW())
             requests.append(request)
@@ -362,11 +356,12 @@ class RegService():
         fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
         self._fleet.change_config(fleet_config)
 
-    # Use "dependency injection" to allow method "fleet" be used as an attribute.
+    # Allow method "fleet" be used as an attribute.
     @property
     def fleet(self):
         return self._fleet
 
+    # Inject the fleet into the service. Equivalent to adding "fleet" as a variable in __init__ at the beginning.
     @fleet.setter
     def fleet(self, value):
         self._fleet = value
