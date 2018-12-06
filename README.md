@@ -1,12 +1,9 @@
 ## Battery Interface
 
-Implemenation of Device Models and their Battery Equivalent Interface
+Implementation of Device Models and their Battery Equivalent Interface
 
-## Features
 
-## Background
-
-## Workflow
+## How to contribute
 
 - On Github, “fork” the GMLC-1-4-2 repository to one of your own (if your github registration name is ‘jeff’, you’d fork GMLC-1-4-2/battery_interface to jeff/battery_interface).
 - On your own computer, “clone” the github jeff/battery_interface repository to your local disk.
@@ -16,22 +13,42 @@ Implemenation of Device Models and their Battery Equivalent Interface
 - Commit and push your edits from your local computer up to jeff/battery_interface on github.
 - On Github, send a “pull request” to get your latest jeff/battery_interface changes incorporated into the main GMLC-1-4-2/battery_interface repository.
 
-## Examples
+Notes: If you just want to get the code and test it, then use "clone" the GMLC-1-4-2 repository instead of "fork".
 
-There are 2 examples: 1) HomeAcFleet; 2) PeakManagementService
-To run the HomeAcFleet, first go to the project folder then follow the steps below:
+
+## Setup Work Environment
+- Install Python3.5 or higher
+- Install pip
+- Install all dependencies:
 
 ```sh
-$ cd src/fleets/home_ac_fleet/
+$ cd battery_interface
+$ pip install -r requirements.txt
+```
+
+## How to run
+
+To run integration test:
+
+```sh
+$ cd battery_interface/src/
 $ python test.py
 ```
 
-To run the PeakManagementService, first go to the project folder then follow the steps below:
+To test a service (e.g., Regulation Service):
 
 ```sh
-$ cd src/services/peak_managment_service/
+$ cd battery_interface/src/services/reg_service/
 $ python test.py
 ```
+
+To test a fleet (e.g., Battery Inverter):
+
+```sh
+$ cd battery_interface/src/fleets/battery_inverter_fleet/
+$ python test.py
+```
+
 
 ## License
 The project is private and the license will be added soon.

@@ -1,26 +1,35 @@
 from datetime import datetime, timedelta
 import numpy
-#import sys
-#from os.path import dirname, abspath
-#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-
-from fleet_request import FleetRequest
-from fleet_response import FleetResponse
-from battery_inverter_fleet import BatteryInverterFleet
-from grid_info import GridInfo
 import matplotlib.pyplot as plt
 import scipy.io as spio
 import csv
 import copy
 
-def fleet_test(Fleet,Grid):
-    
-    mat = spio.loadmat('ERM_model_validation.mat', squeeze_me=True)
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
+
+from fleet_request import FleetRequest
+from grid_info import GridInfo
+from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+
+
+def fleet_test(Fleet):
+    erm_file = join(dirname(abspath(__file__)), 'ERM_model_validation.mat')
+    mat = spio.loadmat(erm_file, squeeze_me=True)
     t = mat['TT']
     P = -Fleet.num_of_devices* mat['PP']
     S = mat['SS']
+    
+    n = len(S)#len(t)
 
-    n = 8000#len(t)
+    t = t[numpy.arange(1000,n-1000,45)]
+    P = P[numpy.arange(1000,n-1000,45)]
+    S = S[numpy.arange(1000,n-1000,45)]
+
+
+    n = len(t)
+    print(n)
     Pach = numpy.zeros((n))
     Qach = numpy.zeros((n))
     f = numpy.zeros((n,2))
@@ -30,7 +39,7 @@ def fleet_test(Fleet,Grid):
 
     requests = []
     ts = datetime.utcnow()
-    dt = timedelta(hours=0.000277777778) #hours
+    dt = timedelta(hours=(0.000277777778*45/3)) #hours
     for i in range(n):
         req = FleetRequest(ts=(ts+i*dt),sim_step=dt,p=P[i],q=None)
         requests.append(req)
@@ -48,22 +57,24 @@ def fleet_test(Fleet,Grid):
 
     # process the requests 
     i = 0
-    for req in requests:
-        Fleet.process_request(req,Grid)
+    for req in requests[:n]:
+        Fleet.process_request(req)
         Pach[i] = sum(Fleet.P_service)
         Qach[i] = sum(Fleet.Q_service)
         f[i,0] = Grid.get_frequency(ts+i*dt,0)
         f[i,1] = Grid.get_frequency(ts+i*dt,1)
         v[i,0] = Grid.get_voltage(ts+i*dt,0)
-        v[i,1] = Grid.get_voltage(ts+i*dt,1)
+        v[i,1] = Grid.get_voltage(ts+i*dt,1) 
         """ if v[i] < 100:
             print(str(100*i/n) + ' %') """
-        if numpy.mod(i,10000) == 0:
+        if numpy.mod(i,numpy.floor(n/20)) == 0:
             print(str(100*i/n) + ' %')
         for j in range(Fleet.num_of_devices):
             SOC[i,j] = Fleet.soc[j] # show that process_request function updates the SoC
         #V[i] = Fleet.vbat
         i = i + 1
+
+    Fleet.output_impact_metrics()
 
     plt.figure(1)
     plt.subplot(211)
@@ -73,10 +84,11 @@ def fleet_test(Fleet,Grid):
     plt.ylabel('Real Power (kW)')
     plt.legend(loc='lower right')
     plt.subplot(212)
-    plt.plot(t[0:n],f[0:n,0], label='Grid Frequency')
-    #plt.plot(t[0:n],100*S[0:n], label='Recorded SoC')
+    for j in range(Fleet.num_of_devices):
+        plt.plot(t[0:n],SOC[0:n,j], label='Grid Frequency')
+    plt.plot(t[0:n],100*S[0:n], label='Recorded SoC')
     plt.xlabel('Time (hours)')
-    plt.ylabel('frequency (Hz)')
+    plt.ylabel('State-of-Charge (%)')
     #plt.legend(loc='lower right')
 
     plt.figure(2)
@@ -90,7 +102,7 @@ def fleet_test(Fleet,Grid):
     plt.xlabel('Time (hours)')
     plt.ylabel('Voltage (V)')
     plt.legend(loc='lower right')
-    plt.show()
+    plt.show() 
 
 def integration_test(Fleet):
     # Establish the test variables
@@ -145,13 +157,12 @@ def integration_test(Fleet):
 
 
 if __name__ == '__main__':
-    Fleet = BatteryInverterFleet('CRM')
-    location = 0
-    i = 0
     Grid = GridInfo('Grid_Info_DATA_2.csv')
-    ts = datetime.utcnow()
+    Fleet = BatteryInverterFleet(Grid,'ERM')
+    Fleet.is_autonomous = False
+    Fleet.VV11_Enabled = False
+    Fleet.FW21_Enabled = False
+    fleet_test(Fleet)
 
-    fleet_test(Fleet,Grid)
-    #Fleet.soc = 50.0*numpy.ones(Fleet.num_of_devices)
-    #integration_test(Fleet)
+
 
