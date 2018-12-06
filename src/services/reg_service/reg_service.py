@@ -15,7 +15,7 @@ from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
-from fleet_config import FleetConfig
+# from fleet_config import FleetConfig
 
 from services.reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reg_service.helpers.clearing_price_helper import ClearingPriceHelper
@@ -352,9 +352,9 @@ class RegService():
 
         return Mileage
 
-    def change_config(self):
-        fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
-        self._fleet.change_config(fleet_config)
+    # def change_config(self):
+    #     fleet_config = FleetConfig(is_P_priority=True, is_autonomous=False, autonomous_threshold=0.1)
+    #     self._fleet.change_config(fleet_config)
 
     # Allow method "fleet" be used as an attribute.
     @property
