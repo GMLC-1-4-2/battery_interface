@@ -77,7 +77,8 @@ class ReserveService():
             'Delta_Previous_Event_mins', 'SRMCP_$/MW', 'Response_Max_MW',
             'Response_Max_Time_mins', 'Response_Committed_Time_mins',
             'Response_Start_MW', 'Response_End_MW', 'Response_First10Min_MW',
-            'Response_After11Min_MW', 'Request_MW', 'Shortfall_MW', 'Value_$'])
+            'Response_After11Min_MW', 'Response_After11Min_Ratio',
+            'Request_MW', 'Shortfall_MW', 'Value_$'])
 
         # Then, we can take everything event-by-event, but we have to add a minutes worth of time to the start:
         for event_indices in event_indices_split:
@@ -150,7 +151,7 @@ class ReserveService():
                 # Now calculate the response for the after 11-minute mark
                 event_response_after11min_df = event.loc[10:, :]
                 event_response_after11min = event_response_after11min_df.Response.mean()
-                event_response_after11min_metric = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
+                event_response_after11min_ratio = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
 
                 # Calculate shortfall
                 '''If the ratio of response for first 11 minutes is >= 1,
@@ -177,6 +178,7 @@ class ReserveService():
                 # for including in result dataframe
                 event_response_first10min = event_response
                 event_response_after11min = np.nan
+                event_response_after11min_ratio = np.nan
 
                 event_end_df = event.iloc[-2:, :]
                 event_response_end = event_end_df.Response.max()
@@ -217,6 +219,7 @@ class ReserveService():
                 'Response_End_MW':event_response_end,
                 'Response_First10Min_MW':event_response_first10min,
                 'Response_After11Min_MW':event_response_after11min,
+                'Response_After11Min_Ratio':event_response_after11min_ratio,
                 'Request_MW':event_request_MW,
                 'Shortfall_MW':event_shortfall_MW,
                 'Value_$':event_value},
