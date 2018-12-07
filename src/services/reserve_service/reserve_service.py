@@ -16,6 +16,8 @@ import matplotlib.pyplot as plt
 from fleet_request import FleetRequest
 from fleet_config import FleetConfig
 
+from pdb import set_trace as bp
+
 
 from services.reserve_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reserve_service.helpers.clearing_price_helper import ClearingPriceHelper
@@ -37,8 +39,9 @@ class ReserveService():
     # The time step for simulating fleet's response is at 1 minute.
     # It returns a 2-level dictionary; 1st level key is the month.
     # TODO: [minor] currently, the start and end times are hardcoded. Ideally, they would be based on promoted user inputs.
-    def request_loop(self, start_time = parser.parse("2017-01-01 00:00:00"),
-                     end_time = parser.parse("2017-01-01 05:00:00")):
+    def request_loop(self, start_time=parser.parse("2017-01-01 00:00:00"),
+                     end_time=parser.parse("2017-01-01 05:00:00"),
+                     clearing_price_filename="201701.csv"):
 
         # Generate lists of 1-min request and response class objects.
         request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
@@ -50,82 +53,254 @@ class ReserveService():
         cur_time = start_time
         one_hour = timedelta(minutes=60)
 
-        # Loop through each hour between "start_time" and "end_time".
-        while cur_time < end_time - timedelta(minutes=60):
-            # Generate 1-hour worth of request and response arrays for calculating scores.
-            cur_end_time = cur_time + timedelta(minutes=60)
-            # Generate lists of synchronized reserve request and response class objects.
-            request_list_1m_60min = [r for r in request_list_1m if cur_time <= r.ts_req <= cur_end_time]
-            response_list_1m_60min = [r for r in response_list_1m if cur_time <= r.ts <= cur_end_time]
-            # Convert lists into arrays.
-            request_array_1m_60min = np.asarray(request_list_1m_60min)
-            response_array_1m_60min = np.asarray(response_list_1m_60min)
+        request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
+        response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
+        request_df_1m = pd.DataFrame(request_list_1m, columns=['Time', 'Request'])
+        response_df_1m = pd.DataFrame(response_list_1m, columns=['Time', 'Response'])
+        # This merges/aligns the requests and responses based on their time stamp
+        df_1m = pd.merge(
+            left=request_df_1m,
+            right=response_df_1m,
+            how='left',
+            left_on='Time',
+            right_on='Time')
+        # We can then do the following to break out the indices corresponding to events:
+        event_indices = np.where(df_1m.Request > 0.)[0]
+        event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
 
-                list_event_ending_time = []
-                t_end = None
-                # Loop through request and response class objects to determine the "immediate past interval".
-                for i in request_array_1m_60min:
-                    list_response_start_3min = []
-                    list_response_end_3min = []
-                    # How to link the request and response class objects with same timestamp?
-                    # How to get consective 3min values?
-                    P_responce = response_array_1m_60min
-                    if i.P_req > 0:
-                        t_end = i.ts_req
-                        # Record the "immediate past interval" btw the ending times of the last and current events.
-                        if len(request_array_1m_60min)>0:
-                            dt = t_end - request_array_1m_60min[-1]
-                        else:
-                            dt = t_end
-                    elif t_end is not None:
-                        list_event_ending_time.append(t_end)
+        # Set previous event end to be the end of the first event, since nothing comes before that event
+        # TODO: This negates any effect a shortfall has on the value of the event for the first event
+        previous_event_end = df_1m.loc[event_indices_split[0][-1:][0]].Time
+
+        # Create empty data frame to store results in
+        results_df = pd.DataFrame(columns=['Time_Start', 'Time_End', 'Duration_mins',
+            'Delta_Previous_Event_mins', 'SRMCP_$/MW', 'Response_Max_MW',
+            'Response_Max_Time_mins', 'Response_Committed_Time_mins',
+            'Response_Start_MW', 'Response_End_MW', 'Response_First10Min_MW',
+            'Response_After11Min_MW', 'Request_MW', 'Shortfall_MW', 'Value_$'])
+
+        # Then, we can take everything event-by-event, but we have to add a minutes worth of time to the start:
+        for event_indices in event_indices_split:
+            time_stamps_per_minute = 1 # each time stamp corresponds to a minute
+
+            # Check if event is at least 11 minutes; if shorter, add indices for an extra minute at the end of the event
+            shorter_than_11_min = ((df_1m.Time[event_indices[len(event_indices) - 1]] - df_1m.Time[event_indices[0]]).seconds / 60.) < 11.
+
+            # Create list of indices to add to start of event_indices representing the minute prior to the event starting
+            event_indices_prior_minute = [event_indices[0] - x for x in np.arange(time_stamps_per_minute, 0, -1)] 
+            # Add the indices for the event prior to the event starting to the start of the event_indices list
+            event_indices_ready = np.insert(
+                event_indices,
+                [0] * len(event_indices_prior_minute),
+                event_indices_prior_minute)
+            if shorter_than_11_min:
+                event_indices_after_minute = [event_indices[len(event_indices) - 1] + x for x in np.arange(1, time_stamps_per_minute + 1)]
+                event_indices_ready = np.append(event_indices_ready, event_indices_after_minute)
+
+            # Filter the original dataframe down to just this event, including the minute prior to the event starting
+            # and the minute after the event ends (if the event is shorter than 11 minutes)
+            event = df_1m.loc[event_indices_ready, :]
+            # Reset indices to correspond to minute number of the event
+            event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute)
+            event_start = event.Time[0]
+            event_end = event.Time.max()
+            # Remove extra minute we added to the end if the original event was less than 11 minutes
+            if shorter_than_11_min:
+                event_end = event_end - timedelta(minutes = 1)
+            event_duration_mins = (event_end - event_start).seconds / 60.
+            time_bw_event_ends_min = (event_end - previous_event_end).seconds / 60.
+            if (event_start.day == event_end.day) & (event_start.month == event_end.month) & (event_start.hour == event_end.hour):
+                event_hour = event_start.hour
+                event_month = event_start.month
+                event_year = event_start.year
+                # pull in hourly price
+                hourly_SRMCP = self._clearing_price_helper.clearing_prices[event_start.replace(minute=0)][0]
+            else:
+                print('WARNING: Event spans multiple hours (or possibly days)...Need to do something here')
+
+            # Calculate time to max response
+            event_response_max = event.loc[event.Time >= event_start, 'Response'].max()
+            event_response_max_index = event.loc[event.Response == event_response_max, :].index[0]
+            event_response_max_time_mins = (event.Time[event_response_max_index] - event_start).seconds / 60.
+
+            # Calculate time to committed response
+            try:
+                event_response_committed_index = event.loc[(event.Time >= event_start) & (event.Response >= event.Request), :].index[0]
+                event_response_committed_time_mins = (event.Time[event_response_committed_index] - event_start).seconds / 60.
+            except: # If the response never matches the commitment, return NaN
+                event_response_committed_time_mins = np.inf
+
+            # Calculate event response at the start, which is the minimum response value
+            # at the start, +/- 1 minute.  We already added in an extra minute before the event
+            # started, so now we just take the minimum response
+            # of the first two minutes of our data frame.
+            event_start_df = event.loc[:1, :]
+            event_response_start = event_start_df.Response.min()
+
+            # Now calculate event response at the 10-minute mark, which is the maximum
+            # response value from minutes 9-11.
+            if not(shorter_than_11_min):
+                event_end_10min_df = event.loc[9:10, :]
+                event_response_end = event_end_10min_df.Response.max()
+                
+                # TODO: Now calculate average reponse during first 10 minutes
+                event_first_10min_df = event.loc[0:9, :]
+                event_response_first10min = event_first_10min_df.Response.mean()
+
+                # Now calculate the response for the after 11-minute mark
+                event_response_after11min_df = event.loc[10:, :]
+                event_response_after11min = event_response_after11min_df.Response.mean()
+                event_response_after11min_metric = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
+
+                # Calculate shortfall
+                '''If the ratio of response for first 11 minutes is >= 1,
+                If ratio of response for 11+ minutes is >= 0.95,
+                then shortfall equals 0.
 
 
-            # Read and store hourly SRMCP price.
-            hourly_SRMCP = self._clearing_price_helper.clearing_prices[cur_time]
-            # TODO: (minor) consider a different time step for results - perhaps daily or monthly.
-            # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
-            hourly_results[cur_time] = {}
-            hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_1m_60min, response_array_1m_60min)
-            # TODO: (minor) remove line below if not needed.
-            # hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
-            hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = hourly_SRMCP
-            hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
-                                                                                           hourly_results[cur_time]['performance_score'][0],
-                                                                                           hourly_results[cur_time]['hourly_integrated_MW'])
-            # Move to the next hour.
-            cur_time += one_hour
+                If the ratio of respones for first 11 minutes is < 1,
+                                                    then shortfall = (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])
+                                                         average_responded_MW during 11+ minutes'''
+                event_ratio_first10min = event_response_first10min / event.loc[0:9, :].Request.mean()
+                event_ratio_after11min = event_response_after11min / event.loc[10:, :].Request.mean()
 
-        # Store request and response parameters in lists for plotting and printing to text files.
-        P_request = [r.P_req for r in request_list_1m_tot]
-        ts_request = [r.ts_req for r in request_list_1m_tot]
-        P_responce = [r.P_service for r in response_list_1m_tot]
-        SOC = [r.soc for r in response_list_1m_tot]
-        # Plot request and response signals and state of charge (SoC).
-        n = len(P_request)
-        t = np.asarray(range(n))*(2/3600)
-        plt.figure(1)
-        plt.subplot(211)
-        plt.plot(ts_request, P_request, label='P Request')
-        plt.plot(ts_request, P_responce, label='P Responce')
-        plt.ylabel('Power (kW)')
-        plt.legend(loc='upper right')
-        plt.subplot(212)
-        plt.plot(ts_request, SOC, label='SoC')
-        plt.ylabel('SoC (%)')
-        plt.xlabel('Time (hours)')
-        plt.legend(loc='lower right')
-        plt.show()
+                event_request_MW = event.loc[0:,:].Request.mean()
 
-        # Store the responses in a text file.
-        with open('results.txt', 'w') as the_file:
-            for list in zip(ts_request, P_request, P_responce, SOC):
-                the_file.write("{},{},{},{}\n".format(list[0],list[1],list[2],list[3]))
+                # Allow room for some numeric representation issues
+                if (event_ratio_first10min >= 0.99995) & (event_ratio_after11min >= 0.95):
+                    event_shortfall_MW = 0.
+                else:
+                    event_shortfall_MW = event_request_MW - event_response_after11min
+            else:
+                event_response = event.loc[0:event.index.max() - time_stamps_per_minute].Response.mean()
+                
+                # for including in result dataframe
+                event_response_first10min = event_response
+                event_response_after11min = np.nan
+
+                event_end_df = event.iloc[-2:, :]
+                event_response_end = event_end_df.Response.max()
+
+                event_request_MW = event.loc[0:event.index.max() - time_stamps_per_minute, :].Request.mean()
+                
+                # Calculate shortfall
+                '''If the ratio of response for first 11 minutes is >= 1,
+                If ratio of response for 11+ minutes is >= 0.95,
+                then shortfall equals 0.
 
 
-        return hourly_results
+                If the ratio of respones for first 11 minutes is < 1,
+                                                    then shortfall = (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])
+                                                         average_responded_MW during 11+ minutes'''
+                event_ratio = event_response / event_request_MW
 
-    # Returns lists of requests and responses at 2s intervals.
+                # Allow room for some numeric representation issues
+                if (event_ratio >= 0.99995):
+                    event_shortfall_MW = 0.
+                else:
+                    event_shortfall_MW = event_request_MW - event_response_end
+
+            # Calculate value of event
+            event_value = ((event_request_MW * event_duration_mins / 60.) - (event_shortfall_MW * time_bw_event_ends_min / 60.)) * hourly_SRMCP
+            previous_event_end = event_end    
+
+            event_results_df = pd.DataFrame({
+                'Time_Start':event_start,
+                'Time_End':event_end,
+                'Duration_mins':event_duration_mins,
+                'Delta_Previous_Event_mins':time_bw_event_ends_min,
+                'SRMCP_$/MW':hourly_SRMCP,
+                'Response_Max_MW':event_response_max,
+                'Response_Max_Time_mins':event_response_max_time_mins,
+                'Response_Committed_Time_mins':event_response_committed_time_mins,
+                'Response_Start_MW':event_response_start,
+                'Response_End_MW':event_response_end,
+                'Response_First10Min_MW':event_response_first10min,
+                'Response_After11Min_MW':event_response_after11min,
+                'Request_MW':event_request_MW,
+                'Shortfall_MW':event_shortfall_MW,
+                'Value_$':event_value},
+                index=[event_start])
+            results_df = pd.concat([results_df, event_results_df])
+        print(results_df.T)
+
+
+        '''# Loop through each hour between "start_time" and "end_time".
+                                while cur_time < end_time - timedelta(minutes=60):
+                                    # Generate 1-hour worth of request and response arrays for calculating scores.
+                                    cur_end_time = cur_time + timedelta(minutes=60)
+                                    # Generate lists of synchronized reserve request and response class objects.
+                                    request_list_1m_60min = [r for r in request_list_1m if cur_time <= r.ts_req <= cur_end_time]
+                                    response_list_1m_60min = [r for r in response_list_1m if cur_time <= r.ts <= cur_end_time]
+                                    # Convert lists into arrays.
+                                    request_array_1m_60min = np.asarray(request_list_1m_60min)
+                                    response_array_1m_60min = np.asarray(response_list_1m_60min)
+                        
+                                    list_event_ending_time = []
+                                    t_end = None
+                                    # Loop through request and response class objects to determine the "immediate past interval".
+                                    for i in request_array_1m_60min:
+                                        list_response_start_3min = []
+                                        list_response_end_3min = []
+                                        # How to link the request and response class objects with same timestamp?
+                                        # How to get consective 3min values?
+                                        P_responce = response_array_1m_60min
+                                        if i.P_req > 0:
+                                            t_end = i.ts_req
+                                            # Record the "immediate past interval" btw the ending times of the last and current events.
+                                            if len(request_array_1m_60min)>0:
+                                                dt = t_end - request_array_1m_60min[-1]
+                                            else:
+                                                dt = t_end
+                                        elif t_end is not None:
+                                            list_event_ending_time.append(t_end)
+                        
+                        
+                                    # Read and store hourly SRMCP price.
+                                    hourly_SRMCP = self._clearing_price_helper.clearing_prices[cur_time]
+                                    # TODO: (minor) consider a different time step for results - perhaps daily or monthly.
+                                    # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
+                                    hourly_results[cur_time] = {}
+                                    hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_1m_60min, response_array_1m_60min)
+                                    # TODO: (minor) remove line below if not needed.
+                                    # hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
+                                    hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = hourly_SRMCP
+                                    hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
+                                                                                                                   hourly_results[cur_time]['performance_score'][0],
+                                                                                                                   hourly_results[cur_time]['hourly_integrated_MW'])
+                                    # Move to the next hour.
+                                    cur_time += one_hour
+                        
+                                # Store request and response parameters in lists for plotting and printing to text files.
+                                P_request = [r.P_req for r in request_list_1m_tot]
+                                ts_request = [r.ts_req for r in request_list_1m_tot]
+                                P_responce = [r.P_service for r in response_list_1m_tot]
+                                SOC = [r.soc for r in response_list_1m_tot]
+                                # Plot request and response signals and state of charge (SoC).
+                                n = len(P_request)
+                                t = np.asarray(range(n))*(2/3600)
+                                plt.figure(1)
+                                plt.subplot(211)
+                                plt.plot(ts_request, P_request, label='P Request')
+                                plt.plot(ts_request, P_responce, label='P Responce')
+                                plt.ylabel('Power (kW)')
+                                plt.legend(loc='upper right')
+                                plt.subplot(212)
+                                plt.plot(ts_request, SOC, label='SoC')
+                                plt.ylabel('SoC (%)')
+                                plt.xlabel('Time (hours)')
+                                plt.legend(loc='lower right')
+                                plt.show()
+                        
+                                # Store the responses in a text file.
+                                with open('results.txt', 'w') as the_file:
+                                    for list in zip(ts_request, P_request, P_responce, SOC):
+                                        the_file.write("{},{},{},{}\n".format(list[0],list[1],list[2],list[3]))
+
+
+        return hourly_results'''
+
+    # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time):
         # TODO: (minor) replace the temporary test file name with final event signal file name.
         historial_signal_filename = "events_201701_test.xlsx"

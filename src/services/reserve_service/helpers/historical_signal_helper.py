@@ -5,7 +5,7 @@ from services.exceptions.datetime_validation_exception import DatetimeValidation
 class HistoricalSignalHelper(object):
 
     # TODO: (minor) if later sheet_name is not used, remove it.
-    def read_and_store_historical_signals(self, input_data_file_path, sheet_name):
+    def read_and_store_historical_signals(self, input_data_file_path, sheet_name='Sheet1'):
         """
         This method reads a given Excel file.
         Thus, this method is meant to be called only once reading Excel file takes
