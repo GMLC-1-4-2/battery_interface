@@ -101,9 +101,12 @@ class ReserveService():
             # and the minute after the event ends (if the event is shorter than 11 minutes)
             event = df_1m.loc[event_indices_ready, :]
             # Reset indices to correspond to minute number of the event
-            event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute)
-            event_start = event.Time[0]
-            event_end = event.Time.max()
+            
+            # The negative first minute starts at index 0.0
+            # The event's first minute starts at index 1.0
+            event.index = np.arange(0, event.shape[0], 1 / time_stamps_per_minute)
+            event_start = pd.Timestamp(event.Time[1])
+            event_end = pd.Timestamp(event.Time.max())
             # Remove extra minute we added to the end if the original event was less than 11 minutes
             if shorter_than_11_min:
                 event_end = event_end - timedelta(minutes = 1)
@@ -121,12 +124,12 @@ class ReserveService():
             # Calculate time to max response
             event_response_max = event.loc[event.Time >= event_start, 'Response'].max()
             event_response_max_index = event.loc[event.Response == event_response_max, :].index[0]
-            event_response_max_time_mins = (event.Time[event_response_max_index] - event_start).seconds / 60.
+            event_response_max_time_mins = (pd.Timestamp(event.Time[event_response_max_index]) - event_start).seconds / 60.
 
             # Calculate time to committed response
             try:
                 event_response_committed_index = event.loc[(event.Time >= event_start) & (event.Response >= event.Request), :].index[0]
-                event_response_committed_time_mins = (event.Time[event_response_committed_index] - event_start).seconds / 60.
+                event_response_committed_time_mins = (pd.Timestamp(event.Time[event_response_committed_index]) - event_start).seconds / 60.
             except: # If the response never matches the commitment, return NaN
                 event_response_committed_time_mins = np.inf
 
@@ -134,7 +137,7 @@ class ReserveService():
             # at the start, +/- 1 minute.  We already added in an extra minute before the event
             # started, so now we just take the minimum response
             # of the first three minutes of our data frame (minutes -1, 0, and 1).
-            event_start_df = event.loc[:1, :]
+            event_start_df = event.loc[0:2, :]
             event_response_start = event_start_df.Response.min()
 
             # Now calculate event response at the 10-minute mark, which is the maximum
@@ -144,7 +147,7 @@ class ReserveService():
                 event_response_end = event_end_10min_df.Response.max()
                 
                 # Now calculate average reponse during first 10 minutes
-                event_first_10min_df = event.loc[0:10, :]
+                event_first_10min_df = event.loc[1:10, :]
                 event_response_first10min = event_first_10min_df.Response.mean()
 
                 # Now calculate the response for the after 11-minute mark
@@ -161,10 +164,10 @@ class ReserveService():
                 If the ratio of respones for first 11 minutes is < 1,
                                                     then shortfall = (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])
                                                          average_responded_MW during 11+ minutes'''
-                event_ratio_first10min = event_response_first10min / event.loc[0:10, :].Request.mean()
+                event_ratio_first10min = event_response_first10min / event.loc[1:10, :].Request.mean()
                 event_ratio_after11min = event_response_after11min / event.loc[11:, :].Request.mean()
 
-                event_request_MW = event.loc[0:,:].Request.mean()
+                event_request_MW = event.loc[1:,:].Request.mean()
 
                 # Allow room for some numeric representation issues
                 if (event_ratio_first10min >= 0.99995) & (event_ratio_after11min >= 0.95):
@@ -172,7 +175,7 @@ class ReserveService():
                 else:
                     event_shortfall_MW = event_request_MW - event_response_after11min
             else:
-                event_response = event.loc[0:event.index.max() - time_stamps_per_minute].Response.mean()
+                event_response = event.loc[1:event.index.max() - time_stamps_per_minute].Response.mean()
                 
                 # for including in result dataframe
                 event_response_first10min = event_response
@@ -182,7 +185,7 @@ class ReserveService():
                 event_end_df = event.iloc[-3:, :]
                 event_response_end = event_end_df.Response.max()
 
-                event_request_MW = event.loc[0:event.index.max() - time_stamps_per_minute, :].Request.mean()
+                event_request_MW = event.loc[1:event.index.max() - time_stamps_per_minute, :].Request.mean()
                 
                 # Calculate shortfall
                 '''If the ratio of response for first 11 minutes is >= 1,
