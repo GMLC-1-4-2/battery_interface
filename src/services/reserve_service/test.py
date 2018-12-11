@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     # Use line below for testing DYNAMIC regulation service.
     fleet_response = service.request_loop(start_time=parser.parse("2017-01-01 00:00:00"),
-                                          end_time=parser.parse("2017-01-01 05:00:00"),
+                                          end_time=parser.parse("2017-01-02 05:00:00"),
                                           clearing_price_filename="201701.csv")
 
     # Print results in the 2-level dictionary.
