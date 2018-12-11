@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     # Dev test
     services = ['Regulation']
-    fleets = ['Refridge']
+    fleets = ['BatteryInverter']
     kwargs = {}
 
     for service in services:
