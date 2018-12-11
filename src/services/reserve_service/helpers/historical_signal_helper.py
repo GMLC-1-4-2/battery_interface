@@ -32,6 +32,7 @@ class HistoricalSignalHelper(object):
         else:
             return self._signals_in_range_encompassing_multiple_days(start_time, end_time)
 
+    # TODO: (minor) remove the block below if not used later.
     # def get_input_filename(self, start_time):
     #     timestamp = pd.Timestamp(start_time)
     #     return timestamp.strftime("%m %Y.xlsx")

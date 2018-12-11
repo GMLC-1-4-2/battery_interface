@@ -8,21 +8,23 @@ class ClearingPriceHelper(object):
 
     # This method returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
     def read_and_store_clearing_prices(self, input_data_file_path, start_time):
-
-        # This will only be necessary if we end up using an Excel spreadsheet with multiple tabs
-        sheet_name = self._get_sheet_name(start_time)
+        # TODO: (minor) if later sheet_name is not used, remove it.
+        # # This will only be necessary if we end up using an Excel spreadsheet with multiple tabs
+        # sheet_name = self._get_sheet_name(start_time)
 
         excel_data = pd.read_csv(input_data_file_path, skiprows=2)
-        # Get only the data whose 'Subzone' is 'PJM Mid Atlantic Dominion (MAD)':
+        # Get only the data whose 'Subzone' column is 'PJM Mid Atlantic Dominion (MAD)':
         reserve_prices_data_frame = excel_data[excel_data['Subzone'] == 'PJM Mid Atlantic Dominion (MAD)']
         # Get only the columns we need and rename the price column:
         reserve_prices_data_frame = reserve_prices_data_frame[['EPT Hour Ending', 'SRMCP ($/MWh)']]
-        reserve_prices_data_frame.rename(columns={'SRMCP ($/MWh)': 'Price_SRMCP'}, inplace=True)
+        # TODO: no need to rename the column. Does it affect the reserve_service.py file?
+        # reserve_prices_data_frame.rename(columns={'SRMCP ($/MWh)': 'Price_SRMCP'}, inplace=True)
         # Split the 'EPT Hour Ending' time into date and hour ending columns
         reserve_prices_data_frame['Date'], reserve_prices_data_frame['Hour_End'] = reserve_prices_data_frame['EPT Hour Ending'].str.split(' ', 1).str
 
-        # Calculate the start of the hour
+        # Calculate the start of the hour from the ending of the hour.
         reserve_prices_data_frame['Hour_Start_Int'] = reserve_prices_data_frame['Hour_End'].map(int) - 1
+        # ??
         reserve_prices_data_frame['Hour_Start'] = np.where(reserve_prices_data_frame['Hour_Start_Int'] < 10,
             '0' + reserve_prices_data_frame['Hour_Start_Int'].astype(str),
             reserve_prices_data_frame['Hour_Start_Int'].astype(str))
@@ -45,7 +47,8 @@ class ClearingPriceHelper(object):
     def clearing_prices(self):
         return self._clearing_prices
 
-    # Get name of the tab in the Excel file holding price data for a whole year.
-    def _get_sheet_name(self, local_day):
-        timestamp = pd.Timestamp(local_day)
-        return timestamp.strftime("%Y%m")
+    # TODO: (minor) if later sheet_name is not used, remove it.
+    # # Get name of the tab in the Excel file holding price data for a whole year.
+    # def _get_sheet_name(self, local_day):
+    #     timestamp = pd.Timestamp(local_day)
+    #     return timestamp.strftime("%Y%m")
