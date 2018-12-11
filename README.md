@@ -17,7 +17,7 @@ Notes: If you just want to get the code and test it, then use "clone" the GMLC-1
 
 
 ## Setup Work Environment
-- Install Python3.5 or higher
+- Install Python3.6 or higher
 - Install pip
 - Install all dependencies:
 
