@@ -2,6 +2,8 @@ import pandas as pd
 import datetime
 from services.exceptions.datetime_validation_exception import DatetimeValidationException
 
+from pdb import set_trace as bp
+
 class HistoricalSignalHelper(object):
 
     # TODO: (minor) if later sheet_name is not used, remove it.
@@ -21,7 +23,8 @@ class HistoricalSignalHelper(object):
         # #       same as the last row value of the given column.
         # #       Thus, when stacking all the columns, the last row values must be removed.
         # excel_data = excel_data.drop(excel_data.index[len(excel_data.index) - 1])
-
+        excel_data.columns = pd.to_datetime(excel_data.columns)
+        excel_data.index = pd.to_datetime(excel_data.index).time
         self._signals = excel_data
 
     def signals_in_range(self, start_time, end_time):

@@ -62,6 +62,11 @@ class ReserveService():
             left_on='Date_Time',
             right_on='Date_Time')
         print(df_1m)
+
+        # Ensure that at least one event occurs within the specified time frame
+        if df_1m.Request.sum() == 0:
+            return(print('There are no events in the time frame you specified.'))
+
         # We can then do the following to break out the indices corresponding to events:
         # 1) np.where will return the dataframe indices where the request value is greater than 0
         # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
