@@ -48,16 +48,14 @@ class ReserveService():
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
-        hourly_results = {}
-        # Set time duration.
-        cur_time = start_time
-        one_hour = timedelta(minutes=60)
-
+        # Generate lists containing tuples of (timestamp, power) for request and response
         request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
         response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
+        # Convert the lists of tuples into dataframes
         request_df_1m = pd.DataFrame(request_list_1m, columns=['Time', 'Request'])
         response_df_1m = pd.DataFrame(response_list_1m, columns=['Time', 'Response'])
-        # This merges/aligns the requests and responses based on their time stamp
+        # This merges/aligns the requests and responses dataframes based on their time stamp 
+        # into a single dataframe
         df_1m = pd.merge(
             left=request_df_1m,
             right=response_df_1m,
@@ -65,10 +63,15 @@ class ReserveService():
             left_on='Time',
             right_on='Time')
         # We can then do the following to break out the indices corresponding to events:
+        # 1) np.where will return the dataframe indices where the request value is greater than 0
+        # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
+        #    to a single event.  Here, we split the array from (1) based on where the difference between
+        #    indices is greater than 1 (we assume that continuous indices correspond to the same event).
         event_indices = np.where(df_1m.Request > 0.)[0]
         event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
 
         # Set previous event end to be 20170101, since nothing comes before the first event
+        # (This is for calculating the shortfall of the first event, if applicable)
         previous_event_end = pd.Timestamp('01/01/2017 00:00:00')
 
         # Create empty data frame to store results in
@@ -79,44 +82,62 @@ class ReserveService():
             'Response_After11Min_MW', 'Response_After11Min_Ratio',
             'Request_MW', 'Shortfall_MW', 'Value_$'])
 
-        # Then, we can take everything event-by-event, but we have to add a minutes worth of time to the start:
+        # Then, we can take everything event-by-event.  "event_indices" contains the list of 
+        # df_1m indices corresponding to a single event.
         for event_indices in event_indices_split:
             time_stamps_per_minute = 1 # each time stamp corresponds to a minute
 
-            # Check if event is at least 11 minutes; if shorter, add indices for an extra minute at the end of the event
+            # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
+            # an extra minute at the end of the event
             shorter_than_11_min = ((df_1m.Time[event_indices[len(event_indices) - 1]] - df_1m.Time[event_indices[0]]).seconds / 60.) < 11.
 
             # Create list of indices to add to start of event_indices representing the minute prior to the event starting
+            # The np.arange call here creates a descending list of numbers, starting from the first index in event_indices
+            # These numbers correspond to the extra indices we need to include for the -1 minute
             event_indices_prior_minute = [event_indices[0] - x for x in np.arange(time_stamps_per_minute, 0, -1)] 
             # Add the indices for the event prior to the event starting to the start of the event_indices list
+            # np.insert will insert numbers into an array at the point you specify:
+            # here, we want the number(s) to go at the start, signified by [0]*len(event_indices_prior_minute)
             event_indices_ready = np.insert(
                 event_indices,
                 [0] * len(event_indices_prior_minute),
                 event_indices_prior_minute)
+            # If the event is shorter than 11 minutes, we want to account for an extra minute at the end
             if shorter_than_11_min:
+                # Now generate a list of indices to add to the end of event_indices_ready representing an extra minute
                 event_indices_after_minute = [event_indices[len(event_indices) - 1] + x for x in np.arange(1, time_stamps_per_minute + 1)]
+                # Append that extra minute's worth of indices to the end of event_indices_ready
                 event_indices_ready = np.append(event_indices_ready, event_indices_after_minute)
 
             # Filter the original dataframe down to just this event, including the minute prior to the event starting
             # and the minute after the event ends (if the event is shorter than 11 minutes)
             event = df_1m.loc[event_indices_ready, :]
-            # Reset indices to correspond to minute number of the event
             
-            # The negative first minute starts at index 0.0
-            # The event's first minute starts at index 1.0
-            event.index = np.arange(0, event.shape[0], 1 / time_stamps_per_minute)
-            event_start = pd.Timestamp(event.Time[1])
+            # Reset the event indices according to:
+            # The negative first minute starts at index -1.0
+            # The event's first minute starts at index 0.0
+            event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute, 1 / time_stamps_per_minute)
+            # Obtain the start and end time stamps of the event
+            event_start = pd.Timestamp(event.Time[0])
             event_end = pd.Timestamp(event.Time.max())
             # Remove extra minute we added to the end if the original event was less than 11 minutes
             if shorter_than_11_min:
                 event_end = event_end - timedelta(minutes = 1)
+            # Calculate the event duration
             event_duration_mins = (event_end - event_start).seconds / 60.
+            # Calculate the time between this event's end and the previous event's end
+            # This will be used to calculate the shortfall, if necessary
             time_bw_event_ends_min = (event_end - previous_event_end).seconds / 60.
+            # Ensure the event happens within a given hour, otherwise further consideration will need to happen
+            # to account for pricing
             if (event_start.day == event_end.day) & (event_start.month == event_end.month) & (event_start.hour == event_end.hour):
                 event_hour = event_start.hour
                 event_month = event_start.month
                 event_year = event_start.year
-                # pull in hourly price
+                # Pull in price value for this event.  The prices are for a given hour, so we want the price
+                # that corresponds to the hour that this event occurs.  By using "replace(minute=0)", that sets
+                # our event start time to exactly the hour in which the event occurs, and we can index the
+                # price dataframe based on that timestamp.
                 hourly_SRMCP = self._clearing_price_helper.clearing_prices[event_start.replace(minute=0)][0]
             else:
                 print('WARNING: Event spans multiple hours (or possibly days)...Need to do something here')
@@ -128,75 +149,81 @@ class ReserveService():
 
             # Calculate time to committed response
             try:
+                # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
+                # If no such index exists, skip down to the "except" call where np.inf will be returned (indicating that the response
+                # never matched or exceeded the request during the event)
                 event_response_committed_index = event.loc[(event.Time >= event_start) & (event.Response >= event.Request), :].index[0]
                 event_response_committed_time_mins = (pd.Timestamp(event.Time[event_response_committed_index]) - event_start).seconds / 60.
-            except: # If the response never matches the commitment, return NaN
+            except: # If the response never matches the commitment, return infinity as an indicator
                 event_response_committed_time_mins = np.inf
 
             # Calculate event response at the start, which is the minimum response value
             # at the start, +/- 1 minute.  We already added in an extra minute before the event
             # started, so now we just take the minimum response
             # of the first three minutes of our data frame (minutes -1, 0, and 1).
-            event_start_df = event.loc[0:2, :]
+            event_start_df = event.loc[:1, :]
             event_response_start = event_start_df.Response.min()
 
-            # Now calculate event response at the 10-minute mark, which is the maximum
-            # response value from minutes 9, 10, and 11.
+            # Calculate the requested MW for the event, which will be used in shortfall calculations
+            # The requested value should be constant over the whole event, so the mean() call here shouldn't really matter
+            event_request_MW = event.loc[0:,:].Request.mean()
+
+            # Now calculate other metrics
             if not(shorter_than_11_min):
+                # Calculate event response at the 10-minute mark, which is the maximum
+                # response value from minutes 9, 10, and 11.
                 event_end_10min_df = event.loc[9:11, :]
                 event_response_end = event_end_10min_df.Response.max()
                 
                 # Now calculate average reponse during first 10 minutes
-                event_first_10min_df = event.loc[1:10, :]
-                event_response_first10min = event_first_10min_df.Response.mean()
+                # This is the delta between the 10-minute mark and the start
+                event_response_first10min = event_response_end - event_response_start
 
                 # Now calculate the response for the after 11-minute mark
+                # This is the average response from 11 minutes on
                 event_response_after11min_df = event.loc[11:, :]
                 event_response_after11min = event_response_after11min_df.Response.mean()
+                # Calculate metric of response after 11 minutes
                 event_response_after11min_ratio = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
 
                 # Calculate shortfall
-                '''If the ratio of response for first 11 minutes is >= 1,
-                If ratio of response for 11+ minutes is >= 0.95,
-                then shortfall equals 0.
+                '''If the ratio of response for first 11 minutes is >= 1 and if ratio of response for 11+ minutes is >= 0.95, then shortfall equals 0.
+                If the ratio of responses for first 11 minutes is < 1, then shortfall = 
+                    (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])'''
 
+                # Calculate the response ratios for the first 10 minutes, and after 11 minutes
+                event_ratio_first10min = event_response_first10min / event_request_MW
+                event_ratio_after11min = event_response_after11min / event_request_MW
 
-                If the ratio of respones for first 11 minutes is < 1,
-                                                    then shortfall = (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])
-                                                         average_responded_MW during 11+ minutes'''
-                event_ratio_first10min = event_response_first10min / event.loc[1:10, :].Request.mean()
-                event_ratio_after11min = event_response_after11min / event.loc[11:, :].Request.mean()
-
-                event_request_MW = event.loc[1:,:].Request.mean()
-
-                # Allow room for some numeric representation issues
+                # Use the logic from above comment 
+                # Allow room for some numeric representation issues in the if statement
                 if (event_ratio_first10min >= 0.99995) & (event_ratio_after11min >= 0.95):
                     event_shortfall_MW = 0.
                 else:
                     event_shortfall_MW = event_request_MW - event_response_after11min
             else:
-                event_response = event.loc[1:event.index.max() - time_stamps_per_minute].Response.mean()
-                
-                # for including in result dataframe
-                event_response_first10min = event_response
-                event_response_after11min = np.nan
-                event_response_after11min_ratio = np.nan
-
+                # Calculate the event response over the last 3 minutes of the event (including the additional
+                # minute we already added on)
                 event_end_df = event.iloc[-3:, :]
                 event_response_end = event_end_df.Response.max()
 
-                event_request_MW = event.loc[1:event.index.max() - time_stamps_per_minute, :].Request.mean()
+                # The event response for event shorter than 11 minutes is the delta between the event end
+                # and the event start
+                event_response = event_response_end - event_response_start
+                
+                # For ease of including in result dataframe, we'll still call this event_response_first10min
+                event_response_first10min = event_response
+                # The event is shorter than 11 minutes, so return NaN for these two metrics
+                event_response_after11min = np.nan
+                event_response_after11min_ratio = np.nan
+
+                # Calculate the response ratio for the event
+                event_ratio = event_response / event_request_MW
                 
                 # Calculate shortfall
-                '''If the ratio of response for first 11 minutes is >= 1,
-                If ratio of response for 11+ minutes is >= 0.95,
-                then shortfall equals 0.
-
-
-                If the ratio of respones for first 11 minutes is < 1,
-                                                    then shortfall = (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])
-                                                         average_responded_MW during 11+ minutes'''
-                event_ratio = event_response / event_request_MW
+                '''If the ratio of response for is >= 1 , then shortfall equals 0.
+                If the ratio of response is < 1, then shortfall = 
+                    (average request MW - max response at end of event)'''
 
                 # Allow room for some numeric representation issues
                 if (event_ratio >= 0.99995):
@@ -206,8 +233,8 @@ class ReserveService():
 
             # Calculate value of event
             event_value = ((event_request_MW * event_duration_mins / 60.) - (event_shortfall_MW * time_bw_event_ends_min / 60.)) * hourly_SRMCP
-            previous_event_end = event_end    
 
+            # Create temporary dataframe to contain the results
             event_results_df = pd.DataFrame({
                 'Time_Start':event_start,
                 'Time_End':event_end,
@@ -226,7 +253,13 @@ class ReserveService():
                 'Shortfall_MW':event_shortfall_MW,
                 'Value_$':event_value},
                 index=[event_start])
+            # Append the temporary dataframe into the results_df
             results_df = pd.concat([results_df, event_results_df])
+
+            # Reset previous_end_end to be the end of this event before moving on to the next event
+            previous_event_end = event_end 
+
+        # For testing (with few events), showing the transposed dataframe is a bit easier to read   
         print(results_df.T)
 
 
