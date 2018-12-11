@@ -62,6 +62,11 @@ class ReserveService():
             how='left',
             left_on='Time',
             right_on='Time')
+
+        # Ensure that at least one event occurs within the specified time frame
+        if df_1m.Request.sum() == 0:
+            return(print('There are no events in the time frame you specified.'))
+
         # We can then do the following to break out the indices corresponding to events:
         # 1) np.where will return the dataframe indices where the request value is greater than 0
         # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
@@ -85,6 +90,7 @@ class ReserveService():
         # Then, we can take everything event-by-event.  "event_indices" contains the list of 
         # df_1m indices corresponding to a single event.
         for event_indices in event_indices_split:
+
             time_stamps_per_minute = 1 # each time stamp corresponds to a minute
 
             # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
@@ -341,7 +347,7 @@ class ReserveService():
     # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time):
         # TODO: (minor) replace the temporary test file name with final event signal file name.
-        historial_signal_filename = "events_201701_test.xlsx"
+        historial_signal_filename = "gmlc_events_2017_1min.xlsx"
         # Returns a DataFrame that contains historical signal data in the events data file.
         self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename)
         # Returns a Dictionary with datetime type keys.
