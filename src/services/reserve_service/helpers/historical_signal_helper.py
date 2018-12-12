@@ -89,9 +89,9 @@ class HistoricalSignalHelper(object):
                                                                         start_time, end_time))
 
         # Check if the start_time and end_time are within the given data (from input Excel file):
-        first_day_in_data = pd.Timestamp(self._signals.columns[0]).date()
-        last_day_in_data = pd.Timestamp(self._signals.columns[len(self._signals.columns) - 1]).date()
-        start_time_in_data = pd.Timestamp(self._signals.index[0]).time()
+        first_day_in_data = self._signals.columns[0]
+        last_day_in_data = self._signals.columns[len(self._signals.columns) - 1]
+        start_time_in_data = self._signals.index[0]
         end_time_in_data = self._signals.index[len(self._signals.index) - 1]
         first_timestamp_in_data = pd.datetime.combine(first_day_in_data, start_time_in_data)
         last_timestamp_in_data = pd.datetime.combine(last_day_in_data, end_time_in_data)

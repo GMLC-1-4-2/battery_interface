@@ -37,10 +37,10 @@ class ReserveService():
 
     # The "request_loop" function is the workhorse that manages high-level monthly loops and sending requests & retrieving responses.
     # The time step for simulating fleet's response is at 1 minute.
-    # TODO: revisit: It returns a 2-level dictionary; 1st level key is the month.
+    # It returns a 2-level dictionary; 1st level key is the month.
     # TODO: [minor] currently, the start and end times are hardcoded. Ideally, they would be based on promoted user inputs.
     def request_loop(self, start_time=parser.parse("2017-01-01 00:00:00"),
-                     end_time=parser.parse("2017-01-02 05:00:00"),
+                     end_time=parser.parse("2017-01-01 05:00:00"),
                      clearing_price_filename="201701.csv"):
 
         # Generate lists of 1-min request and response class objects.
@@ -48,20 +48,20 @@ class ReserveService():
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
-        # Generate lists containing tuples of (timestamp, real power) for request and response.
+        # Generate lists containing tuples of (timestamp, power) for request and response
         request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
         response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
-        # Convert the lists of tuples into dataframes.
+        # Convert the lists of tuples into dataframes
         request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
         response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response'])
-        # This merges/aligns the requests and responses dataframes based on their time stamp into a single dataframe.
+        # This merges/aligns the requests and responses dataframes based on their time stamp 
+        # into a single dataframe
         df_1m = pd.merge(
             left=request_df_1m,
             right=response_df_1m,
             how='left',
             left_on='Date_Time',
             right_on='Date_Time')
-        print(df_1m)
 
         # Ensure that at least one event occurs within the specified time frame
         if df_1m.Request.sum() == 0:
@@ -72,30 +72,30 @@ class ReserveService():
         # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
         #    to a single event.  Here, we split the array from (1) based on where the difference between
         #    indices is greater than 1 (we assume that continuous indices correspond to the same event).
-        event_indices = np.where(df_1m['Request'] > 0.)[0]
+        event_indices = np.where(df_1m.Request > 0.)[0]
         event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
 
-        # Set previous event end to be 20170101, since nothing comes before the first event.
+        # Set previous event end to be 20170101, since nothing comes before the first event
         # (This is for calculating the shortfall of the first event, if applicable)
         previous_event_end = pd.Timestamp('01/01/2017 00:00:00')
 
-        # Create empty data frame to store results.
+        # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Time_Start', 'Time_End', 'Duration_mins',
-            'Delta_Previous_Event_mins', 'SRMCP_$/MWh', 'Response_Max_MW',
+            'Delta_Previous_Event_mins', 'SRMCP_$/MW', 'Response_Max_MW',
             'Response_Max_Time_mins', 'Response_Committed_Time_mins',
             'Response_Start_MW', 'Response_End_MW', 'Response_First10Min_MW',
             'Response_After11Min_MW', 'Response_After11Min_Ratio',
             'Request_MW', 'Shortfall_MW', 'Value_$'])
 
         # Then, we can take everything event-by-event.  "event_indices" contains the list of 
-        # df_1m indices (starting from "-1" minute) corresponding to a single event.
+        # df_1m indices corresponding to a single event.
         for event_indices in event_indices_split:
-            # each time stamp corresponds to a minute.
-            time_stamps_per_minute = 1
+
+            time_stamps_per_minute = 1 # each time stamp corresponds to a minute
 
             # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
-            # an extra minute at the end of the event.
-            shorter_than_11_min = ((df_1m.Time[event_indices[len(event_indices) - 1]] - df_1m.Time[event_indices[0]]).seconds / 60.) < 11.
+            # an extra minute at the end of the event
+            shorter_than_11_min = ((df_1m.Date_Time[event_indices[len(event_indices) - 1]] - df_1m.Date_Time[event_indices[0]]).seconds / 60.) < 11.
 
             # Create list of indices to add to start of event_indices representing the minute prior to the event starting
             # The np.arange call here creates a descending list of numbers, starting from the first index in event_indices
@@ -124,8 +124,8 @@ class ReserveService():
             # The event's first minute starts at index 0.0
             event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute, 1 / time_stamps_per_minute)
             # Obtain the start and end time stamps of the event
-            event_start = pd.Timestamp(event.Time[0])
-            event_end = pd.Timestamp(event.Time.max())
+            event_start = pd.Timestamp(event.Date_Time[0])
+            event_end = pd.Timestamp(event.Date_Time.max())
             # Remove extra minute we added to the end if the original event was less than 11 minutes
             if shorter_than_11_min:
                 event_end = event_end - timedelta(minutes = 1)
@@ -149,17 +149,17 @@ class ReserveService():
                 print('WARNING: Event spans multiple hours (or possibly days)...Need to do something here')
 
             # Calculate time to max response
-            event_response_max = event.loc[event.Time >= event_start, 'Response'].max()
+            event_response_max = event.loc[event.Date_Time >= event_start, 'Response'].max()
             event_response_max_index = event.loc[event.Response == event_response_max, :].index[0]
-            event_response_max_time_mins = (pd.Timestamp(event.Time[event_response_max_index]) - event_start).seconds / 60.
+            event_response_max_time_mins = (pd.Timestamp(event.Date_Time[event_response_max_index]) - event_start).seconds / 60.
 
             # Calculate time to committed response
             try:
                 # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
                 # If no such index exists, skip down to the "except" call where np.inf will be returned (indicating that the response
                 # never matched or exceeded the request during the event)
-                event_response_committed_index = event.loc[(event.Time >= event_start) & (event.Response >= event.Request), :].index[0]
-                event_response_committed_time_mins = (pd.Timestamp(event.Time[event_response_committed_index]) - event_start).seconds / 60.
+                event_response_committed_index = event.loc[(event.Date_Time >= event_start) & (event.Response >= event.Request), :].index[0]
+                event_response_committed_time_mins = (pd.Timestamp(event.Date_Time[event_response_committed_index]) - event_start).seconds / 60.
             except: # If the response never matches the commitment, return infinity as an indicator
                 event_response_committed_time_mins = np.inf
 
@@ -346,8 +346,9 @@ class ReserveService():
 
     # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time):
+        # TODO: (minor) replace the temporary test file name with final event signal file name.
         historial_signal_filename = "gmlc_events_2017_1min.xlsx"
-        # Returns a DataFrame that contains historical binary (0,1) signal data in the events data file.
+        # Returns a DataFrame that contains historical signal data in the events data file.
         self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename)
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
@@ -357,7 +358,7 @@ class ReserveService():
         responses = []
 
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
-        # TODO: [Hung/David] _fleet.assigned_regulation_MW() needs to be replaced with "assigned_sync_reserve_MW".
+        # TODO: [minor] _fleet.assigned_regulation_MW() is currently only implemented in the fleet model within the same folder but not in the "fleets" folder.
         for timestamp, normalized_signal in signals.items():
             request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_regulation_MW())
             requests.append(request)
@@ -369,7 +370,7 @@ class ReserveService():
 
 
     # Method for retrieving device fleet's response to each individual request.
-    def request(self, ts, sim_step, p, q=0.0): # TODO: added input variables; what's the purpose of sim_step??
+    def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
         fleet_response = self.fleet.process_request(fleet_request)
         #print(fleet_response.P_service)
