@@ -6,7 +6,7 @@
 # Import Python packages
 import sys
 from dateutil import parser
-from datetime import timedelta
+from datetime import datetime, timedelta
 from os.path import dirname, abspath
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 import numpy as np
@@ -50,10 +50,11 @@ class ReserveService():
 
         # Generate lists containing tuples of (timestamp, power) for request and response
         request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
-        response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
+        # Include battery SoC in response list for plotting purposes
+        response_list_1m = [(r.ts, r.P_service, r.soc) for r in response_list_1m_tot]
         # Convert the lists of tuples into dataframes
         request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
-        response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response'])
+        response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'SoC'])
         # This merges/aligns the requests and responses dataframes based on their time stamp 
         # into a single dataframe
         df_1m = pd.merge(
@@ -62,6 +63,23 @@ class ReserveService():
             how='left',
             left_on='Date_Time',
             right_on='Date_Time')
+
+        # Plot entire analysis period results and save plot to file
+        # We want the plot to cover the entire df_1m dataframe
+        plot_dir = dirname(abspath(__file__)) + '\\plots\\'
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_all_events.png'
+        plt.figure(1)
+        plt.subplot(211)
+        plt.plot(df_1m.Date_Time, df_1m.Request, label='P Request')
+        plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
+        plt.ylabel('Power (kW)')
+        plt.legend(loc='best')
+        plt.subplot(212)
+        plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
+        plt.ylabel('SoC (%)')
+        plt.xlabel('Time')
+        plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+        plt.close()
 
         # Ensure that at least one event occurs within the specified time frame
         if df_1m.Request.sum() == 0:
@@ -123,147 +141,56 @@ class ReserveService():
             # The negative first minute starts at index -1.0
             # The event's first minute starts at index 0.0
             event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute, 1 / time_stamps_per_minute)
-            # Obtain the start and end time stamps of the event
-            event_start = pd.Timestamp(event.Date_Time[0])
-            event_end = pd.Timestamp(event.Date_Time.max())
-            # Remove extra minute we added to the end if the original event was less than 11 minutes
-            if shorter_than_11_min:
-                event_end = event_end - timedelta(minutes = 1)
-            # Calculate the event duration
-            event_duration_mins = (event_end - event_start).seconds / 60.
-            # Calculate the time between this event's end and the previous event's end
-            # This will be used to calculate the shortfall, if necessary
-            time_bw_event_ends_min = (event_end - previous_event_end).seconds / 60.
-            # Ensure the event happens within a given hour, otherwise further consideration will need to happen
-            # to account for pricing
-            if (event_start.day == event_end.day) & (event_start.month == event_end.month) & (event_start.hour == event_end.hour):
-                event_hour = event_start.hour
-                event_month = event_start.month
-                event_year = event_start.year
-                # Pull in price value for this event.  The prices are for a given hour, so we want the price
-                # that corresponds to the hour that this event occurs.  By using "replace(minute=0)", that sets
-                # our event start time to exactly the hour in which the event occurs, and we can index the
-                # price dataframe based on that timestamp.
-                hourly_SRMCP = self._clearing_price_helper.clearing_prices[event_start.replace(minute=0)][0]
-            else:
-                print('WARNING: Event spans multiple hours (or possibly days)...Need to do something here')
 
-            # Calculate time to max response
-            event_response_max = event.loc[event.Date_Time >= event_start, 'Response'].max()
-            event_response_max_index = event.loc[event.Response == event_response_max, :].index[0]
-            event_response_max_time_mins = (pd.Timestamp(event.Date_Time[event_response_max_index]) - event_start).seconds / 60.
-
-            # Calculate time to committed response
-            try:
-                # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
-                # If no such index exists, skip down to the "except" call where np.inf will be returned (indicating that the response
-                # never matched or exceeded the request during the event)
-                event_response_committed_index = event.loc[(event.Date_Time >= event_start) & (event.Response >= event.Request), :].index[0]
-                event_response_committed_time_mins = (pd.Timestamp(event.Date_Time[event_response_committed_index]) - event_start).seconds / 60.
-            except: # If the response never matches the commitment, return infinity as an indicator
-                event_response_committed_time_mins = np.inf
-
-            # Calculate event response at the start, which is the minimum response value
-            # at the start, +/- 1 minute.  We already added in an extra minute before the event
-            # started, so now we just take the minimum response
-            # of the first three minutes of our data frame (minutes -1, 0, and 1).
-            event_start_df = event.loc[:1, :]
-            event_response_start = event_start_df.Response.min()
-
-            # Calculate the requested MW for the event, which will be used in shortfall calculations
-            # The requested value should be constant over the whole event, so the mean() call here shouldn't really matter
-            event_request_MW = event.loc[0:,:].Request.mean()
-
-            # Now calculate other metrics
-            if not(shorter_than_11_min):
-                # Calculate event response at the 10-minute mark, which is the maximum
-                # response value from minutes 9, 10, and 11.
-                event_end_10min_df = event.loc[9:11, :]
-                event_response_end = event_end_10min_df.Response.max()
-                
-                # Now calculate average reponse during first 10 minutes
-                # This is the delta between the 10-minute mark and the start
-                event_response_first10min = event_response_end - event_response_start
-
-                # Now calculate the response for the after 11-minute mark
-                # This is the average response from 11 minutes on
-                event_response_after11min_df = event.loc[11:, :]
-                event_response_after11min = event_response_after11min_df.Response.mean()
-                # Calculate metric of response after 11 minutes
-                event_response_after11min_ratio = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
-
-                # Calculate shortfall
-                '''If the ratio of response for first 11 minutes is >= 1 and if ratio of response for 11+ minutes is >= 0.95, then shortfall equals 0.
-                If the ratio of responses for first 11 minutes is < 1, then shortfall = 
-                    (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])'''
-
-                # Calculate the response ratios for the first 10 minutes, and after 11 minutes
-                event_ratio_first10min = event_response_first10min / event_request_MW
-                event_ratio_after11min = event_response_after11min / event_request_MW
-
-                # Use the logic from above comment 
-                # Allow room for some numeric representation issues in the if statement
-                if (event_ratio_first10min >= 0.99995) & (event_ratio_after11min >= 0.95):
-                    event_shortfall_MW = 0.
-                else:
-                    event_shortfall_MW = event_request_MW - event_response_after11min
-            else:
-                # Calculate the event response over the last 3 minutes of the event (including the additional
-                # minute we already added on)
-                event_end_df = event.iloc[-3:, :]
-                event_response_end = event_end_df.Response.max()
-
-                # The event response for event shorter than 11 minutes is the delta between the event end
-                # and the event start
-                event_response = event_response_end - event_response_start
-                
-                # For ease of including in result dataframe, we'll still call this event_response_first10min
-                event_response_first10min = event_response
-                # The event is shorter than 11 minutes, so return NaN for these two metrics
-                event_response_after11min = np.nan
-                event_response_after11min_ratio = np.nan
-
-                # Calculate the response ratio for the event
-                event_ratio = event_response / event_request_MW
-                
-                # Calculate shortfall
-                '''If the ratio of response for is >= 1 , then shortfall equals 0.
-                If the ratio of response is < 1, then shortfall = 
-                    (average request MW - max response at end of event)'''
-
-                # Allow room for some numeric representation issues
-                if (event_ratio >= 0.99995):
-                    event_shortfall_MW = 0.
-                else:
-                    event_shortfall_MW = event_request_MW - event_response_end
-
-            # Calculate value of event
-            event_value = ((event_request_MW * event_duration_mins / 60.) - (event_shortfall_MW * time_bw_event_ends_min / 60.)) * hourly_SRMCP
+            # Call the perf_metrics() method to obtain key event metrics
+            performance_results = self.perf_metrics(event, shorter_than_11_min)
+            # Call the event_value() method to calculate the event's value
+            value_result = self.event_value(performance_results['Time_Start'],performance_results['Time_End'],previous_event_end,performance_results['Duration_mins'],performance_results['Request_MW'],performance_results['Shortfall_MW'])
 
             # Create temporary dataframe to contain the results
             event_results_df = pd.DataFrame({
-                'Time_Start':event_start,
-                'Time_End':event_end,
-                'Duration_mins':event_duration_mins,
-                'Delta_Previous_Event_mins':time_bw_event_ends_min,
-                'SRMCP_$/MW':hourly_SRMCP,
-                'Response_Max_MW':event_response_max,
-                'Response_Max_Time_mins':event_response_max_time_mins,
-                'Response_Committed_Time_mins':event_response_committed_time_mins,
-                'Response_Start_MW':event_response_start,
-                'Response_End_MW':event_response_end,
-                'Response_First10Min_MW':event_response_first10min,
-                'Response_After11Min_MW':event_response_after11min,
-                'Response_After11Min_Ratio':event_response_after11min_ratio,
-                'Request_MW':event_request_MW,
-                'Shortfall_MW':event_shortfall_MW,
-                'Value_$':event_value},
-                index=[event_start])
+                'Time_Start': performance_results['Time_Start'],
+                'Time_End': performance_results['Time_End'],
+                'Duration_mins': performance_results['Duration_mins'],
+                'Delta_Previous_Event_mins': (performance_results['Time_End'] - previous_event_end).seconds / 60.,
+                'SRMCP_$/MW': value_result['Hourly_Price'],
+                'Response_Max_MW': performance_results['Response_Max_MW'],
+                'Response_Max_Time_mins': performance_results['Response_Max_Time_mins'],
+                'Response_Committed_Time_mins': performance_results['Response_Committed_Time_mins'],
+                'Response_Start_MW': performance_results['Response_Start_MW'],
+                'Response_End_MW': performance_results['Response_End_MW'],
+                'Response_First10Min_MW': performance_results['Response_First10Min_MW'],
+                'Response_After11Min_MW': performance_results['Response_After11Min_MW'],
+                'Response_After11Min_Ratio': performance_results['Response_After11Min_Ratio'],
+                'Request_MW': performance_results['Request_MW'],
+                'Shortfall_MW': performance_results['Shortfall_MW'],
+                'Value_$': value_result['Value']},
+                index=[performance_results['Time_Start']])
             # Append the temporary dataframe into the results_df
             results_df = pd.concat([results_df, event_results_df])
+            # Plot event-specific results and save plot to file
+            # We want the plot to start from the end of the previous event
+            # and go until 10 minutes past the end of the current event
+            plot_start = previous_event_end
+            plot_end = performance_results['Time_End'] + timedelta(minutes=10)
+            plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
+            plot_dir = dirname(abspath(__file__)) + '\\plots\\'
+            plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Time_Start'].strftime('%Y%m%d-%H-%M-%S') + '.png'
+            plt.figure(1)
+            plt.subplot(211)
+            plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
+            plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
+            plt.ylabel('Power (kW)')
+            plt.legend(loc='best')
+            plt.subplot(212)
+            plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
+            plt.ylabel('SoC (%)')
+            plt.xlabel('Time')
+            plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+            plt.close()
 
             # Reset previous_end_end to be the end of this event before moving on to the next event
-            previous_event_end = event_end 
+            previous_event_end = performance_results['Time_End'] 
 
         # For testing (with few events), showing the transposed dataframe is a bit easier to read   
         print(results_df.T)
@@ -377,114 +304,143 @@ class ReserveService():
         return fleet_request, fleet_response
 
 
-    # Score the performance of device fleets for the hour (based on PJM Manual 12).
-    # Take 65 min worth of 10s data (should contain 390 data values).
-    def perf_score (self, request_array, response_array):
-        max_corr_array = []
-        max_index_array = []
-        prec_score_array = []
+    def perf_metrics (self, event, shorter_than_11_min):
+        '''
+        '''
+        # Obtain the start and end time stamps of the event
+        event_start = pd.Timestamp(event.Date_Time[0])
+        event_end = pd.Timestamp(event.Date_Time.max())
+        # Remove extra minute we added to the end if the original event was less than 11 minutes
+        if shorter_than_11_min:
+            event_end = event_end - timedelta(minutes = 1)
+        # Calculate the event duration
+        event_duration_mins = (event_end - event_start).seconds / 60.
 
-        # In each 5-min of the hour, use max correlation to define "delay", "correlation" & "delay" scores.
-        # There are twelve (12) 5-min in each hour.
-        for i in range(12):
-            # Takes 5-min of the input signal data.
-            x = request_array[30 * i:30 * (i + 1)]
-            #         print('x:', x)
-            y = response_array[30 * i:30 * (i + 1)]
-            # Refresh the array in each 5-min run.
-            corr_score = []
-            # If the regulation signal is nearly constant, then correlation score is calculated as:
-            # Calculates "1 - absoluate of difference btw slope of request and response signals" (determined by linear regression).
-            std_dev_x = np.std(x)
-            std_dev_y = np.std(y)
-            if std_dev_x < 0.01: # need to vet the threshold later, not specified in PJM manual.
-                axis = np.array(np.arange(30.))
-                coeff_x = np.polyfit(axis, x, 1) # linear regression when degree = 1.
-                coeff_y = np.polyfit(axis, y, 1)
-                slope_x = coeff_x[0]
-                slope_y = coeff_y[0]
-                corr_score_val = max(0, 1 - abs(slope_x - slope_y)) # from PJM manual 12.
-                max_index_array = np.append(max_index_array, 0)
-                max_corr_array = np.append(max_corr_array, corr_score_val) # "r" cannot be calc'd for constant values in one or both arrays.
-            # When request signal varies but response signal is constant, correlation and delay scores will be zero.
-            elif std_dev_y < 0.00001:
-                corr_score_val = 0
-                max_index_array = np.append(max_index_array, 30)
-                max_corr_array = np.append(max_corr_array, corr_score_val)
+        # Calculate time to max response
+        event_response_max = event.loc[event.Date_Time >= event_start, 'Response'].max()
+        event_response_max_index = event.loc[event.Response == event_response_max, :].index[0]
+        event_response_max_time_mins = (pd.Timestamp(event.Date_Time[event_response_max_index]) - event_start).seconds / 60.
+
+        # Calculate time to committed response
+        try:
+            # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
+            # If no such index exists, skip down to the "except" call where np.inf will be returned (indicating that the response
+            # never matched or exceeded the request during the event)
+            event_response_committed_index = event.loc[(event.Date_Time >= event_start) & (event.Response >= event.Request), :].index[0]
+            event_response_committed_time_mins = (pd.Timestamp(event.Date_Time[event_response_committed_index]) - event_start).seconds / 60.
+        except: # If the response never matches the commitment, return infinity as an indicator
+            event_response_committed_time_mins = np.inf
+
+        # Calculate event response at the start, which is the minimum response value
+        # at the start, +/- 1 minute.  We already added in an extra minute before the event
+        # started, so now we just take the minimum response
+        # of the first three minutes of our data frame (minutes -1, 0, and 1).
+        event_start_df = event.loc[:1, :]
+        event_response_start = event_start_df.Response.min()
+
+        # Calculate the requested MW for the event, which will be used in shortfall calculations
+        # The requested value should be constant over the whole event, so the mean() call here shouldn't really matter
+        event_request_MW = event.loc[0:,:].Request.mean()
+
+        # Now calculate other metrics
+        if not(shorter_than_11_min):
+            # Calculate event response at the 10-minute mark, which is the maximum
+            # response value from minutes 9, 10, and 11.
+            event_end_10min_df = event.loc[9:11, :]
+            event_response_end = event_end_10min_df.Response.max()
+            
+            # Now calculate average reponse during first 10 minutes
+            # This is the delta between the 10-minute mark and the start
+            event_response_first10min = event_response_end - event_response_start
+
+            # Now calculate the response for the after 11-minute mark
+            # This is the average response from 11 minutes on
+            event_response_after11min_df = event.loc[11:, :]
+            event_response_after11min = event_response_after11min_df.Response.mean()
+            # Calculate metric of response after 11 minutes
+            event_response_after11min_ratio = (event_response_after11min - event_response_start) / (event_response_end - event_response_start)
+
+            # Calculate shortfall
+            '''If the ratio of response for first 11 minutes is >= 1 and if ratio of response for 11+ minutes is >= 0.95, then shortfall equals 0.
+            If the ratio of responses for first 11 minutes is < 1, then shortfall = 
+                (average request MW - average responded MW during 11+ minutes [** use max at end of event if short event **])'''
+
+            # Calculate the response ratios for the first 10 minutes, and after 11 minutes
+            event_ratio_first10min = event_response_first10min / event_request_MW
+            event_ratio_after11min = event_response_after11min / event_request_MW
+
+            # Use the logic from above comment 
+            # Allow room for some numeric representation issues in the if statement
+            if (event_ratio_first10min >= 0.99995) & (event_ratio_after11min >= 0.95):
+                event_shortfall_MW = 0.
             else:
-                # Calculate correlation btw the 5-min input signal and thirty different 5-min response signals,
-                # each is delayed at an additional 10s than the previous one; store results.
-                # There are thirty (30) 10s in each 5min.
-                for j in range(31):
-                    y_ = response_array[30 * i + j:30 * (i + 1) + j]
-                    #             # for debug use
-                    #             print('y:', y)
-                    #             x_axis_x = np.arange(x.size)
-                    #             plt.plot(x_axis_x, x, "b")
-                    #             plt.plot(x_axis_x, y, "r")
-                    #             plt.show()
-                    # Calculate Pearson Correlation Coefficient btw input and response for the 10s step.
-                    corr_r = np.corrcoef(x, y_)[0, 1]
-                    # Correlation scores stored in an numpy array.
-                    corr_score = np.append(corr_score, corr_r)
-                    #         print('corr_score:', corr_score)
-                # Locate the 10s moment(step) at which correlation score was maximum among the thirty calculated; store it.
-                max_index = np.where(corr_score == max(corr_score))[0][0]
-                max_index_array = np.append(max_index_array, max_index)  # array
-                # Find the maximum score in the 5-min; store it.
-                max_corr_array = np.append(max_corr_array, corr_score[max_index])  # this is the correlation score array
-            # Calculate the coincident delay score associated with max correlation in each 5min period.
-            delay_score = np.absolute((10 * max_index_array - 5 * 60) / (5 * 60))  # array
-            # Calculate error at 10s intervals and store in an array.
-            error = np.absolute(y - x) / (np.absolute(x).mean())
-            # Calculate 5-min average Precision Score as the average error.
-            prec_score = max(0, 1 - 1 / 30 * error.sum())
-            prec_score_array = np.append(prec_score_array, prec_score)
+                event_shortfall_MW = event_request_MW - event_response_after11min
+        else:
+            # Calculate the event response over the last 3 minutes of the event (including the additional
+            # minute we already added on)
+            event_end_df = event.iloc[-3:, :]
+            event_response_end = event_end_df.Response.max()
 
-        # # for debug use
-        # print('delay_score:', delay_score)
-        # print('max_index_array:', max_index_array)
-        # print('max_corr_array:', max_corr_array)
-        # print('prec_score_array:', prec_score_array)
+            # The event response for event shorter than 11 minutes is the delta between the event end
+            # and the event start
+            event_response = event_response_end - event_response_start
+            
+            # For ease of including in result dataframe, we'll still call this event_response_first10min
+            event_response_first10min = event_response
+            # The event is shorter than 11 minutes, so return NaN for these two metrics
+            event_response_after11min = np.nan
+            event_response_after11min_ratio = np.nan
 
-        # Calculate average "delay", "correlation" and "precision" scores for the hour.
-        Delay_score = delay_score.mean()
-        Corr_score = max_corr_array.mean()
-        Prec_score = prec_score_array.mean()
+            # Calculate the response ratio for the event
+            event_ratio = event_response / event_request_MW
+            
+            # Calculate shortfall
+            '''If the ratio of response for is >= 1 , then shortfall equals 0.
+            If the ratio of response is < 1, then shortfall = 
+                (average request MW - max response at end of event)'''
 
-        #     # for debug use
-        #     x_axis_error = np.arange(error.size)
-        #     plt.scatter(x_axis_error, error)
-        #     plt.show()
+            # Allow room for some numeric representation issues
+            if (event_ratio >= 0.99995):
+                event_shortfall_MW = 0.
+            else:
+                event_shortfall_MW = event_request_MW - event_response_end
+        
+        return dict({
+            'Time_Start':event_start,
+            'Time_End':event_end,
+            'Duration_mins':event_duration_mins,
+            'Response_Max_MW':event_response_max,
+            'Response_Max_Time_mins':event_response_max_time_mins,
+            'Response_Committed_Time_mins':event_response_committed_time_mins,
+            'Response_Start_MW':event_response_start,
+            'Response_End_MW':event_response_end,
+            'Response_First10Min_MW':event_response_first10min,
+            'Response_After11Min_MW':event_response_after11min,
+            'Response_After11Min_Ratio':event_response_after11min_ratio,
+            'Request_MW':event_request_MW,
+            'Shortfall_MW':event_shortfall_MW})
 
-        # Calculate the hourly overall Performance Score.
-        Perf_score = (Delay_score + Corr_score + Prec_score)/3
+    def event_value(self, time_start, time_end, previous_event_end, event_duration_mins, event_request_MW, event_shortfall_MW):
+        ''' Method to calculate an event's value, whic his based on the requested MW for the event, the event duration,
+        the event's shortfall (in MW), the time between the current event's end and the previous event's end, and
+        the hourly price.
+        '''
+        # Ensure the event happens within a given hour, otherwise further consideration will need to happen
+        # to account for pricing
+        if (time_start.day == time_end.day) & (time_start.month == time_end.month) & (time_start.hour == time_end.hour):
+            hourly_SRMCP = self._clearing_price_helper.clearing_prices[time_start.replace(minute=0)][0]
+        else:
+            print('WARNING: Event spans multiple hours (or possibly days)...Need to do something here')
 
-        #     # for debug use
-        # # Plotting and Printing results
-        # x_axis_sig = np.arange(request_array[0:360].size)
-        # x_axis_score = np.arange(max_corr_array.size)
-        #
-        # plt.figure(1)
-        # plt.subplot(211)
-        # plt.plot(x_axis_sig, request_array[0:360], "b")
-        # plt.plot(x_axis_sig, response_array[0:360], "r")
-        # plt.legend(('RegA signal', 'CReg response'), loc='lower right')
-        # plt.show()
-        #
-        # plt.figure(2)
-        # plt.subplot(212)
-        # plt.plot(x_axis_score, max_corr_array, "g")
-        # plt.plot(x_axis_score, delay_score, "m")
-        # plt.legend(('Correlation score', 'Delay score'), loc='lower right')
-        # plt.show()
-        #
-        # print('Delay_score:', Delay_score)
-        # print('Corr_score:', Corr_score)
-        # print('Prec_score:', Prec_score)
-        # print('Perf_score:', Perf_score)
+        # Calculate the time between this event's end and the previous event's end (in hours)
+        # This will be used to calculate the shortfall, if necessary
+        time_bw_event_ends_hr = (time_end - previous_event_end).seconds / 3600.
 
-        return (Perf_score, Delay_score, Corr_score, Prec_score)
+        # Calculate value of event
+        event_value = ((event_request_MW * event_duration_mins / 60.) - (event_shortfall_MW * time_bw_event_ends_hr)) * hourly_SRMCP
+        return dict({
+            'Value': event_value,
+            'Hourly_Price': hourly_SRMCP})
 
 
     # Based on PJM Manual 28 (need to verify definition, not found in manual).
