@@ -34,7 +34,7 @@ if __name__ == '__main__':
     fleet_response = service.request_loop(start_time=parser.parse("2017-01-01 00:00:00"),
                                           end_time=parser.parse("2017-01-08 23:59:00"),
                                           clearing_price_filename="201701.csv",
-                                          four_scenario_testing=True)
+                                          four_scenario_testing=False)
 
     # Print results in the 2-level dictionary.
     '''for key_1, value_1 in fleet_response.items():

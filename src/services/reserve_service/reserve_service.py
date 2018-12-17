@@ -72,6 +72,7 @@ class ReserveService():
             plot_dir = dirname(abspath(__file__)) + '\\plots\\'
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_events.png'
             plt.figure(1)
+            plt.figure(figsize=(15,8))
             plt.subplot(211)
             plt.plot(df_1m.Date_Time, df_1m.Request, label='P Request')
             plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
@@ -198,6 +199,7 @@ class ReserveService():
             plot_dir = dirname(abspath(__file__)) + '\\plots\\'
             plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M-%S') + '.png'
             plt.figure(1)
+            plt.figure(figsize=(15,8))
             plt.subplot(211)
             plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
             plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
@@ -216,82 +218,6 @@ class ReserveService():
 
         # For testing (with few events), showing the transposed dataframe is a bit easier to read   
         print(results_df.T)
-
-
-        '''# Loop through each hour between "start_time" and "end_time".
-                                while cur_time < end_time - timedelta(minutes=60):
-                                    # Generate 1-hour worth of request and response arrays for calculating scores.
-                                    cur_end_time = cur_time + timedelta(minutes=60)
-                                    # Generate lists of synchronized reserve request and response class objects.
-                                    request_list_1m_60min = [r for r in request_list_1m if cur_time <= r.ts_req <= cur_end_time]
-                                    response_list_1m_60min = [r for r in response_list_1m if cur_time <= r.ts <= cur_end_time]
-                                    # Convert lists into arrays.
-                                    request_array_1m_60min = np.asarray(request_list_1m_60min)
-                                    response_array_1m_60min = np.asarray(response_list_1m_60min)
-                        
-                                    list_event_ending_time = []
-                                    t_end = None
-                                    # Loop through request and response class objects to determine the "immediate past interval".
-                                    for i in request_array_1m_60min:
-                                        list_response_start_3min = []
-                                        list_response_end_3min = []
-                                        # How to link the request and response class objects with same timestamp?
-                                        # How to get consective 3min values?
-                                        P_responce = response_array_1m_60min
-                                        if i.P_req > 0:
-                                            t_end = i.ts_req
-                                            # Record the "immediate past interval" btw the ending times of the last and current events.
-                                            if len(request_array_1m_60min)>0:
-                                                dt = t_end - request_array_1m_60min[-1]
-                                            else:
-                                                dt = t_end
-                                        elif t_end is not None:
-                                            list_event_ending_time.append(t_end)
-                        
-                        
-                                    # Read and store hourly SRMCP price.
-                                    hourly_SRMCP = self._clearing_price_helper.clearing_prices[cur_time]
-                                    # TODO: (minor) consider a different time step for results - perhaps daily or monthly.
-                                    # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
-                                    hourly_results[cur_time] = {}
-                                    hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_1m_60min, response_array_1m_60min)
-                                    # TODO: (minor) remove line below if not needed.
-                                    # hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
-                                    hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = hourly_SRMCP
-                                    hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
-                                                                                                                   hourly_results[cur_time]['performance_score'][0],
-                                                                                                                   hourly_results[cur_time]['hourly_integrated_MW'])
-                                    # Move to the next hour.
-                                    cur_time += one_hour
-                        
-                                # Store request and response parameters in lists for plotting and printing to text files.
-                                P_request = [r.P_req for r in request_list_1m_tot]
-                                ts_request = [r.ts_req for r in request_list_1m_tot]
-                                P_responce = [r.P_service for r in response_list_1m_tot]
-                                SOC = [r.soc for r in response_list_1m_tot]
-                                # Plot request and response signals and state of charge (SoC).
-                                n = len(P_request)
-                                t = np.asarray(range(n))*(2/3600)
-                                plt.figure(1)
-                                plt.subplot(211)
-                                plt.plot(ts_request, P_request, label='P Request')
-                                plt.plot(ts_request, P_responce, label='P Responce')
-                                plt.ylabel('Power (kW)')
-                                plt.legend(loc='upper right')
-                                plt.subplot(212)
-                                plt.plot(ts_request, SOC, label='SoC')
-                                plt.ylabel('SoC (%)')
-                                plt.xlabel('Time (hours)')
-                                plt.legend(loc='lower right')
-                                plt.show()
-                        
-                                # Store the responses in a text file.
-                                with open('results.txt', 'w') as the_file:
-                                    for list in zip(ts_request, P_request, P_responce, SOC):
-                                        the_file.write("{},{},{},{}\n".format(list[0],list[1],list[2],list[3]))
-
-
-        return hourly_results'''
 
     # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time):
@@ -461,57 +387,6 @@ class ReserveService():
             'Service_Value_InclShortfall_dollars': Service_Value_InclShortfall_dollars,
             'Period_from_Last_Event_Hours': Period_from_Last_Event_Hours})
 
-
-    # Based on PJM Manual 28 (need to verify definition, not found in manual).
-    def Hr_int_reg_MW (self, input_sig):
-        # Take one hour of 2s RegA data
-        Hourly_Int_Reg_MW = np.absolute(input_sig).sum() * 2 / 3600
-        # print(Hourly_Int_Reg_MW)
-        return Hourly_Int_Reg_MW
-
-
-
-    # Calculate an hourly value of "Synchronized Reserve Market Clearing Price (SRMCP) Credit" for the service provided.
-    # Based on PJM Manual 28.
-    def Reg_clr_pr_credit(self, RM_pr, pf_score, reg_MW):
-        # Arguments:
-        # service_type - traditional or dynamic.
-        # RM_pr - RMCP price components for the hour.
-        # pf_score - performance score for the hour.
-        # reg_MW - "Hourly-integrated Regulation MW" for the hour.
-        # mi_ratio - mileage ratio for the hour.
-
-        # Prepare key parameters for calculation.
-        RMCCP = RM_pr[1]
-        RMPCP = RM_pr[2]
-
-        print("Hr_int_reg_MW:", reg_MW)
-        print("Pf_score:", pf_score)
-        print("RMCCP:", RMCCP)
-        print("RMPCP:", RMPCP)
-
-        # Calculate "Regulation Market Clearing Price Credit" and two components.
-        # Minimum perf score is 0.25, otherwise forfeit regulation credit (and lost opportunity) for the hour (m11 3.2.10).
-        # if pf_score < 0.25:
-        #     Reg_RMCCP_Credit = 0
-        #     Reg_RMPCP_Credit = 0
-        # else:
-        #     Reg_RMCCP_Credit = reg_MW * pf_score * RMCCP
-        #     Reg_RMPCP_Credit = reg_MW * pf_score * mi_ratio * RMPCP
-        # Reg_Clr_Pr_Credit = Reg_RMCCP_Credit + Reg_RMPCP_Credit
-
-        # # for debug use
-        # print("Reg_Clr_Pr_Credit:", Reg_Clr_Pr_Credit)
-        # print("Reg_RMCCP_Credit:", Reg_RMCCP_Credit)
-        # print("Reg_RMPCP_Credit:", Reg_RMPCP_Credit)
-
-        # "Lost opportunity cost credit" (for energy sources providing regulation) is not considered,
-        # because it does not represent economic value of the provided service.
-
-        return (Reg_Clr_Pr_Credit, Reg_RMCCP_Credit, Reg_RMPCP_Credit)
-
-
-
     # Use "dependency injection" to allow method "fleet" be used as an attribute.
     @property
     def fleet(self):
@@ -520,30 +395,3 @@ class ReserveService():
     @fleet.setter
     def fleet(self, value):
         self._fleet = value
-
-
-# Run from this file.
-if __name__ == '__main__':
-    from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
-    from grid_info import GridInfo
-    service = ReserveService()
-
-    # fleet = BatteryInverterFleet('C:\\Users\\jingjingliu\\gmlc-1-4-2\\battery_interface\\src\\fleets\\battery_inverter_fleet\\config_CRM.ini')
-    grid = GridInfo('Grid_Info_DATA_2.csv')
-    battery_inverter_fleet = BatteryInverterFleet(
-        GridInfo=grid)  # establish the battery inverter fleet with a grid.
-    service.fleet = battery_inverter_fleet
-
-    # Use line below for testing DYNAMIC regulation service.
-    fleet_response = service.request_loop(start_time=parser.parse("2017-08-01 16:00:00"),
-                                          end_time=parser.parse("2017-08-02 15:00:00"))
-
-    # Print results in the 2-level dictionary.
-    for key_1, value_1 in fleet_response.items():
-        print(key_1)
-        for key_2, value_2 in value_1.items():
-            print('\t\t\t\t\t\t', key_2, value_2)
-
-# cd C:\Users\jingjingliu\gmlc-1-4-2\battery_interface\src\services\reserve_service\
-# python reserve_service.py
-
