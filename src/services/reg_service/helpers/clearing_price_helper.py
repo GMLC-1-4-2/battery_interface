@@ -8,7 +8,7 @@ class ClearingPriceHelper(object):
 
         sheet_name = self._get_sheet_name(start_time)
 
-        excel_data = pd.read_excel(input_data_file_path, sheetname = sheet_name)
+        excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name)
         # Get only the data whose 'SERVICE' is 'REG':
         regulated_prices_data_frame = excel_data[excel_data['SERVICE'] == 'REG']
         # Get only the columns we need:

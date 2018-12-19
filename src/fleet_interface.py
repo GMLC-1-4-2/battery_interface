@@ -59,7 +59,7 @@ class FleetInterface:
         pass
 
     def assigned_regulation_MW(self):
-        return 1.0
+        return 0.2
 
     def print_performance_info(self):
         """

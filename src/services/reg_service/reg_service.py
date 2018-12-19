@@ -7,7 +7,7 @@
 import os
 import sys
 from dateutil import parser
-from datetime import timedelta
+from datetime import datetime, timedelta
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,6 +19,8 @@ from fleet_request import FleetRequest
 
 from services.reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reg_service.helpers.clearing_price_helper import ClearingPriceHelper
+
+from pdb import set_trace as bp
 
 
 # Class for traditional regulation and dynamic regulation services.
@@ -39,13 +41,14 @@ class RegService():
                      start_time=parser.parse("2017-08-01 16:00:00"),
                      end_time=parser.parse("2017-08-01 21:00:00"),
                      clearing_price_filename='historical-ancillary-service-data-2017.xls'):
-
         # Check service type compatibility.
         if service_type not in ['Traditional', 'Dynamic']:
             raise ValueError("service_type has to be either 'Traditional' or 'Dynamic'!")
         # Generate lists of 2s request and response class objects based on regulation service type (i.e. traditional vs. dynamic).
+        print('     Generating traditional signal lists')
         request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time)
         if service_type == 'Dynamic':
+            print('     Generating dynamic signal lists')
             request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time)
             # Assign generic names to signal lists.
             request_list_2s_tot = request_list_2s_dynm
@@ -53,7 +56,9 @@ class RegService():
         else:
             request_list_2s_tot = request_list_2s_trad
             response_list_2s_tot = response_list_2s_trad
+
         # Returns a Dictionary containing a month-worth of hourly regulation price data indexed by datetime.
+        print('     Getting price data')
         clearing_price_filename = join(dirname(abspath(__file__)), clearing_price_filename)
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
         # Create a dictionary to store hourly results incl. performance score, clearing price credit, etc.
@@ -61,7 +66,7 @@ class RegService():
         # Set time duration.
         cur_time = start_time
         one_hour = timedelta(hours=1)
-
+        print('     Starting hourly loop')
         # Loop through each hour between "start_time" and "end_time".
         while cur_time < end_time - timedelta(minutes=65):
             # Generate 1-hour worth (65 min) of request and response arrays for calculating scores.
@@ -109,33 +114,30 @@ class RegService():
                                                                                            mileage_ratio)
             # Move to the next hour.
             cur_time += one_hour
-
         # Store request and response parameters in lists for plotting and printing to text files.
         P_request = [r.P_req for r in request_list_2s_tot]
         ts_request = [r.ts_req for r in request_list_2s_tot]
         P_responce = [r.P_service for r in response_list_2s_tot]
         SOC = [r.soc for r in response_list_2s_tot]
-        # Plot request and response signals and state of charge (SoC).
-        n = len(P_request)
-        t = np.asarray(range(n))*(2/3600)
-        plt.figure(1)
-        plt.subplot(211)
-        plt.plot(ts_request, P_request, label='P Request')
-        plt.plot(ts_request, P_responce, label='P Responce')
-        plt.ylabel('Power (kW)')
-        plt.legend(loc='upper right')
-        plt.subplot(212)
-        plt.plot(ts_request, SOC, label='SoC')
-        plt.ylabel('SoC (%)')
-        plt.xlabel('Time (hours)')
-        plt.legend(loc='lower right')
-        plt.show()
 
         # Store the responses in a text file.
         with open('results.txt', 'w') as the_file:
             for list in zip(ts_request, P_request, P_responce, SOC):
                 the_file.write("{},{},{},{}\n".format(list[0],list[1],list[2],list[3]))
 
+        # Generate and save plot of the normalized request signal for the month
+        print('Plotting monthly response signal')
+        plot_dir = dirname(abspath(__file__)) + '\\plots\\'
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
+        				ts_request[0].strftime('%B') +\
+        				'_normrequestsignal.png'
+        plt.figure(1)
+        plt.figure(figsize=(15,8))
+        plt.plot(ts_request, P_request)
+        plt.ylabel('Power (kW)')
+        plt.xlabel('Date and Time')
+        plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+        plt.close()      
 
         return hourly_results
 
@@ -158,16 +160,9 @@ class RegService():
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
         sim_step = timedelta(seconds=2)
-        requests = []
-        responses = []
-
-        # Call the "request" method to get 2s responses in a list, requests are stored in a list as well.
-        for timestamp, normalized_signal in signals.items():
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_regulation_MW())
-            requests.append(request)
-            responses.append(response)
-        #print(requests)
-        #print(responses)
+        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_regulation_MW()) for x,i in signals.items()]
+        requests = [x[0] for x in reqrespitems]
+        responses = [x[1] for x in reqrespitems]
 
         return requests, responses
 
@@ -312,10 +307,10 @@ class RegService():
         RMCCP = RM_pr[1]
         RMPCP = RM_pr[2]
 
-        print("Hr_int_reg_MW:", reg_MW)
-        print("Pf_score:", pf_score)
-        print("RMCCP:", RMCCP)
-        print("RMPCP:", RMPCP)
+        '''print("Hr_int_reg_MW:", reg_MW)
+                                print("Pf_score:", pf_score)
+                                print("RMCCP:", RMCCP)
+                                print("RMPCP:", RMPCP)'''
 
         # Calculate "Regulation Market Clearing Price Credit" and two components.
         # Minimum perf score is 0.25, otherwise forfeit regulation credit (and lost opportunity) for the hour (m11 3.2.10).
