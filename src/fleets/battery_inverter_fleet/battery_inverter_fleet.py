@@ -204,7 +204,10 @@ class BatteryInverterFleet(FleetInterface):
         else: 
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
-        
+
+        # frequency regulation variables
+        self.freq_reg_weight = float(self.config.get('freq_reg_config', 'Freq_Reg_Weight', fallback=1.0))
+
         # fleet configuration variables
         self.is_P_priority = bool(self.config.get('Fleet configuration', 'is_P_priority', fallback=True))
         self.is_autonomous = bool(self.config.get('Fleet configuration', 'is_autonomous', fallback=False))
@@ -758,6 +761,7 @@ class BatteryInverterFleet(FleetInterface):
             writer.writerows(impact_metrics_DATA)     
 
         pass
+
     def change_config(self, fleet_config):
         """
         This function updates the fleet configuration settings programatically.
@@ -777,3 +781,5 @@ class BatteryInverterFleet(FleetInterface):
 
         pass
 
+    def assigned_regulation_MW(self):
+        return self.freq_reg_weight
