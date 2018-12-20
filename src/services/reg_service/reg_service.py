@@ -194,7 +194,6 @@ class RegService():
             # If the regulation signal is nearly constant, then correlation score is calculated as:
             # Calculates "1 - absoluate of difference btw slope of request and response signals" (determined by linear regression).
             std_dev_x = np.std(x)
-            std_dev_y = np.std(y)
             if std_dev_x < 0.01: # need to vet the threshold later, not specified in PJM manual.
                 axis = np.array(np.arange(30.))
                 coeff_x = np.polyfit(axis, x, 1) # linear regression when degree = 1.
@@ -204,11 +203,6 @@ class RegService():
                 corr_score_val = max(0, 1 - abs(slope_x - slope_y)) # from PJM manual 12.
                 max_index_array = np.append(max_index_array, 0)
                 max_corr_array = np.append(max_corr_array, corr_score_val) # "r" cannot be calc'd for constant values in one or both arrays.
-            # When request signal varies but response signal is constant, correlation and delay scores will be zero.
-            elif std_dev_y < 0.00001:
-                corr_score_val = 0
-                max_index_array = np.append(max_index_array, 30)
-                max_corr_array = np.append(max_corr_array, corr_score_val)
             else:
                 # Calculate correlation btw the 5-min input signal and thirty different 5-min response signals,
                 # each is delayed at an additional 10s than the previous one; store results.
@@ -221,13 +215,22 @@ class RegService():
                     #             plt.plot(x_axis_x, x, "b")
                     #             plt.plot(x_axis_x, y, "r")
                     #             plt.show()
-                    # Calculate Pearson Correlation Coefficient btw input and response for the 10s step.
-                    corr_r = np.corrcoef(x, y_)[0, 1]
+                    std_dev_y_ = np.std(y_)
+                    # When request signal varies but response signal is constant, correlation and delay scores will be zero.
+                    if std_dev_y_ < 0.00001:
+                        corr_r = 0
+                    else:
+                        # Calculate Pearson Correlation Coefficient btw input and response for the 10s step.
+                        corr_r = np.corrcoef(x, y_)[0, 1]
                     # Correlation scores stored in an numpy array.
                     corr_score = np.append(corr_score, corr_r)
                     #         print('corr_score:', corr_score)
                 # Locate the 10s moment(step) at which correlation score was maximum among the thirty calculated; store it.
-                max_index = np.where(corr_score == max(corr_score))[0][0]
+                # If corr_r=0 for all 31 combinations, then both correlation and delay scores for that 5min should be 0.
+                if sum(corr_score)==0:
+                    max_index = 30
+                else:
+                    max_index = np.where(corr_score == max(corr_score))[0][0]
                 max_index_array = np.append(max_index_array, max_index)  # array
                 # Find the maximum score in the 5-min; store it.
                 max_corr_array = np.append(max_corr_array, corr_score[max_index])  # this is the correlation score array
