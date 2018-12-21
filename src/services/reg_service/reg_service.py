@@ -9,6 +9,7 @@ import sys
 from dateutil import parser
 from datetime import datetime, timedelta
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from os.path import dirname, abspath, join
@@ -117,7 +118,7 @@ class RegService():
         # Store request and response parameters in lists for plotting and printing to text files.
         P_request = [r.P_req for r in request_list_2s_tot]
         ts_request = [r.ts_req for r in request_list_2s_tot]
-        P_responce = [r.P_service for r in response_list_2s_tot]
+        P_response = [r.P_service for r in response_list_2s_tot]
         SOC = [r.soc for r in response_list_2s_tot]
 
         # Save the responses to a csv
@@ -257,7 +258,7 @@ class RegService():
             # for debug use
             x_axis_sig = np.arange(x_plot.size)
 
-            plt.figure(i+1)
+            plt.figure(i)
             # plt.subplot(211)
             plt.plot(x_axis_sig, x_plot, "b")
             plt.plot(x_axis_sig, y_plot, "r")
@@ -267,7 +268,7 @@ class RegService():
         # for debug use
         x_axis_score = np.arange(max_corr_array.size)
 
-        plt.figure(13)
+        plt.figure(12)
         # plt.subplot(212)
         plt.plot(x_axis_score, max_corr_array, "g")
         plt.plot(x_axis_score, delay_score_array, "m")
