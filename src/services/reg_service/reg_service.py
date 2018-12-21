@@ -120,20 +120,30 @@ class RegService():
         P_responce = [r.P_service for r in response_list_2s_tot]
         SOC = [r.soc for r in response_list_2s_tot]
 
-        # Store the responses in a text file.
-        with open('results.txt', 'w') as the_file:
-            for list in zip(ts_request, P_request, P_responce, SOC):
-                the_file.write("{},{},{},{}\n".format(list[0],list[1],list[2],list[3]))
+        # Save the responses to a csv
+        results_df = pd.DataFrame({
+            'DateTime': ts_request,
+            'P_request': P_request,
+            'P_response': P_response,
+            'SOC': SOC
+            })
+        results_df_dir = dirname(abspath(__file__)) + '\\results\\'
+        results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_battery.csv'
+        results_df.to_csv(results_df_dir + results_df_filename)
 
-        # Generate and save plot of the normalized request signal for the month
-        print('Plotting monthly response signal')
-        plot_dir = dirname(abspath(__file__)) + '\\plots\\'
+        # Generate and save plot of the normalized request and response signals for the month
+        print('     Plotting monthly response signal')
+        plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
-        				ts_request[0].strftime('%B') +\
-        				'_normrequestsignal.png'
+                        ts_request[0].strftime('%B') +\
+                        '_2secnormsignals_' +\
+                        service_type +\
+                        '_battery.png'
         plt.figure(1)
         plt.figure(figsize=(15,8))
-        plt.plot(ts_request, P_request)
+        plt.plot(ts_request, P_request, label='P request')
+        plt.plot(ts_request, P_response, label='P response')
+        plt.legend(loc='best')
         plt.ylabel('Power (kW)')
         plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')

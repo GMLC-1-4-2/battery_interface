@@ -39,7 +39,7 @@ if __name__ == '__main__':
     monthtimes = dict({
                     'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
                     'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:58"],
-                    'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:58"],
+                    'March': ["2017-03-01 00:00:00", "2017-03-30 23:59:58"],
                     'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:58"],
                     'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:58"],
                     'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:58"],
@@ -50,26 +50,28 @@ if __name__ == '__main__':
                     'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:58"],
                     'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
                     })
-    all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
+    
+    startTime = datetime.now()
+    for service_type in ['Traditional', 'Dynamic']:
+        all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
                                         'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
                                         'Reg_Clearing_Price_Credit'])
-    startTime = datetime.now()
-    for month in ['January']:
-        print('Starting ' + str(month))
-        fleet_response = service.request_loop(service_type="Dynamic",
-                                              start_time=parser.parse(monthtimes[month][0]),
-                                              end_time=parser.parse(monthtimes[month][1]),
-                                              clearing_price_filename='historical-ancillary-service-data-2017.xls')
-        month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
-        all_results = pd.concat([all_results, month_results])
-        print('     Finished ' + str(month))
+        for month in monthtimes.keys():
+            print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
+            fleet_response = service.request_loop(service_type=service_type,
+                                                  start_time=parser.parse(monthtimes[month][0]),
+                                                  end_time=parser.parse(monthtimes[month][1]),
+                                                  clearing_price_filename='historical-ancillary-service-data-2017.xls')
+            month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
+            all_results = pd.concat([all_results, month_results])
+            print('     Finished ' + str(month) + ' ' + service_type)
+        # Fix formatting of all_results dataframe to remove tuples
+        all_results[['Perf_score', 'Delay_score', 'Corr_score', 'Prec_score']] = all_results['performance_score'].apply(pd.Series)
+        all_results[['MCP', 'REG_CCP', 'REG_PCP']] = all_results['Regulation_Market_Clearing_Price(RMCP)'].apply(pd.Series)
+        all_results[['Reg_Clr_Pr_Credit', 'Reg_RMCCP_Credit', 'Reg_RMPCP_Credit']] = all_results['Reg_Clearing_Price_Credit'].apply(pd.Series)
+        all_results.drop(columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
+                         inplace=True)
+        print('Writing result .csv')
+        all_results.to_csv(datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_battery.csv')
     print('Duration:')
     print(datetime.now() - startTime)
-    bp()
-    print('Writing .csv')
-    all_results.write_csv(datetime.now().strftime('%Y%m%d') + '_annual_reg_service_results.csv')
-    '''# Print results in the 2-level dictionary.
-                for key_1, value_1 in fleet_response.items():
-                    print(key_1)
-                    for key_2, value_2 in value_1.items():
-                        print('\t\t\t\t\t\t', key_2, value_2)'''
