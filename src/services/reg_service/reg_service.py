@@ -189,6 +189,8 @@ class RegService():
             x = request_array[30 * i:30 * (i + 1)]
             #         print('x:', x)
             y = response_array[30 * i:30 * (i + 1)]
+            x_plot = request_array[30 * i:30 * (i + 2)]
+            y_plot = response_array[30 * i:30 * (i + 2)]
             # Refresh the array in each 5-min run.
             corr_score = []
             # If the regulation signal is nearly constant, then correlation score is calculated as:
@@ -235,55 +237,59 @@ class RegService():
                 # Find the maximum score in the 5-min; store it.
                 max_corr_array = np.append(max_corr_array, corr_score[max_index])  # this is the correlation score array
             # Calculate the coincident delay score associated with max correlation in each 5min period.
-            delay_score = np.absolute((10 * max_index_array - 5 * 60) / (5 * 60))  # array
+            delay_score_array = np.absolute((10 * max_index_array - 5 * 60) / (5 * 60))  # array
             # Calculate error at 10s intervals and store in an array.
             error = np.absolute(y - x) / (np.absolute(x).mean())
             # Calculate 5-min average Precision Score as the average error.
             prec_score = max(0, 1 - 1 / 30 * error.sum())
             prec_score_array = np.append(prec_score_array, prec_score)
 
-        # # for debug use
-        # print('delay_score:', delay_score)
-        # print('max_index_array:', max_index_array)
-        # print('max_corr_array:', max_corr_array)
-        # print('prec_score_array:', prec_score_array)
+            # for debug use
+            x_axis_sig = np.arange(x_plot.size)
+
+            plt.figure(i+1)
+            # plt.subplot(211)
+            plt.plot(x_axis_sig, x_plot, "b")
+            plt.plot(x_axis_sig, y_plot, "r")
+            plt.legend(('RegA signal', 'CReg response'), loc='lower right')
+            plt.show()
+
+        # for debug use
+        x_axis_score = np.arange(max_corr_array.size)
+
+        plt.figure(13)
+        # plt.subplot(212)
+        plt.plot(x_axis_score, max_corr_array, "g")
+        plt.plot(x_axis_score, delay_score_array, "m")
+        plt.plot(x_axis_score, prec_score_array, "b")
+        plt.legend(('Correlation score', 'Delay score', 'Precision score'), loc='lower right')
+        plt.show()
+
+
+        # for debug use
+        print('delay_score:', delay_score_array)
+        print('max_index_array:', max_index_array)
+        print('max_corr_array:', max_corr_array)
+        print('prec_score_array:', prec_score_array)
 
         # Calculate average "delay", "correlation" and "precision" scores for the hour.
-        Delay_score = delay_score.mean()
+        Delay_score = delay_score_array.mean()
         Corr_score = max_corr_array.mean()
         Prec_score = prec_score_array.mean()
 
-        #     # for debug use
-        #     x_axis_error = np.arange(error.size)
-        #     plt.scatter(x_axis_error, error)
-        #     plt.show()
+        # # for debug use
+        # x_axis_error = np.arange(error.size)
+        # plt.scatter(x_axis_error, error)
+        # plt.show()
 
         # Calculate the hourly overall Performance Score.
         Perf_score = (Delay_score + Corr_score + Prec_score)/3
 
-        #     # for debug use
-        # # Plotting and Printing results
-        # x_axis_sig = np.arange(request_array[0:360].size)
-        # x_axis_score = np.arange(max_corr_array.size)
-        #
-        # plt.figure(1)
-        # plt.subplot(211)
-        # plt.plot(x_axis_sig, request_array[0:360], "b")
-        # plt.plot(x_axis_sig, response_array[0:360], "r")
-        # plt.legend(('RegA signal', 'CReg response'), loc='lower right')
-        # plt.show()
-        #
-        # plt.figure(2)
-        # plt.subplot(212)
-        # plt.plot(x_axis_score, max_corr_array, "g")
-        # plt.plot(x_axis_score, delay_score, "m")
-        # plt.legend(('Correlation score', 'Delay score'), loc='lower right')
-        # plt.show()
-        #
-        # print('Delay_score:', Delay_score)
-        # print('Corr_score:', Corr_score)
-        # print('Prec_score:', Prec_score)
-        # print('Perf_score:', Perf_score)
+        # for debug use
+        print('Delay_score:', Delay_score)
+        print('Corr_score:', Corr_score)
+        print('Prec_score:', Prec_score)
+        print('Perf_score:', Perf_score)
 
         return (Perf_score, Delay_score, Corr_score, Prec_score)
 
