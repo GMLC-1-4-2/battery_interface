@@ -9,6 +9,7 @@ import sys
 from dateutil import parser
 from datetime import datetime, timedelta
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from os.path import dirname, abspath, join
@@ -69,6 +70,7 @@ class RegService():
         print('     Starting hourly loop')
         # Loop through each hour between "start_time" and "end_time".
         while cur_time < end_time - timedelta(minutes=65):
+            print(cur_time)
             # Generate 1-hour worth (65 min) of request and response arrays for calculating scores.
             cur_end_time = cur_time + timedelta(minutes=65)
             # Traditional regulation request and response signals are needed regardless of service type.
@@ -117,7 +119,7 @@ class RegService():
         # Store request and response parameters in lists for plotting and printing to text files.
         P_request = [r.P_req for r in request_list_2s_tot]
         ts_request = [r.ts_req for r in request_list_2s_tot]
-        P_responce = [r.P_service for r in response_list_2s_tot]
+        P_response = [r.P_service for r in response_list_2s_tot]
         SOC = [r.soc for r in response_list_2s_tot]
 
         # Save the responses to a csv
@@ -191,7 +193,6 @@ class RegService():
         max_corr_array = []
         max_index_array = []
         prec_score_array = []
-
         # In each 5-min of the hour, use max correlation to define "delay", "correlation" & "delay" scores.
         # There are twelve (12) 5-min in each hour.
         for i in range(12):

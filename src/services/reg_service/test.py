@@ -36,19 +36,20 @@ if __name__ == '__main__':
     #                                       clearing_price_filename='historical-ancillary-service-data-2017.xls')
 
     # Generate monthly start and end times to loop through
+    # End times 5 minutes before 
     monthtimes = dict({
-                    'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
-                    'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:58"],
-                    'March': ["2017-03-01 00:00:00", "2017-03-30 23:59:58"],
-                    'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:58"],
-                    'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:58"],
-                    'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:58"],
-                    'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:58"],
-                    'August': ["2017-08-01 00:00:00", "2017-08-31 23:59:58"],
+                    'January':   ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
+                    'February':  ["2017-02-01 00:00:00", "2017-02-28 23:59:58"],
+                    'March':     ["2017-03-01 00:00:00", "2017-03-30 23:59:58"],
+                    'April':     ["2017-04-01 00:00:00", "2017-04-30 23:59:58"],
+                    'May':       ["2017-05-01 00:00:00", "2017-05-31 23:59:58"],
+                    'June':      ["2017-06-01 00:00:00", "2017-06-30 23:59:58"],
+                    'July':      ["2017-07-01 00:00:00", "2017-07-31 23:59:58"],
+                    'August':    ["2017-08-01 00:00:00", "2017-08-31 23:59:58"],
                     'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:58"],
-                    'October': ["2017-10-01 00:00:00", "2017-10-31 23:59:58"],
-                    'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:58"],
-                    'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
+                    'October':   ["2017-10-01 00:00:00", "2017-10-31 23:59:58"],
+                    'November':  ["2017-11-01 00:00:00", "2017-11-30 23:59:58"],
+                    'December':  ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
                     })
     
     startTime = datetime.now()
@@ -56,7 +57,7 @@ if __name__ == '__main__':
         all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
                                         'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
                                         'Reg_Clearing_Price_Credit'])
-        for month in monthtimes.keys():
+        for month in ['March']:
             print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
             fleet_response = service.request_loop(service_type=service_type,
                                                   start_time=parser.parse(monthtimes[month][0]),
@@ -72,6 +73,7 @@ if __name__ == '__main__':
         all_results.drop(columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
                          inplace=True)
         print('Writing result .csv')
-        all_results.to_csv(datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_battery.csv')
+        file_dir = dirname(abspath(__file__)) + '\\results\\'
+        all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_battery.csv')
     print('Duration:')
     print(datetime.now() - startTime)
