@@ -32,7 +32,7 @@ class HistoricalSignalHelper(object):
 
     def get_input_filename(self, start_time):
         timestamp = pd.Timestamp(start_time)
-        return timestamp.strftime("%m %Y.xlsx")
+        return timestamp.strftime("%m %Y_shorttest.xlsx")
 
     # Use "dependency injection" to allow method "signals" be used as an attribute.
     @property
