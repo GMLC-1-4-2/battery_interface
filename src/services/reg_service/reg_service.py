@@ -257,24 +257,26 @@ class RegService():
 
             # for debug use
             x_axis_sig = np.arange(x_plot.size)
-
-            plt.figure(i)
-            # plt.subplot(211)
+            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            plt.figure(1)
+            plt.figure(figsize=(15,8))
             plt.plot(x_axis_sig, x_plot, "b")
             plt.plot(x_axis_sig, y_plot, "r")
-            plt.legend(('RegA signal', 'CReg response'), loc='lower right')
-            plt.show()
+            plt.legend(('RegA signal', 'CReg response'), loc='best')
+            plt.savefig(plot_dir + 'test_dyn5mins_minidx' + str(i) + '.png', bbox_inches='tight')
+            plt.close()
 
         # for debug use
         x_axis_score = np.arange(max_corr_array.size)
 
-        plt.figure(12)
-        # plt.subplot(212)
+        plt.figure(1)
+        plt.figure(figsize=(15,8))
         plt.plot(x_axis_score, max_corr_array, "g")
         plt.plot(x_axis_score, delay_score_array, "m")
         plt.plot(x_axis_score, prec_score_array, "b")
         plt.legend(('Correlation score', 'Delay score', 'Precision score'), loc='lower right')
-        plt.show()
+        plt.savefig(plot_dir + 'test_dynhour_' + datetime.now().strftime('%H-%M-%S') + '.png', bbox_inches='tight')
+        plt.close()
 
 
         # for debug use

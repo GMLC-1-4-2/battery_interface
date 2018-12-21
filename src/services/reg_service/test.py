@@ -55,11 +55,11 @@ if __name__ == '__main__':
                     'August': ["2017-08-01 00:00:00", "2017-08-01 02:59:58"]})
 
     startTime = datetime.now()
-    for service_type in ['Traditional', 'Dynamic']:
+    for service_type in ['Dynamic']:
         all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
                                         'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
                                         'Reg_Clearing_Price_Credit'])
-        for month in ['March']:
+        for month in monthtimes.keys():
             print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
             fleet_response = service.request_loop(service_type=service_type,
                                                   start_time=parser.parse(monthtimes[month][0]),
