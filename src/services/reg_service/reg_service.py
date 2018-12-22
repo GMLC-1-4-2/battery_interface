@@ -103,17 +103,20 @@ class RegService():
             # Slice arrays at 10s intervals - resulted arrays have 390 data points.
             request_array_10s = request_array_2s[::5]
             response_array_10s = response_array_2s[::5]
-            # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
-            hourly_results[cur_time] = {}
-            hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_10s, response_array_10s)
-            hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
-            hourly_results[cur_time]['mileage_ratio'] = mileage_ratio
-            hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = self._clearing_price_helper.clearing_prices[cur_time]
-            hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(service_type,
-                                                                                           hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
-                                                                                           hourly_results[cur_time]['performance_score'][0],
-                                                                                           hourly_results[cur_time]['hourly_integrated_MW'],
-                                                                                           mileage_ratio)
+            if not(np.isnan.any(request_array_10s)):
+                # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
+                hourly_results[cur_time] = {}
+                hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_10s, response_array_10s)
+                hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
+                hourly_results[cur_time]['mileage_ratio'] = mileage_ratio
+                hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = self._clearing_price_helper.clearing_prices[cur_time]
+                hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(service_type,
+                                                                                               hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
+                                                                                               hourly_results[cur_time]['performance_score'][0],
+                                                                                               hourly_results[cur_time]['hourly_integrated_MW'],
+                                                                                               mileage_ratio)
+            else: # There are no NaNs in request_array_10s
+                pass
             # Move to the next hour.
             cur_time += one_hour
         # Store request and response parameters in lists for plotting and printing to text files.
@@ -143,10 +146,14 @@ class RegService():
                         '_battery.png'
         plt.figure(1)
         plt.figure(figsize=(15,8))
+        plt.subplot(211)
         plt.plot(ts_request, P_request, label='P request')
         plt.plot(ts_request, P_response, label='P response')
         plt.legend(loc='best')
         plt.ylabel('Power (kW)')
+        plt.subplot(212)
+        plt.plot(ts_request, SOC)
+        plt.ylabel('SOC (%)')
         plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
         plt.close()      
@@ -256,34 +263,34 @@ class RegService():
             prec_score_array = np.append(prec_score_array, prec_score)
 
             # for debug use
-            x_axis_sig = np.arange(x_plot.size)
-            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
-            plt.figure(1)
-            plt.figure(figsize=(15,8))
-            plt.plot(x_axis_sig, x_plot, "b")
-            plt.plot(x_axis_sig, y_plot, "r")
-            plt.legend(('RegA signal', 'CReg response'), loc='best')
-            plt.savefig(plot_dir + 'test_dyn5mins_minidx' + str(i) + '.png', bbox_inches='tight')
-            plt.close()
+            # x_axis_sig = np.arange(x_plot.size)
+            # plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            # plt.figure(1)
+            # plt.figure(figsize=(15,8))
+            # plt.plot(x_axis_sig, x_plot, "b")
+            # plt.plot(x_axis_sig, y_plot, "r")
+            # plt.legend(('RegA signal', 'CReg response'), loc='best')
+            # plt.savefig(plot_dir + 'test_trad5mins_minidx' + str(i) + '.png', bbox_inches='tight')
+            # plt.close()
 
         # for debug use
-        x_axis_score = np.arange(max_corr_array.size)
+        # x_axis_score = np.arange(max_corr_array.size)
 
-        plt.figure(1)
-        plt.figure(figsize=(15,8))
-        plt.plot(x_axis_score, max_corr_array, "g")
-        plt.plot(x_axis_score, delay_score_array, "m")
-        plt.plot(x_axis_score, prec_score_array, "b")
-        plt.legend(('Correlation score', 'Delay score', 'Precision score'), loc='lower right')
-        plt.savefig(plot_dir + 'test_dynhour_' + datetime.now().strftime('%H-%M-%S') + '.png', bbox_inches='tight')
-        plt.close()
+        # plt.figure(1)
+        # plt.figure(figsize=(15,8))
+        # plt.plot(x_axis_score, max_corr_array, "g")
+        # plt.plot(x_axis_score, delay_score_array, "m")
+        # plt.plot(x_axis_score, prec_score_array, "b")
+        # plt.legend(('Correlation score', 'Delay score', 'Precision score'), loc='lower right')
+        # plt.savefig(plot_dir + 'test_tradhour_' + datetime.now().strftime('%H-%M-%S') + '.png', bbox_inches='tight')
+        # plt.close()
 
 
         # for debug use
-        print('delay_score:', delay_score_array)
-        print('max_index_array:', max_index_array)
-        print('max_corr_array:', max_corr_array)
-        print('prec_score_array:', prec_score_array)
+        # print('delay_score:', delay_score_array)
+        # print('max_index_array:', max_index_array)
+        # print('max_corr_array:', max_corr_array)
+        # print('prec_score_array:', prec_score_array)
 
         # Calculate average "delay", "correlation" and "precision" scores for the hour.
         Delay_score = delay_score_array.mean()
@@ -299,10 +306,10 @@ class RegService():
         Perf_score = (Delay_score + Corr_score + Prec_score)/3
 
         # for debug use
-        print('Delay_score:', Delay_score)
-        print('Corr_score:', Corr_score)
-        print('Prec_score:', Prec_score)
-        print('Perf_score:', Perf_score)
+        # print('Delay_score:', Delay_score)
+        # print('Corr_score:', Corr_score)
+        # print('Prec_score:', Prec_score)
+        # print('Perf_score:', Perf_score)
 
         return (Perf_score, Delay_score, Corr_score, Prec_score)
 

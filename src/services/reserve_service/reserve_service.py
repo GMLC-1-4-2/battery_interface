@@ -42,6 +42,7 @@ class ReserveService():
     def request_loop(self, start_time=parser.parse("2017-01-01 00:00:00"),
                      end_time=parser.parse("2017-01-01 05:00:00"),
                      clearing_price_filename="201701.csv",
+                     previous_event_end=pd.Timestamp('01/01/2017 00:00:00'),
                      four_scenario_testing=False):
 
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
@@ -103,10 +104,6 @@ class ReserveService():
         event_indices = np.where(df_1m.Request > 0.)[0]
         event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
 
-        # Set previous event end to be 20170101, since nothing comes before the first event
-        # (This is for calculating the shortfall of the first event, if applicable)
-        previous_event_end = pd.Timestamp('01/01/2017 00:00:00')
-
         # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
             'Response_to_Request_Ratio', 'Response_MeetReqOrMax_Index_number',
@@ -117,7 +114,8 @@ class ReserveService():
             'SRMCP_DollarsperMWh_SinceLastEvent',
             'Service_Value_NotInclShortfall_dollars',
             'Service_Value_InclShortfall_dollars',
-            'Period_from_Last_Event_Hours'])
+            'Period_from_Last_Event_Hours',
+            'Period_from_Last_Event_Days'])
 
         # Then, we can take everything event-by-event.  "event_indices" contains the list of 
         # df_1m indices corresponding to a single event.
@@ -127,7 +125,7 @@ class ReserveService():
 
             # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
             # an extra minute at the end of the event
-            shorter_than_11_min = ((df_1m.Date_Time[event_indices[len(event_indices) - 1]] - df_1m.Date_Time[event_indices[0]]).seconds / 60.) < 11.
+            shorter_than_11_min = ((df_1m.Date_Time[event_indices[len(event_indices) - 1]] - df_1m.Date_Time[event_indices[0]]).total_seconds() / 60.) < 11.
 
             # Create list of indices to add to start of event_indices representing the minute prior to the event starting
             # The np.arange call here creates a descending list of numbers, starting from the first index in event_indices
@@ -185,7 +183,8 @@ class ReserveService():
                 'SRMCP_DollarsperMWh_SinceLastEvent': value_results['SRMCP_DollarsperMWh_SinceLastEvent'],
                 'Service_Value_NotInclShortfall_dollars': value_results['Service_Value_NotInclShortfall_dollars'],
                 'Service_Value_InclShortfall_dollars': value_results['Service_Value_InclShortfall_dollars'],
-                'Period_from_Last_Event_Hours': value_results['Period_from_Last_Event_Hours']},
+                'Period_from_Last_Event_Hours': value_results['Period_from_Last_Event_Hours'],
+                'Period_from_Last_Event_Days': value_results['Period_from_Last_Event_Days']},
                 index=[performance_results['Event_Start_Time']])
 
             # Append the temporary dataframe into the results_df
@@ -261,7 +260,7 @@ class ReserveService():
         if shorter_than_11_min:
             Event_End_Time = Event_End_Time - timedelta(minutes = 1)
         # Calculate the event duration
-        Event_Duration_mins = (Event_End_Time - Event_Start_Time).seconds / 60.
+        Event_Duration_mins = (Event_End_Time - Event_Start_Time).total_seconds() / 60.
 
         # Calculate event response at the start, which is the minimum response value
         # at the start, +/- 1 minute.  We already added in an extra minute before the event
@@ -374,7 +373,8 @@ class ReserveService():
 
         # Calculate the time between this event's end and the previous event's end (in hours)
         # This will be used to calculate the shortfall, if necessary
-        Period_from_Last_Event_Hours = (Event_End_Time - Previous_Event_End_Time).seconds / 3600.
+        Period_from_Last_Event_Hours = (Event_End_Time - Previous_Event_End_Time).total_seconds() / 3600.
+        Period_from_Last_Event_Days = Period_from_Last_Event_Hours / 24.
 
         # Calculate value of event
         Service_Value_NotInclShortfall_dollars = SRMCP_DollarsperMWh_DuringEvent * (Requested_MW - Shortfall_MW) * hours_assigned_per_event_day
@@ -384,7 +384,8 @@ class ReserveService():
             'SRMCP_DollarsperMWh_SinceLastEvent': SRMCP_DollarsperMWh_SinceLastEvent,
             'Service_Value_NotInclShortfall_dollars': Service_Value_NotInclShortfall_dollars,
             'Service_Value_InclShortfall_dollars': Service_Value_InclShortfall_dollars,
-            'Period_from_Last_Event_Hours': Period_from_Last_Event_Hours})
+            'Period_from_Last_Event_Hours': Period_from_Last_Event_Hours,
+            'Period_from_Last_Event_Days': Period_from_Last_Event_Days})
 
     # Use "dependency injection" to allow method "fleet" be used as an attribute.
     @property
