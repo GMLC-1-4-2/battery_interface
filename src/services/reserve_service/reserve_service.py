@@ -69,8 +69,8 @@ class ReserveService():
 
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
-            plot_dir = dirname(abspath(__file__)) + '\\plots\\'
-            plot_filename = datetime.now().strftime('%Y%m%d') + '_all_events.png'
+            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events.png'
             plt.figure(1)
             plt.figure(figsize=(15,8))
             plt.subplot(211)
@@ -196,7 +196,7 @@ class ReserveService():
             plot_start = previous_event_end
             plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
             plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
-            plot_dir = dirname(abspath(__file__)) + '\\plots\\'
+            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
             plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M-%S') + '.png'
             plt.figure(1)
             plt.figure(figsize=(15,8))
@@ -216,8 +216,7 @@ class ReserveService():
             # Reset previous_end_end to be the end of this event before moving on to the next event
             previous_event_end = performance_results['Event_End_Time'] 
 
-        # For testing (with few events), showing the transposed dataframe is a bit easier to read   
-        print(results_df.T)
+        return results_df
 
     # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time):
