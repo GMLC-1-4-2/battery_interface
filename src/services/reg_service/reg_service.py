@@ -200,6 +200,7 @@ class RegService():
             x = request_array[30 * i:30 * (i + 1)]
             #         print('x:', x)
             y = response_array[30 * i:30 * (i + 1)]
+            # plot for 5min+5min(response signal lag window) for visually verifying correlation and delay.
             x_plot = request_array[30 * i:30 * (i + 2)]
             y_plot = response_array[30 * i:30 * (i + 2)]
             # Refresh the array in each 5-min run.
