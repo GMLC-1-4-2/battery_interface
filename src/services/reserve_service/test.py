@@ -50,14 +50,23 @@ if __name__ == '__main__':
             'SRMCP_DollarsperMWh_SinceLastEvent',
             'Service_Value_NotInclShortfall_dollars',
             'Service_Value_InclShortfall_dollars',
-            'Period_from_Last_Event_Hours'])
+            'Period_from_Last_Event_Hours',
+            'Period_from_Last_Event_Days'])
+    # Set previous event end to be 20170101, since nothing comes before the first event
+    # (This is for calculating the shortfall of the first event, if applicable)
+    previous_event_end = pd.Timestamp('01/01/2017 00:00:00')
     for month in monthtimes.keys():
         print('Starting ' + str(month) + ' at ' + datetime.now().strftime('%H:%M:%S'))
         start_time=parser.parse(monthtimes[month][0])
         fleet_response = service.request_loop(start_time=start_time,
                                               end_time=parser.parse(monthtimes[month][1]),
                                               clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
+                                              previous_event_end=previous_event_end,
                                               four_scenario_testing=False)
+        try:
+            previous_event_end = fleet_response.Event_End_Time[-1]
+        except:
+            pass
         all_results = pd.concat([all_results, fleet_response])
     print('Writing result .csv')
     file_dir = dirname(abspath(__file__)) + '\\results\\'
