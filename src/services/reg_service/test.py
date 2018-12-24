@@ -28,12 +28,11 @@ if __name__ == '__main__':
     service.fleet = battery_inverter_fleet
 
 
-    # Test request_loop()
-    # Use line below for testing TRADITIONAL regulation service.
-    # fleet_response = service.request_loop(service_type="Traditional",
-    #                                       start_time=parser.parse("2017-08-01 16:00:00"),
-    #                                       end_time=parser.parse("2017-08-01 21:00:00"),
-    #                                       clearing_price_filename='historical-ancillary-service-data-2017.xls')
+    # For a short test run, can use code below instead of running for the full year,
+    # which takes ~1.5 hours per month to run.
+    # monthtimes = dict({
+    #                 'January': ["2017-01-01 00:00:00", "2017-01-01 03:59:58"],
+    #                 })
 
     # Generate monthly start and end times to loop through
     monthtimes = dict({
@@ -51,6 +50,7 @@ if __name__ == '__main__':
                     'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
                     })
 
+    # To run for either "Traditional" or "Dynamic" regulation, specify "service_type" in the for-loop below accordingly.
     startTime = datetime.now()
     for service_type in ['Dynamic']:
         all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',

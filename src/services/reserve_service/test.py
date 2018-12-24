@@ -24,6 +24,15 @@ if __name__ == '__main__':
     service = ReserveService()
     service.fleet = battery_inverter_fleet
 
+    # For a short test run, can use code below instead of running for the full year,
+    # which takes ~12 minutes to run.
+    # monthtimes = dict({
+    #                 'January':   ["2017-01-01 00:00:00", "2017-01-31 23:59:59"],
+    #                 'February':  ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
+    #                 'March':     ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
+    #                 'April':     ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
+    #                 })
+
     # Generate monthly start and end times to loop through 
     monthtimes = dict({
                     'January':   ["2017-01-01 00:00:00", "2017-01-31 23:59:59"],
