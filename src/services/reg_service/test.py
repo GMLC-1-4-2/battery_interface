@@ -52,7 +52,7 @@ if __name__ == '__main__':
                     })
 
     startTime = datetime.now()
-    for service_type in ['Traditional', 'Dynamic']:
+    for service_type in ['Dynamic']:
         all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
                                         'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
                                         'Reg_Clearing_Price_Credit'])

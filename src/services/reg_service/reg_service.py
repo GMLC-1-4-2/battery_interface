@@ -70,7 +70,6 @@ class RegService():
         print('     Starting hourly loop')
         # Loop through each hour between "start_time" and "end_time".
         while cur_time < end_time - timedelta(minutes=65):
-            print(cur_time)
             # Generate 1-hour worth (65 min) of request and response arrays for calculating scores.
             cur_end_time = cur_time + timedelta(minutes=65)
             # Traditional regulation request and response signals are needed regardless of service type.
@@ -87,9 +86,17 @@ class RegService():
                 request_array_2s_65min_dynm = np.asarray(request_list_2s_65min_dynm)
                 response_array_2s_65min_dynm = np.asarray(response_list_2s_65min_dynm)
                 # The "mileage ratio" equals "1" for traditional regulation and is > 1 for dynamic regulation.
-                Hourly_mileage_trad = self.Hourly_reg_mileage(request_array_2s_65min_trad)
-                Hourly_mileage_dynm = self.Hourly_reg_mileage(request_array_2s_65min_dynm)
-                mileage_ratio = Hourly_mileage_dynm / Hourly_mileage_trad
+                try:
+                    Hourly_mileage_trad = self.Hourly_reg_mileage(request_array_2s_65min_trad)
+                    Hourly_mileage_dynm = self.Hourly_reg_mileage(request_array_2s_65min_dynm)
+                    mileage_ratio = Hourly_mileage_dynm / Hourly_mileage_trad
+                except:
+                    # This occurs for March 12 at 23:00 hours.
+                    # The self.Hourly_reg_mileage() methods requires an array of a specific
+                    # length to work properly.  Therefore, henever the underlying data have missing
+                    # values, this function breaks.
+                    mileage_ratio = np.nan
+                
                 # Assign generic names to signal lists.
                 request_list_2s_65min = request_list_2s_65min_dynm
                 response_list_2s_65min = response_list_2s_65min_dynm
@@ -103,7 +110,9 @@ class RegService():
             # Slice arrays at 10s intervals - resulted arrays have 390 data points.
             request_array_10s = request_array_2s[::5]
             response_array_10s = response_array_2s[::5]
-            if not(np.isnan.any(request_array_10s)):
+            # Use if statement to ensure full array is present
+            # (Pandas skips over the NaN rows, so the array ends up being shorter than it should be)
+            if len(request_array_10s) == 391:
                 # Calculate performance scores for current hour and store in a dictionary keyed by starting time.
                 hourly_results[cur_time] = {}
                 hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_10s, response_array_10s)
