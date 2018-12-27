@@ -5,6 +5,7 @@ Created on Mon Aug 20 10:17:07 2018
 @author: rmahmud
 """
 
+
 class FrequencyDroop(object):
     """
     This class describes Frequency-Droop operation of device fleet
@@ -27,7 +28,7 @@ class FrequencyDroop(object):
         self.k_OF=k_OF #per-unit frequency change corresponding to 1 per-unit
 #                       power output change (frequency droop), unitless
         self.P_avl=P_avl #available active power, in p.u. of the DER rating
-        self.P_min=P_min #minimum active power output due to DER prime mover 
+        self.P_min=P_min #minimum active power output due to DER prime mover
         #               constraints, in p.u. of the DER rating
         self.P_pre=P_pre # pre-disturbance active power output, defined by the 
 #        active power output at the point of time the frequency exceeds the 
@@ -37,14 +38,11 @@ class FrequencyDroop(object):
         """
         Implementing Frequency-Droop operation; Reference: Table 23, IEEE1547-2018
         """
-        if f<60-self.db_UF:
-            P=min(self.P_pre+((60-self.db_UF)-f)/(60*self.k_UF),self.P_avl)
-        elif f>60+self.db_OF:
-            P=max(self.P_pre-(f-(60+self.db_OF))/(60*self.k_OF),self.P_min)
+        if f < 60-self.db_UF:
+            P = min(self.P_pre+((60-self.db_UF)-f)/(60*self.k_UF),self.P_avl)
+        elif f > 60+self.db_OF:
+            P = max(self.P_pre-(f-(60+self.db_OF))/(60*self.k_OF),self.P_min)
         else:
-            """
-            select the operating mode withing deadband range
-            """
-            P=self.P_avl
+            # select the operating mode withing deadband range
+            P = self.P_avl
         return P
-                

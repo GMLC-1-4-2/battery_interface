@@ -1,4 +1,4 @@
-def create_service(name):
+def create_service(name, **kwargs):
     if name == 'Regulation':
         from services.reg_service.reg_service import RegService
 
@@ -6,3 +6,6 @@ def create_service(name):
 
     elif name == 'ArtificialInertia':
         return None
+
+    raise "There is no service with name: " + name
+

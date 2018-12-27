@@ -8,15 +8,15 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 import configparser
 from datetime import datetime, timedelta
-import numpy  
-import copy 
+import numpy
+import copy
 import math
 import csv
 
 from fleet_interface import FleetInterface
-from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-from fleets.battery_inverter_fleet.frequency_droop import FrequencyDroop
+from frequency_droop import FrequencyDroop
+
 
 class BatteryInverterFleet(FleetInterface):
     """

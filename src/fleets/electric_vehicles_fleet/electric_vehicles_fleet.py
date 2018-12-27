@@ -7,11 +7,9 @@ Last update: 10/24/2018
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
-
-from fleet_interface import FleetInterface
-from fleet_request   import FleetRequest
-from fleet_response  import FleetResponse
-from frequency_droop import FrequencyDroop
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 from datetime import datetime, timedelta
 import numpy as np
@@ -20,9 +18,14 @@ import os
 from scipy.stats import truncnorm
 import csv
 
+from fleet_interface import FleetInterface
+from fleet_response  import FleetResponse
+from frequency_droop import FrequencyDroop
+
+
 class ElectricVehiclesFleet(FleetInterface):
     
-    def __init__(self, GridInfo, ts):
+    def __init__(self, grid_info, ts):
         """
         Constructor
         """
@@ -32,13 +35,13 @@ class ElectricVehiclesFleet(FleetInterface):
         self.run_baseline = False
         self.n_days_base = 10
         # Establish the properties of the grid on which the fleet is connected on
-        self.grid = GridInfo
+        self.grid = grid_info
         # Number of subfleets that are going to be simulated
         self.N_SubFleets = 100
         # Location of working path
-        dirname = os.path.dirname(__file__)
+        base_path = dirname(abspath(__file__))
         # Read the vehicle models and store them in a pandas dataframe
-        self.df_VehicleModels = pd.read_csv(os.path.join(dirname,'data/vehicle_models.csv' ))  
+        self.df_VehicleModels = pd.read_csv(join(base_path, 'data/vehicle_models.csv' ))
         # Number of vehicle models
         self.N_Models = self.df_VehicleModels.shape[0]
         # Total number of vehicles
@@ -66,10 +69,10 @@ class ElectricVehiclesFleet(FleetInterface):
         np.random.seed(self.seed)
         
         # Read data from NHTS survey      
-        self.df_Miles     = pd.read_table(os.path.join(dirname,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
-        self.df_StartTime = pd.read_table(os.path.join(dirname,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
-        self.df_EndTime   = pd.read_table(os.path.join(dirname,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
-        self.df_WhyTo     = pd.read_table(os.path.join(dirname,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
+        self.df_Miles     = pd.read_table(join(base_path,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
+        self.df_StartTime = pd.read_table(join(base_path,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
+        self.df_EndTime   = pd.read_table(join(base_path,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
+        self.df_WhyTo     = pd.read_table(join(base_path,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
         
         # Percentage of cars that are charged at work/other places: Statistical studies from real data
         self.ChargedAtWork_per  = 0.17
@@ -95,10 +98,10 @@ class ElectricVehiclesFleet(FleetInterface):
         if self.run_baseline == True:
             self.run_baseline_simulation()
         # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
-        self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
+        self.df_SOC_curves = pd.read_csv(join(base_path,'data/SOC_curves_charging_modes.csv' ))
         
         # Read the baseline power from Montecarlo simulations of the different charging strategies
-        self.df_baseline_power = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
+        self.df_baseline_power = pd.read_csv(join(base_path,'data/power_baseline_charging_modes.csv' ))
         self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.initial_time] + 
                            self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.initial_time] + 
                            self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.initial_time])
@@ -729,11 +732,11 @@ class ElectricVehiclesFleet(FleetInterface):
                                                               'power_RightAway_kW',
                                                               'power_Midnight_kW',
                                                               'power_TCIN_kW'])
-        dirname = os.path.dirname(__file__)
-        path = os.path.join(dirname,'data')
+        base_path = dirname(abspath(__file__))
+        path = join(base_path,'data')
         
-        df_soc.to_csv(os.path.join(path, r'SOC_curves_charging_modes.csv'), index = False)
-        df_power.to_csv(os.path.join(path, r'power_baseline_charging_modes.csv'), index = False)
+        df_soc.to_csv(join(path, r'SOC_curves_charging_modes.csv'), index = False)
+        df_power.to_csv(join(path, r'power_baseline_charging_modes.csv'), index = False)
         print("Exported")
         
     def discharge_baseline(self, StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet, SOC, SOC_sf, sim_time, power_ac, v):
