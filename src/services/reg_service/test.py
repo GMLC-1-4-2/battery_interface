@@ -44,7 +44,6 @@ if __name__ == '__main__':
     service = RegService()
     service.fleet = fleet
 
-
     # For a short test run, can use code below instead of running for the full year,
     # which takes ~1.5 hours per month to run.
     monthtimes = dict({
@@ -67,6 +66,9 @@ if __name__ == '__main__':
     #                 'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
     #                 })
 
+    # Get name of fleet for inclusion in results file names
+    fleet_name = fleet.__class__.__name__
+
     # To run for either "Traditional" or "Dynamic" regulation, specify "service_type" in the for-loop below accordingly.
     startTime = datetime.now()
     for service_type in ['Dynamic']:
@@ -76,9 +78,11 @@ if __name__ == '__main__':
         for month in monthtimes.keys():
             print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
             fleet_response = service.request_loop(service_type=service_type,
+                                                  fleet_is_load=False,
                                                   start_time=parser.parse(monthtimes[month][0]),
                                                   end_time=parser.parse(monthtimes[month][1]),
-                                                  clearing_price_filename='historical-ancillary-service-data-2017.xls')
+                                                  clearing_price_filename='historical-ancillary-service-data-2017.xls',
+                                                  fleet_name=fleet_name)
             month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
             all_results = pd.concat([all_results, month_results])
             print('     Finished ' + str(month) + ' ' + service_type)
@@ -90,6 +94,6 @@ if __name__ == '__main__':
                          inplace=True)
         print('Writing result .csv')
         file_dir = dirname(abspath(__file__)) + '\\results\\'
-        all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_battery.csv')
+        all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_' + fleet_name + '.csv')
     print('Duration:')
     print(datetime.now() - startTime)

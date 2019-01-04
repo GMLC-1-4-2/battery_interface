@@ -39,26 +39,35 @@ class ReserveService():
     # The time step for simulating fleet's response is at 1 minute.
     # It returns a 2-level dictionary; 1st level key is the month.
     # TODO: [minor] currently, the start and end times are hardcoded. Ideally, they would be based on promoted user inputs.
-    def request_loop(self, start_time=parser.parse("2017-01-01 00:00:00"),
+    def request_loop(self, fleet_is_load=False,
+                     start_time=parser.parse("2017-01-01 00:00:00"),
                      end_time=parser.parse("2017-01-01 05:00:00"),
                      clearing_price_filename="201701.csv",
-                     previous_event_end=pd.Timestamp('01/01/2017 00:00:00'),
-                     four_scenario_testing=False):
+                     previous_event_end=pd.Timestamp("01/01/2017 00:00:00"),
+                     four_scenario_testing=False,
+                     fleet_name="PVInverterFleet"):
 
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
         if not(four_scenario_testing):
+
             # Generate lists of 1-min request and response class objects.
-            request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
+            request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time, fleet_is_load)
 
             # Generate lists containing tuples of (timestamp, power) for request and response
             request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
-            # Include battery SoC in response list for plotting purposes
-            response_list_1m = [(r.ts, r.P_service, r.soc) for r in response_list_1m_tot]
+            if 'battery' in fleet_name.lower():
+                # Include battery SoC in response list for plotting purposes
+                response_list_1m = [(r.ts, r.P_service, r.soc) for r in response_list_1m_tot]
+            else:
+                response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
             # Convert the lists of tuples into dataframes
             request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
-            response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'SoC'])
+            if 'battery' in fleet_name.lower():
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'SoC'])
+            else:
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response'])
             # This merges/aligns the requests and responses dataframes based on their time stamp 
             # into a single dataframe
             df_1m = pd.merge(
@@ -79,10 +88,11 @@ class ReserveService():
             plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
             plt.ylabel('Power (kW)')
             plt.legend(loc='best')
-            plt.subplot(212)
-            plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
-            plt.ylabel('SoC (%)')
-            plt.xlabel('Time')
+            if 'battery' in fleet_name.lower():
+                plt.subplot(212)
+                plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Time')
             plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
@@ -90,7 +100,12 @@ class ReserveService():
                 'test_fourscenarios_request_response.xlsx',
                 infer_datetime_format=True)
             # Dummy values for plotting
-            df_1m['SoC'] = 1.
+            if 'battery' in fleet_name.lower():
+                df_1m['SoC'] = 1.
+            if fleet_is_load:
+                # If the fleet is a load (e.g., battery or EV), not a generator (e.g., PV), then the signals
+                # should be negative
+                df_1m.Request = -1. * df_1m.Request
 
         # Ensure that at least one event occurs within the specified time frame
         if df_1m.Request.sum() == 0:
@@ -204,10 +219,11 @@ class ReserveService():
             plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
             plt.ylabel('Power (kW)')
             plt.legend(loc='best')
-            plt.subplot(212)
-            plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
-            plt.ylabel('SoC (%)')
-            plt.xlabel('Time')
+            if 'battery' in fleet_name.lower():
+                plt.subplot(212)
+                plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Time')
             if not(four_scenario_testing):
                 plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
             plt.close()
@@ -215,14 +231,14 @@ class ReserveService():
             # Reset previous_end_end to be the end of this event before moving on to the next event
             previous_event_end = performance_results['Event_End_Time'] 
 
-        return results_df
+        return [results_df, df_1m]
 
     # Returns lists of requests and responses at 1m intervals.
-    def get_signal_lists(self, start_time, end_time):
+    def get_signal_lists(self, start_time, end_time, fleet_is_load):
         # TODO: (minor) replace the temporary test file name with final event signal file name.
         historial_signal_filename = "gmlc_events_2017_1min.xlsx"
         # Returns a DataFrame that contains historical signal data in the events data file.
-        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename)
+        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, fleet_is_load)
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
