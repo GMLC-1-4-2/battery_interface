@@ -9,12 +9,15 @@ import numpy as np
 import os
 import random
 
+from fleet_interface import FleetInterface
+
 # this is the actual water heater model
-from wh import WaterHeater
+from fleets.water_heater_fleet.wh import WaterHeater
+from fleet_response import FleetResponse
+#from WHFleet_Response import FleetResponse
 
-from WHFleet_Response import FleetResponse
 
-class WaterHeaterFleet():
+class WaterHeaterFleet(FleetInterface):
     def __init__(self, Steps = 100, Timestep = 60, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40):
         self.numWH = 10 #number of water heaters to be simulated to represent the entire fleet
         self.Fleet_size_represented = max(self.numWH, 1e5)#size of the fleet that is represented by self.numWH

@@ -4,7 +4,7 @@ Created on Tue Oct 24 08:38:56 2017
 super simple water heater model
 @author: Chuck Booten (NREL), Jeff Maguire (NREL), Xin Jin (NREL)
 """
-from WH_Response import WHResponse
+from fleets.water_heater_fleet.WH_Response import WHResponse
 import math
 from math import pi
 

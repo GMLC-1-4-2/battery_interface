@@ -18,6 +18,7 @@ from fleet_response import FleetResponse
 from frequency_droop import FrequencyDroop
 
 
+
 class BatteryInverterFleet(FleetInterface):
     """
     This class implements FleetInterface so that it can communicate with a fleet
@@ -758,6 +759,7 @@ class BatteryInverterFleet(FleetInterface):
             writer.writerows(impact_metrics_DATA)     
 
         pass
+
     def change_config(self, fleet_config):
         """
         This function updates the fleet configuration settings programatically.
@@ -774,6 +776,3 @@ class BatteryInverterFleet(FleetInterface):
         self.fw_function.k_OF = self.FW_Param[3]
         self.autonomous_threshold = fleet_config.autonomous_threshold
         self.Vset = fleet_config.v_thresholds
-
-        pass
-

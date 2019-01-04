@@ -9,7 +9,7 @@ def create_fleet(name, **kwargs):
         from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
         battery_inverter_fleet = BatteryInverterFleet(GridInfo=grid, model_type='ERM')
         battery_inverter_fleet.is_autonomous = False
-        if kwargs['autonomous']:
+        if 'autonomous' in kwargs and kwargs['autonomous']:
             battery_inverter_fleet.is_autonomous = True
         battery_inverter_fleet.VV11_Enabled = False
         battery_inverter_fleet.FW21_Enabled = False
