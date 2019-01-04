@@ -9,6 +9,7 @@ from datetime import datetime
 from services.reg_service.reg_service import RegService
 
 from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
+from fleets.electric_vehicles_fleet.electric_vehicles_fleet import ElectricVehiclesFleet
 from grid_info import GridInfo
 from datetime import datetime
 
@@ -24,31 +25,47 @@ if __name__ == '__main__':
     battery_inverter_fleet.VV11_Enabled = False
     battery_inverter_fleet.FW21_Enabled = False
 
+
+    # Test with EV.
+    # Time stamp to start the simulation
+    dt = 2  # time step (in seconds) Is this used anywhere in the EV model?
+    ts = datetime(2017, 1, 1, 0, 0, 00, 000000)
+
+    fleet_test = ElectricVehiclesFleet(grid, ts)
+    fleet_test.is_autonomous = False
+    fleet_test.is_P_priority = True
+    fleet_test.dt = dt
+
+    # Test with PV.
+    from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
+    fleet = PVInverterFleet(GridInfo=grid)
+
+
     service = RegService()
-    service.fleet = battery_inverter_fleet
+    service.fleet = fleet
 
 
     # For a short test run, can use code below instead of running for the full year,
     # which takes ~1.5 hours per month to run.
-    # monthtimes = dict({
-    #                 'January': ["2017-01-01 00:00:00", "2017-01-01 03:59:58"],
-    #                 })
+    monthtimes = dict({
+                    'January': ["2017-01-01 00:00:00", "2017-01-01 03:59:58"],
+                    })
 
     # Generate monthly start and end times to loop through
-    monthtimes = dict({
-                    'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
-                    'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:58"],
-                    'March': ["2017-03-01 00:00:00", "2017-03-30 23:59:58"],
-                    'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:58"],
-                    'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:58"],
-                    'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:58"],
-                    'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:58"],
-                    'August': ["2017-08-01 00:00:00", "2017-08-31 23:59:58"],
-                    'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:58"],
-                    'October': ["2017-10-01 00:00:00", "2017-10-31 23:59:58"],
-                    'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:58"],
-                    'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
-                    })
+    # monthtimes = dict({
+    #                 'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
+    #                 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:58"],
+    #                 'March': ["2017-03-01 00:00:00", "2017-03-30 23:59:58"],
+    #                 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:58"],
+    #                 'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:58"],
+    #                 'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:58"],
+    #                 'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:58"],
+    #                 'August': ["2017-08-01 00:00:00", "2017-08-31 23:59:58"],
+    #                 'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:58"],
+    #                 'October': ["2017-10-01 00:00:00", "2017-10-31 23:59:58"],
+    #                 'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:58"],
+    #                 'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:58"]
+    #                 })
 
     # To run for either "Traditional" or "Dynamic" regulation, specify "service_type" in the for-loop below accordingly.
     startTime = datetime.now()
