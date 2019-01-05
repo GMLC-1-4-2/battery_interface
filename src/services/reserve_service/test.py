@@ -38,7 +38,7 @@ if __name__ == '__main__':
 
     # Test
     service = ReserveService()
-    service.fleet = fleet
+    service.fleet = battery_inverter_fleet
 
     # For a short test run, can use code below instead of running for the full year,
     # which takes ~12 minutes to run.
