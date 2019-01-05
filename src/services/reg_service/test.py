@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
 
     service = RegService()
-    service.fleet = fleet
+    service.fleet = battery_inverter_fleet
 
     # For a short test run, can use code below instead of running for the full year,
     # which takes ~1.5 hours per month to run.
