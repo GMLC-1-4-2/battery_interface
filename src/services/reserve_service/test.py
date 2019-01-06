@@ -3,6 +3,7 @@ from dateutil import parser
 from os.path import dirname, abspath
 from datetime import datetime
 import pandas as pd
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
