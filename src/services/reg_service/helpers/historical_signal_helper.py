@@ -65,8 +65,7 @@ class HistoricalSignalHelper(object):
         stacked_signals.rename(columns = { stacked_signals.columns[0]: 'date',
                                             stacked_signals.columns[1]: 'time' }, inplace = True)
         # Create datetime from 'date' and 'time' and assign it in 'timestamp' column:
-        stacked_signals['timestamp'] = stacked_signals.apply(
-                            lambda row: pd.datetime.combine(row['date'], row['time']), 1)
+        stacked_signals['timestamp'] = pd.to_datetime(stacked_signals.date + ' ' + stacked_signals.time)
         stacked_signals.set_index('timestamp', inplace = True)
         stacked_signals.drop(['date', 'time'], axis = 1, inplace = True)
         # Use squeeze() to convert DataFrame to Series in order to get expected dictionary format:
