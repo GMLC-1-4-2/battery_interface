@@ -107,18 +107,6 @@ class ReserveService():
                 # should be negative
                 df_1m.Request = -1. * df_1m.Request
 
-        # Ensure that at least one event occurs within the specified time frame
-        if df_1m.Request.sum() == 0:
-            return(print('There are no events in the time frame you specified.'))
-
-        # We can then do the following to break out the indices corresponding to events:
-        # 1) np.where will return the dataframe indices where the request value is greater than 0
-        # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
-        #    to a single event.  Here, we split the array from (1) based on where the difference between
-        #    indices is greater than 1 (we assume that continuous indices correspond to the same event).
-        event_indices = np.where(df_1m.Request > 0.)[0]
-        event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
-
         # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
             'Response_to_Request_Ratio', 'Response_MeetReqOrMax_Index_number',
@@ -132,106 +120,119 @@ class ReserveService():
             'Period_from_Last_Event_Hours',
             'Period_from_Last_Event_Days'])
 
-        # Then, we can take everything event-by-event.  "event_indices" contains the list of 
-        # df_1m indices corresponding to a single event.
-        for event_indices in event_indices_split:
+        # Ensure that at least one event occurs within the specified time frame
+        if df_1m.Request.sum() == 0:
+            print('There are no events in the time frame you specified.')
+            return [results_df, df_1m]
+        else:
+            # We can then do the following to break out the indices corresponding to events:
+            # 1) np.where will return the dataframe indices where the request value is greater than 0
+            # 2) np.split will split the array of indices from (1) into multiple arrays, each corresponding
+            #    to a single event.  Here, we split the array from (1) based on where the difference between
+            #    indices is greater than 1 (we assume that continuous indices correspond to the same event).
+            event_indices = np.where(df_1m.Request > 0.)[0]
+            event_indices_split = np.split(event_indices, np.where(np.insert(np.diff(event_indices), 0, 1) > 1)[0])
 
-            time_stamps_per_minute = 1 # each time stamp corresponds to a minute
+            # Then, we can take everything event-by-event.  "event_indices" contains the list of 
+            # df_1m indices corresponding to a single event.
+            for event_indices in event_indices_split:
 
-            # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
-            # an extra minute at the end of the event
-            shorter_than_11_min = ((df_1m.Date_Time[event_indices[len(event_indices) - 1]] - df_1m.Date_Time[event_indices[0]]).total_seconds() / 60.) < 11.
+                time_stamps_per_minute = 1 # each time stamp corresponds to a minute
 
-            # Create list of indices to add to start of event_indices representing the minute prior to the event starting
-            # The np.arange call here creates a descending list of numbers, starting from the first index in event_indices
-            # These numbers correspond to the extra indices we need to include for the -1 minute
-            event_indices_prior_minute = [event_indices[0] - x for x in np.arange(time_stamps_per_minute, 0, -1)] 
-            # Add the indices for the event prior to the event starting to the start of the event_indices list
-            # np.insert will insert numbers into an array at the point you specify:
-            # here, we want the number(s) to go at the start, signified by [0]*len(event_indices_prior_minute)
-            event_indices_ready = np.insert(
-                event_indices,
-                [0] * len(event_indices_prior_minute),
-                event_indices_prior_minute)
-            # If the event is shorter than 11 minutes, we want to account for an extra minute at the end
-            if shorter_than_11_min:
-                # Now generate a list of indices to add to the end of event_indices_ready representing an extra minute
-                event_indices_after_minute = [event_indices[len(event_indices) - 1] + x for x in np.arange(1, time_stamps_per_minute + 1)]
-                # Append that extra minute's worth of indices to the end of event_indices_ready
-                event_indices_ready = np.append(event_indices_ready, event_indices_after_minute)
+                # Check if event is at least 11 minutes; if shorter, we'll need to add indices for
+                # an extra minute at the end of the event
+                shorter_than_11_min = ((df_1m.Date_Time[event_indices[len(event_indices) - 1]] - df_1m.Date_Time[event_indices[0]]).total_seconds() / 60.) < 11.
 
-            # Filter the original dataframe down to just this event, including the minute prior to the event starting
-            # and the minute after the event ends (if the event is shorter than 11 minutes)
-            event = df_1m.loc[event_indices_ready, :]
-            
-            # Reset the event indices according to:
-            # The negative first minute starts at index -1.0
-            # The event's first minute starts at index 0.0
-            event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute, 1 / time_stamps_per_minute)
+                # Create list of indices to add to start of event_indices representing the minute prior to the event starting
+                # The np.arange call here creates a descending list of numbers, starting from the first index in event_indices
+                # These numbers correspond to the extra indices we need to include for the -1 minute
+                event_indices_prior_minute = [event_indices[0] - x for x in np.arange(time_stamps_per_minute, 0, -1)] 
+                # Add the indices for the event prior to the event starting to the start of the event_indices list
+                # np.insert will insert numbers into an array at the point you specify:
+                # here, we want the number(s) to go at the start, signified by [0]*len(event_indices_prior_minute)
+                event_indices_ready = np.insert(
+                    event_indices,
+                    [0] * len(event_indices_prior_minute),
+                    event_indices_prior_minute)
+                # If the event is shorter than 11 minutes, we want to account for an extra minute at the end
+                if shorter_than_11_min:
+                    # Now generate a list of indices to add to the end of event_indices_ready representing an extra minute
+                    event_indices_after_minute = [event_indices[len(event_indices) - 1] + x for x in np.arange(1, time_stamps_per_minute + 1)]
+                    # Append that extra minute's worth of indices to the end of event_indices_ready
+                    event_indices_ready = np.append(event_indices_ready, event_indices_after_minute)
 
-            # Call the perf_metrics() method to obtain key event metrics
-            performance_results = self.perf_metrics(event, shorter_than_11_min)
-            # Call the event_value() method to calculate the event's value
-            value_results = self.event_value(
-                performance_results['Event_Start_Time'],
-                performance_results['Event_End_Time'],
-                previous_event_end,
-                performance_results['Event_Duration_mins'],
-                performance_results['Requested_MW'],
-                performance_results['Shortfall_MW'])
+                # Filter the original dataframe down to just this event, including the minute prior to the event starting
+                # and the minute after the event ends (if the event is shorter than 11 minutes)
+                event = df_1m.loc[event_indices_ready, :]
+                
+                # Reset the event indices according to:
+                # The negative first minute starts at index -1.0
+                # The event's first minute starts at index 0.0
+                event.index = np.arange(-time_stamps_per_minute, event.shape[0] - time_stamps_per_minute, 1 / time_stamps_per_minute)
 
-            # Create temporary dataframe to contain the results
-            event_results_df = pd.DataFrame({
-                'Event_Start_Time': performance_results['Event_Start_Time'],
-                'Event_End_Time': performance_results['Event_End_Time'],
-                'Response_to_Request_Ratio': performance_results['Response_to_Request_Ratio'],
-                'Response_MeetReqOrMax_Index_number': performance_results['Response_MeetReqOrMax_Index_number'],
-                'Event_Duration_mins': performance_results['Event_Duration_mins'],
-                'Response_After10minToEnd_To_First10min_Ratio': performance_results['Response_After10minToEnd_To_First10min_Ratio'],
-                'Requested_MW': performance_results['Requested_MW'],
-                'Responded_MW_at_10minOrEnd': performance_results['Responded_MW_at_10minOrEnd'],
-                'Shortfall_MW': performance_results['Shortfall_MW'],
-                'Response_0min_Min_MW': performance_results['Response_0min_Min_MW'],
-                'Response_10minOrEnd_Max_MW': performance_results['Response_10minOrEnd_Max_MW'],
-                'Response_After10minToEnd_MW': performance_results['Response_After10minToEnd_MW'],
-                'SRMCP_DollarsperMWh_DuringEvent': value_results['SRMCP_DollarsperMWh_DuringEvent'],
-                'SRMCP_DollarsperMWh_SinceLastEvent': value_results['SRMCP_DollarsperMWh_SinceLastEvent'],
-                'Service_Value_NotInclShortfall_dollars': value_results['Service_Value_NotInclShortfall_dollars'],
-                'Service_Value_InclShortfall_dollars': value_results['Service_Value_InclShortfall_dollars'],
-                'Period_from_Last_Event_Hours': value_results['Period_from_Last_Event_Hours'],
-                'Period_from_Last_Event_Days': value_results['Period_from_Last_Event_Days']},
-                index=[performance_results['Event_Start_Time']])
+                # Call the perf_metrics() method to obtain key event metrics
+                performance_results = self.perf_metrics(event, shorter_than_11_min)
+                # Call the event_value() method to calculate the event's value
+                value_results = self.event_value(
+                    performance_results['Event_Start_Time'],
+                    performance_results['Event_End_Time'],
+                    previous_event_end,
+                    performance_results['Event_Duration_mins'],
+                    performance_results['Requested_MW'],
+                    performance_results['Shortfall_MW'])
 
-            # Append the temporary dataframe into the results_df
-            results_df = pd.concat([results_df, event_results_df])
-            # Plot event-specific results and save plot to file
-            # We want the plot to start from the end of the previous event
-            # and go until 10 minutes past the end of the current event
-            plot_start = previous_event_end
-            plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
-            plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
-            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
-            plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M-%S') + '.png'
-            plt.figure(1)
-            plt.figure(figsize=(15,8))
-            plt.subplot(211)
-            plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
-            plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
-            plt.ylabel('Power (kW)')
-            plt.legend(loc='best')
-            if 'battery' in fleet_name.lower():
-                plt.subplot(212)
-                plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
-                plt.ylabel('SoC (%)')
-                plt.xlabel('Time')
-            if not(four_scenario_testing):
-                plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
-            plt.close()
+                # Create temporary dataframe to contain the results
+                event_results_df = pd.DataFrame({
+                    'Event_Start_Time': performance_results['Event_Start_Time'],
+                    'Event_End_Time': performance_results['Event_End_Time'],
+                    'Response_to_Request_Ratio': performance_results['Response_to_Request_Ratio'],
+                    'Response_MeetReqOrMax_Index_number': performance_results['Response_MeetReqOrMax_Index_number'],
+                    'Event_Duration_mins': performance_results['Event_Duration_mins'],
+                    'Response_After10minToEnd_To_First10min_Ratio': performance_results['Response_After10minToEnd_To_First10min_Ratio'],
+                    'Requested_MW': performance_results['Requested_MW'],
+                    'Responded_MW_at_10minOrEnd': performance_results['Responded_MW_at_10minOrEnd'],
+                    'Shortfall_MW': performance_results['Shortfall_MW'],
+                    'Response_0min_Min_MW': performance_results['Response_0min_Min_MW'],
+                    'Response_10minOrEnd_Max_MW': performance_results['Response_10minOrEnd_Max_MW'],
+                    'Response_After10minToEnd_MW': performance_results['Response_After10minToEnd_MW'],
+                    'SRMCP_DollarsperMWh_DuringEvent': value_results['SRMCP_DollarsperMWh_DuringEvent'],
+                    'SRMCP_DollarsperMWh_SinceLastEvent': value_results['SRMCP_DollarsperMWh_SinceLastEvent'],
+                    'Service_Value_NotInclShortfall_dollars': value_results['Service_Value_NotInclShortfall_dollars'],
+                    'Service_Value_InclShortfall_dollars': value_results['Service_Value_InclShortfall_dollars'],
+                    'Period_from_Last_Event_Hours': value_results['Period_from_Last_Event_Hours'],
+                    'Period_from_Last_Event_Days': value_results['Period_from_Last_Event_Days']},
+                    index=[performance_results['Event_Start_Time']])
 
-            # Reset previous_end_end to be the end of this event before moving on to the next event
-            previous_event_end = performance_results['Event_End_Time'] 
+                # Append the temporary dataframe into the results_df
+                results_df = pd.concat([results_df, event_results_df])
+                # Plot event-specific results and save plot to file
+                # We want the plot to start from the end of the previous event
+                # and go until 10 minutes past the end of the current event
+                plot_start = previous_event_end
+                plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
+                plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
+                plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+                plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M-%S') + '.png'
+                plt.figure(1)
+                plt.figure(figsize=(15,8))
+                plt.subplot(211)
+                plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
+                plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
+                plt.ylabel('Power (kW)')
+                plt.legend(loc='best')
+                if 'battery' in fleet_name.lower():
+                    plt.subplot(212)
+                    plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
+                    plt.ylabel('SoC (%)')
+                    plt.xlabel('Time')
+                if not(four_scenario_testing):
+                    plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+                plt.close()
 
-        return [results_df, df_1m]
+                # Reset previous_end_end to be the end of this event before moving on to the next event
+                previous_event_end = performance_results['Event_End_Time'] 
+
+            return [results_df, df_1m]
 
     # Returns lists of requests and responses at 1m intervals.
     def get_signal_lists(self, start_time, end_time, fleet_is_load):

@@ -102,8 +102,10 @@ if __name__ == '__main__':
             previous_event_end = fleet_response.Event_End_Time[-1]
         except:
             pass
+        
         all_results = pd.concat([all_results, fleet_response[0]])
         annual_signals = pd.concat([annual_signals, fleet_response[1]])
+        
     print('Writing result .csv')
     file_dir = dirname(abspath(__file__)) + '\\results\\'
     all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_results_reserve_' + fleet_name + '.csv')
