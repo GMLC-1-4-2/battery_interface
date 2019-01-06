@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     # Get name of fleet for inclusion in results file names
     # and specify it as a load or not
-    fleet_name = fleet.__class__.__name__
+    fleet_name = battery_inverter_fleet.__class__.__name__
 
     startTime = datetime.now()
     all_results = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
