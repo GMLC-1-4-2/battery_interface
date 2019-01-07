@@ -67,7 +67,7 @@ if __name__ == '__main__':
     #                 })
 
     # Get name of fleet for inclusion in results file names
-    fleet_name = fleet.__class__.__name__
+    fleet_name = service.fleet.__class__.__name__
 
     # To run for either "Traditional" or "Dynamic" regulation, specify "service_type" in the for-loop below accordingly.
     startTime = datetime.now()
