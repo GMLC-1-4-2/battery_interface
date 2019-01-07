@@ -47,7 +47,7 @@ if __name__ == '__main__':
     # For a short test run, can use code below instead of running for the full year,
     # which takes ~1.5 hours per month to run.
     monthtimes = dict({
-                    'January': ["2017-01-01 00:00:00", "2017-01-01 03:59:58"],
+                    'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:58"],
                     })
 
     # Generate monthly start and end times to loop through

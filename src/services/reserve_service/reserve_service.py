@@ -86,7 +86,7 @@ class ReserveService():
             plt.subplot(211)
             plt.plot(df_1m.Date_Time, df_1m.Request, label='P Request')
             plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
-            plt.ylabel('Power (kW)')
+            plt.ylabel('Power (MW)')
             plt.legend(loc='best')
             if 'battery' in fleet_name.lower():
                 plt.subplot(212)
@@ -212,13 +212,13 @@ class ReserveService():
                 plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
                 plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
                 plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
-                plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M-%S') + '_' + fleet_name + '.png'
+                plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M') + '_' + fleet_name + '.png'
                 plt.figure(1)
                 plt.figure(figsize=(15,8))
                 plt.subplot(211)
                 plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
                 plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
-                plt.ylabel('Power (kW)')
+                plt.ylabel('Power (MW)')
                 plt.legend(loc='best')
                 if 'battery' in fleet_name.lower():
                     plt.subplot(212)

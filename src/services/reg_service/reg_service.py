@@ -164,7 +164,7 @@ class RegService():
         plt.plot(ts_request, P_request, label='P request')
         plt.plot(ts_request, P_response, label='P response')
         plt.legend(loc='best')
-        plt.ylabel('Power (kW)')
+        plt.ylabel('Power (MW)')
         if 'battery' in fleet_name.lower():
             plt.subplot(212)
             plt.plot(ts_request, SOC)

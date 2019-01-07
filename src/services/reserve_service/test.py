@@ -104,8 +104,8 @@ if __name__ == '__main__':
         except:
             pass
         
-        all_results = pd.concat([all_results, fleet_response[0]])
-        annual_signals = pd.concat([annual_signals, fleet_response[1]])
+        all_results = pd.concat([all_results, fleet_response[0]],sort=True)
+        annual_signals = pd.concat([annual_signals, fleet_response[1]],sort=True)
         
     print('Writing result .csv')
     file_dir = dirname(abspath(__file__)) + '\\results\\'
