@@ -100,16 +100,19 @@ if __name__ == '__main__':
                                               four_scenario_testing=False,
                                               fleet_name=fleet_name)
         try:
-            previous_event_end = fleet_response.Event_End_Time[-1]
+            previous_event_end = fleet_response[0].Event_End_Time[-1]
         except:
+            # If the dataframe in fleet_response[0] has no entries, then attempting
+            # to index the Event_End_Time column will throw an error.  This allows
+            # for skipping past that error.
             pass
         
         all_results = pd.concat([all_results, fleet_response[0]],sort=True)
         annual_signals = pd.concat([annual_signals, fleet_response[1]],sort=True)
         
-    print('Writing result .csv')
+    print('Writing event results .csv')
     file_dir = dirname(abspath(__file__)) + '\\results\\'
-    all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_results_reserve_' + fleet_name + '.csv')
+    all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + fleet_name + '.csv')
     print('Plotting annual signals and SOC (if necessary)')
     plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
     plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + fleet_name + '.png'
@@ -118,7 +121,7 @@ if __name__ == '__main__':
     plt.subplot(211)
     plt.plot(annual_signals.Date_Time, annual_signals.Request, label='P Request')
     plt.plot(annual_signals.Date_Time, annual_signals.Response, label='P Response')
-    plt.ylabel('Power (kW)')
+    plt.ylabel('Power (MW)')
     plt.legend(loc='best')
     if 'battery' in fleet_name.lower():
         plt.subplot(212)
@@ -127,5 +130,7 @@ if __name__ == '__main__':
         plt.xlabel('Time')
     plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
     plt.close()
+    print('Saving .csv of annual signals and SOC (if necessary)')
+    annual_signals.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + fleet_name + '.csv'))
     print('Duration:')
     print(datetime.now() - startTime)
