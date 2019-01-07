@@ -131,6 +131,6 @@ if __name__ == '__main__':
     plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
     plt.close()
     print('Saving .csv of annual signals and SOC (if necessary)')
-    annual_signals.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + fleet_name + '.csv'))
+    annual_signals.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + fleet_name + '.csv')
     print('Duration:')
     print(datetime.now() - startTime)
