@@ -16,8 +16,16 @@ from fleet_config import FleetConfig
 
 
 class ArtificialInertiaService():
-    def __init__(self, fleet_device):
+    def __init__(self, fleet_device=None):
         self.fleet_device = fleet_device
+
+    @property
+    def fleet(self):
+        return self.fleet_device
+
+    @fleet.setter
+    def fleet(self, value):
+        self.fleet_device = value
 
     def request_loop(self):
         responses = []
@@ -28,7 +36,7 @@ class ArtificialInertiaService():
         end_time = cur_time + timedelta(seconds=149)
         while cur_time < end_time:
             fleet_request = FleetRequest(cur_time, delt)
-            fleet_response = fleet_device.process_request(fleet_request)
+            fleet_response = self.fleet_device.process_request(fleet_request)
             responses.append(fleet_response)
             cur_time += delt
             # print("{}".format(cur_time))

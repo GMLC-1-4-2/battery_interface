@@ -5,7 +5,8 @@ def create_service(name, **kwargs):
         return RegService()
 
     elif name == 'ArtificialInertia':
-        return None
+        from services.artificial_inertia_service.artificial_inertia_service import ArtificialInertiaService
+        return ArtificialInertiaService()
 
     raise "There is no service with name: " + name
 
