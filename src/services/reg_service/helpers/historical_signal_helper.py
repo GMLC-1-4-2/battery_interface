@@ -6,7 +6,7 @@ from pdb import set_trace as bp
 
 class HistoricalSignalHelper(object):
 
-    def read_and_store_historical_signals(self, input_data_file_path, fleet_is_load):
+    def read_and_store_historical_signals(self, input_data_file_path):
         """
         This method reads a given Excel file.
         Thus, this method is meant to be called only once reading Excel file takes
@@ -23,10 +23,7 @@ class HistoricalSignalHelper(object):
         excel_data = excel_data.drop(excel_data.index[len(excel_data.index) - 1])
         # If the fleet is a load (e.g., battery or EV), not a generator (e.g., PV), then the signals
         # should be negative
-        if fleet_is_load:
-            self._signals = excel_data * -1.
-        else:
-            self._signals = excel_data
+        self._signals = excel_data
 
     def signals_in_range(self, start_time, end_time):
         self._validate_date_range(start_time, end_time)
