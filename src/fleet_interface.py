@@ -26,7 +26,7 @@ class FleetInterface:
         """
         fleet_response = FleetResponse()
         fleet_response.ts = fleet_request.ts_req
-        fleet_response.P_service = 0.8*fleet_request.P_req
+        fleet_response.P_service = fleet_request.P_req
 
         return fleet_response
 

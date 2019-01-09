@@ -205,7 +205,10 @@ class BatteryInverterFleet(FleetInterface):
         else: 
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
-        
+
+        # frequency regulation variables
+        self.freq_reg_weight = float(self.config.get('freq_reg_config', 'Freq_Reg_Weight', fallback=1.0))
+
         # fleet configuration variables
         self.is_P_priority = bool(self.config.get('Fleet configuration', 'is_P_priority', fallback=True))
         self.is_autonomous = bool(self.config.get('Fleet configuration', 'is_autonomous', fallback=False))
@@ -776,3 +779,7 @@ class BatteryInverterFleet(FleetInterface):
         self.fw_function.k_OF = self.FW_Param[3]
         self.autonomous_threshold = fleet_config.autonomous_threshold
         self.Vset = fleet_config.v_thresholds
+
+    def assigned_regulation_MW(self):
+        return self.freq_reg_weight
+

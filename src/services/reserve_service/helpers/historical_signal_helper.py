@@ -2,10 +2,12 @@ import pandas as pd
 import datetime
 from services.exceptions.datetime_validation_exception import DatetimeValidationException
 
+from pdb import set_trace as bp
+
 class HistoricalSignalHelper(object):
 
     # TODO: (minor) if later sheet_name is not used, remove it.
-    def read_and_store_historical_signals(self, input_data_file_path, sheet_name):
+    def read_and_store_historical_signals(self, input_data_file_path, fleet_is_load, sheet_name='Sheet1'):
         """
         This method reads a given Excel file.
         Thus, this method is meant to be called only once reading Excel file takes
@@ -21,8 +23,14 @@ class HistoricalSignalHelper(object):
         # #       same as the last row value of the given column.
         # #       Thus, when stacking all the columns, the last row values must be removed.
         # excel_data = excel_data.drop(excel_data.index[len(excel_data.index) - 1])
-
-        self._signals = excel_data
+        excel_data.columns = pd.to_datetime(excel_data.columns)
+        excel_data.index = pd.to_datetime(excel_data.index).time
+        # If the fleet is a load (e.g., battery or EV), not a generator (e.g., PV), then the signals
+        # should be negative
+        if fleet_is_load:
+            self._signals = excel_data * -1.
+        else:
+            self._signals = excel_data
 
     def signals_in_range(self, start_time, end_time):
         self._validate_date_range(start_time, end_time)
@@ -32,6 +40,7 @@ class HistoricalSignalHelper(object):
         else:
             return self._signals_in_range_encompassing_multiple_days(start_time, end_time)
 
+    # TODO: (minor) remove the block below if not used later.
     # def get_input_filename(self, start_time):
     #     timestamp = pd.Timestamp(start_time)
     #     return timestamp.strftime("%m %Y.xlsx")
