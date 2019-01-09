@@ -64,3 +64,15 @@ def month_abbr_to_num(abbr):
         'Dec': 12
     }
     return abbr_dict[abbr]
+
+
+def ensure_fdir(file_path):
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+
+def ensure_ddir(dir_path):
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
