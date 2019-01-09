@@ -10,8 +10,6 @@ class FleetRequest:
     """
     This class describes input fields required by fleets 
     """
-# why is the above comment exactly the same as that one in fleet_config.py ??
-	
     def __init__(self, ts=datetime.utcnow(), sim_step=timedelta(hours=1), p=None, q=None):
         """
         Constructor
