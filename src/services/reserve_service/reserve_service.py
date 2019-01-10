@@ -15,13 +15,12 @@ import matplotlib.pyplot as plt
 # Import modules from "src\services"
 from fleet_request import FleetRequest
 from fleet_config import FleetConfig
+from utils import ensure_ddir
 
 from pdb import set_trace as bp
 
-
 from services.reserve_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reserve_service.helpers.clearing_price_helper import ClearingPriceHelper
-
 
 
 # Class for synchronized reserve service.
@@ -80,6 +79,7 @@ class ReserveService():
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
             plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
             plt.figure(figsize=(15,8))
