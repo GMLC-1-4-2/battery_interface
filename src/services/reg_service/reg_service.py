@@ -49,11 +49,13 @@ class RegService():
         if service_type not in ['Traditional', 'Dynamic']:
             raise ValueError("service_type has to be either 'Traditional' or 'Dynamic'!")
         # Generate lists of 2s request and response class objects based on regulation service type (i.e. traditional vs. dynamic).
-        print('     Generating traditional signal lists')
+        print('     Generating traditional signal lists...')
         request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time, fleet_is_load)
+        print('     Traditional signal lists generated.')
         if service_type == 'Dynamic':
-            print('     Generating dynamic signal lists')
+            print('     Generating dynamic signal lists...')
             request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time, fleet_is_load)
+            print('     Dynamic signal lists generated.')
             # Assign generic names to signal lists.
             request_list_2s_tot = request_list_2s_dynm
             response_list_2s_tot = response_list_2s_dynm
@@ -206,6 +208,7 @@ class RegService():
     # Method for retrieving device fleet's response to each individual request.
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
+        print("Processing request at timestep %s" % ts)
         fleet_response = self.fleet.process_request(fleet_request)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response

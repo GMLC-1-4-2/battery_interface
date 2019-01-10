@@ -14,15 +14,19 @@ from service_factory import create_service
 
 
 def integration_test(service_name, fleet_name, **kwargs):
-    # Create test fleet
-    fleet = create_fleet(fleet_name, **kwargs)
-    if fleet is None:
-        raise 'Could not create fleet with name ' + fleet_name
-
     # Create test service
     service = create_service(service_name)
     if service is None:
         raise 'Could not create service with name ' + service_name
+
+    grid_type = 1
+    if service_name == 'ArtificialInertia':
+        grid_type = 2
+
+    # Create test fleet
+    fleet = create_fleet(fleet_name, grid_type, **kwargs)
+    if fleet is None:
+        raise 'Could not create fleet with name ' + fleet_name
 
     # Assign test fleet to test service to use
     service.fleet = fleet
@@ -55,8 +59,8 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Dev test
-    services = ['ArtificialInertia']
-    fleets = ['BatteryInverter']
+    services = ['Regulation']
+    fleets = ['WaterHeater']
     kwargs = {}
 
     for service in services:
