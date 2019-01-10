@@ -18,7 +18,7 @@ from fleet_response import FleetResponse
 
 
 class WaterHeaterFleet(FleetInterface):
-    def __init__(self, Steps = 100, Timestep = 60, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40):
+    def __init__(self):
         self.numWH = 10 #number of water heaters to be simulated to represent the entire fleet
         self.Fleet_size_represented = max(self.numWH, 1e5)#size of the fleet that is represented by self.numWH
 #        addshedTimestep NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
@@ -38,15 +38,19 @@ class WaterHeaterFleet(FleetInterface):
         self.LocationMasterList =['living','living','living','living','unfinished basement'] #80% living, 20% unfinished basement for now
         self.MaxServiceCallMasterList = [100,80,80, 200, 150, 110, 50, 75, 100] # this is the max number of annual service calls for load add/shed.
         
-    def process_request(self, ServiceRequest):
-        
-        response = self.ExecuteFleet(ServiceRequest)
-        
+    def process_request(self, request):
+        response = self.ExecuteFleet(request, forecast=0)
         return response
+
+    def forecast(self, fleet_requests):
+        responses = []
+        for request in fleet_requests:
+            response = self.ExecuteFleet(request, forecast=1)
+            responses.append(response)
+
+        return responses
         
-    def ExecuteFleet(self, ServiceRequest): #Steps, Timestep, P_request, Q_request, forecast, StartHr
-        
-    
+    def ExecuteFleet(self, ServiceRequest, forecast=0):
        ############################################################################# 
     #    generate distribution of initial WH fleet states. this means Ttank, Tset, capacity, location (cond/uncond), type (elec resis or HPWH).
     #    autogenerate water draw profile for the yr for each WH in fleet, this will be imported later, just get something reasonable here
@@ -82,7 +86,7 @@ class WaterHeaterFleet(FleetInterface):
                 numbeds = random.randint(1, 5) 
                 shift = random.randint(0, 364)
                 unit = random.randint(0, 9)
-                (tamb, rhamb, tmains, hotdraw, mixeddraw) = get_annual_conditions(climate_location,  Location[a], shift, numbeds, unit, ServiceRequest.Timestep, ServiceRequest.Steps, ServiceRequest.StartTime)
+                (tamb, rhamb, tmains, hotdraw, mixeddraw) = get_annual_conditions(climate_location,  Location[a], shift, numbeds, unit, ServiceRequest.sim_step, ServiceRequest.steps, ServiceRequest.ts_req)
     #            print('tamb',tamb)
         
                 Tamb.append(tamb)#have a Tamb for each step for each water heater being simulated 
@@ -100,23 +104,24 @@ class WaterHeaterFleet(FleetInterface):
                 hot_draw.append(hot_draw[a % self.MaxNumAnnualConditions][:])
                 mixed_draw.append(mixed_draw[a % self.MaxNumAnnualConditions][:])
                 draw.append(hot_draw[a-self.MaxNumAnnualConditions][:] + 0.3 * mixed_draw[a-self.MaxNumAnnualConditions][:])
-#        print('len Tamb',len(Tamb[0]), len(Tamb))
-#        print('len hotdraw',len(hot_draw[0]), len(hot_draw))
-    #    print('Tamb',Tamb)
+        # print('len Tamb',len(Tamb[0]), len(Tamb))
+        # print('len hotdraw',len(hot_draw[0]), len(hot_draw))
+        # print('Tamb',Tamb)
+
         draw_fleet = sum(draw)# this sums all rows, where each row is a WH, so gives the fleet sum of hot draw at each step
         draw_fleet_ave = draw_fleet/self.numWH  # this averages all rows, where each row is a WH, so gives the fleet average of hot draw at each step
-#        print(len(draw_fleet_ave[0]),len(draw_fleet_ave))
-       
-    #    plt.figure(19)
-    #    plt.clf()
-    ##    plt.plot(hot_draw_fleet[0:200], 'k<-', label = 'hot')
-    #    plt.plot(draw_fleet_ave[0:200], 'ro-',label = 'ave draw')
-    #    plt.ylabel('Hot draw fleet [gal/step]')
-    #    plt.legend()
-    #    plt.xlabel('step')
+        # print(len(draw_fleet_ave[0]),len(draw_fleet_ave))
+        #
+        # plt.figure(19)
+        # plt.clf()
+        # plt.plot(hot_draw_fleet[0:200], 'k<-', label = 'hot')
+        # plt.plot(draw_fleet_ave[0:200], 'ro-',label = 'ave draw')
+        # plt.ylabel('Hot draw fleet [gal/step]')
+        # plt.legend()
+        # plt.xlabel('step')
     
         ###########################################################################  
-        TotalServiceProvidedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
+        TotalServiceProvidedPerTimeStep = [0 for y in range(ServiceRequest.steps)]
         TotalServiceCallsAcceptedPerWH = [0 for y in range(self.numWH)]
         
         SoCInit = [0 for y in range(self.numWH)]
@@ -129,7 +134,7 @@ class WaterHeaterFleet(FleetInterface):
         
     
     #    Initializing the water heater models
-        whs = [WaterHeater(Tamb[0], RHamb[0], Tmains[0], 0, ServiceRequest.P_request, Capacity[number], Type[number], Location[number], 0, MaxServiceCalls[number]) for number in range(self.numWH)]
+        whs = [WaterHeater(Tamb[0], RHamb[0], Tmains[0], 0, ServiceRequest.P_req, Capacity[number], Type[number], Location[number], 0, MaxServiceCalls[number]) for number in range(self.numWH)]
         FleetResponse.P_service = 0
         FleetResponse.P_service_max = 0
         FleetResponse.P_togrid = 0
@@ -138,8 +143,9 @@ class WaterHeaterFleet(FleetInterface):
         FleetResponse.P_forecast = 0
         FleetResponse.E = 0
         FleetResponse.C = 0
-#        print(type(ServiceRequest.P_request))
-        P_request_perWH = ServiceRequest.P_request[0] / self.numWH # this is only for the first step
+#        print(type(ServiceRequest.P_req))
+        #P_request_perWH = ServiceRequest.P_req[0] / self.numWH # this is only for the first step
+        P_request_perWH = ServiceRequest.P_req / self.numWH  # this is only for the first step
         
         FleetResponse.Q_togrid = 0
         FleetResponse.Q_service = 0
@@ -148,22 +154,24 @@ class WaterHeaterFleet(FleetInterface):
         FleetResponse.Q_togrid_min = 0
         Eloss = 0
         Edel = 0
-        
-        TotalServiceCallsAcceptedPerWH = 0 * range(self.numWH)
+
         # run through fleet once as a forecast just to get initial conditions
         number = 0
         for w in whs:
             fcst = 1 #setting the forecast to 1 for this initialization only
 #            ttank, tset, SoCInit, AvailableCapacityAddInit, AvailableCapacityShedInit, ServiceCallsAcceptedInit, eservice, IsAvailableAddInit, IsAvailableShedInit, elementon, eused, pusedmax
-            response = w.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[0], fcst) #forecast = 1
+            response = w.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.sim_step, draw_fleet_ave[0], fcst) #forecast = 1
             number += 1
            
-        for step in range(ServiceRequest.Steps):    
+        for step in range(ServiceRequest.steps):
             number = 0
             servsum = 0
             NumDevicesToCall = 0
             laststep = step - 1
-            P_request_perWH = ServiceRequest.P_request[step] / max(NumDevicesToCall,1)
+            #P_request_perWH = ServiceRequest.P_req[step] / max(NumDevicesToCall,1)
+            #Change to make WH work with other services, 1 request has only 1 P_req, not an array of numbers
+            P_request_perWH = ServiceRequest.P_req / max(NumDevicesToCall, 1)
+
 
 #            decision making about which WH to call on for service, check if available at last step, if so then 
 #            check for SoC > self.minSOC and Soc < self.maxSOC, whatever number that is, divide the total needed and ask for that for each
@@ -185,11 +193,11 @@ class WaterHeaterFleet(FleetInterface):
         
             for wh in whs: #loop through water heatesr
                 if step == 0: #ttank, tset, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, eservice, isAvailableAdd, isAvailableShed, elementon, eused, pusedmax
-                    response = wh.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[0], ServiceRequest.Forecast)
+                    response = wh.execute(TtankInitial[number], TsetInitial[number], Tamb[number][0], RHamb[number][0], Tmains[number][0], draw[number][0], P_request_perWH, Type, ServiceRequest.sim_step, draw_fleet_ave[0], forecast)
                 else:
                     TsetLast = response.Tset
                     TtankLast = response.Ttank 
-                    response = wh.execute(TtankLast, TsetLast, Tamb[number][step], RHamb[number][step], Tmains[number][step], draw[number][step], P_request_perWH, Type, ServiceRequest.Timestep, draw_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast) #min([step,ServiceRequest.Steps-1]) is to provide a forecast for the average fleet water draw for the next timestep while basically ignoring the last timestep forecast
+                    response = wh.execute(TtankLast, TsetLast, Tamb[number][step], RHamb[number][step], Tmains[number][step], draw[number][step], P_request_perWH, Type, ServiceRequest.sim_step, draw_fleet_ave[min([step,ServiceRequest.steps-1])], forecast) #min([step,ServiceRequest.steps-1]) is to provide a forecast for the average fleet water draw for the next timestep while basically ignoring the last timestep forecast
 
                 servsum += response.Eservice
                 #FleetResponse.TotalServiceProvidedPerWH[number] = TotalServiceProvidedPerWH[number] + ServiceProvided[number][step]
@@ -205,8 +213,8 @@ class WaterHeaterFleet(FleetInterface):
                 FleetResponse.C += response.SOC / (self.numWH)
                 FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED, DOES NOT CONSIDER LOAD ADD WHICH WILL BE DIFFERENT
                 
-            FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
-            FleetResponse.P_dot_down = FleetResponse.P_togrid / ServiceRequest.Timestep.seconds
+            FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.sim_step.seconds
+            FleetResponse.P_dot_down = FleetResponse.P_togrid / ServiceRequest.sim_step.seconds
             FleetResponse.P_service_min  = 0
             FleetResponse.Q_dot_up       = 0
             FleetResponse.Q_dot_down     = 0
@@ -222,7 +230,7 @@ class WaterHeaterFleet(FleetInterface):
                 FleetResponse.Eff_charge = 0
             FleetResponse.Eff_discharge = (Edel)/(Edel + Eloss)
             
-        if ServiceRequest.Forecast == 1:
+        if forecast == 1:
             FleetResponse.P_forecast = FleetResponse.P_service
         else:
             FleetResponse.P_forecast = 0
@@ -397,11 +405,3 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
 #                draw_idx = 0
     draw_profile_file.close()
     return Tamb, RHamb, Tmains, hot_draw, mixed_draw
-        
-        
-        
-    
-
-
-if __name__ == '__main__':
-    main()
