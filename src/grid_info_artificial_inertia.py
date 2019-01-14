@@ -24,6 +24,7 @@ class GridInfo:
         self.time = np.zeros(n)
         # these variables hold the frequency data for each location
         self.frequency = np.zeros((n, 2))
+        self.voltage = np.zeros((n, 2))
 
         i = 0
         full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', input_file)
@@ -37,6 +38,8 @@ class GridInfo:
                     self.time[i] = float(row[0])
                     self.frequency[i, 0] = float(row[3])
                     self.frequency[i, 1] = float(row[10])
+                    self.voltage[i, 0] = float(row[1])
+                    self.voltage[i, 1] = float(row[8])
                     i += 1
                 if i > n-1:
                     break
@@ -55,6 +58,19 @@ class GridInfo:
         idx = np.searchsorted(self.time, Trelative, side="left")
         return self.frequency[idx - 1, location]
 
+    def get_voltage(self, tcur=datetime.utcnow(), location=0, tstart=None):
+        # Tst indicates the service start time.
+        # Tcur is current time.
+        # Note: artificial grid services usually lasts for up to 150 seconds
+        if tstart is None:
+            tstart = datetime(tcur.year, tcur.month, tcur.day, 0, 0, 0)
+        Trelative = (tcur - tstart).total_seconds()
+
+        if Trelative > self.time[-1]:
+            raise ValueError('Exceeded the end of time for specific grid service.')
+
+        idx = np.searchsorted(self.time, Trelative, side="left")
+        return self.voltage[idx - 1, location]
 
 if __name__ == '__main__':
     from dateutil import parser
@@ -72,3 +88,5 @@ if __name__ == '__main__':
     print(gi.get_frequency(start_time + 3*delt))
 
     print(gi.get_frequency(start_time + 100*delt))
+
+    print(gi.get_voltage(start_time + 3 * delt))
