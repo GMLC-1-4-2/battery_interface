@@ -227,6 +227,12 @@ class ElectricVehiclesFleet(FleetInterface):
         everything must be referenced to baseline power from Montecarlo 
         simulations of the different charging strategies
         """
+        
+        # Give the code the capability to respond to None requests
+        if P_req == None:
+            P_req = 0
+        if Q_req == None:
+            Q_req = 0
 
         # Baseline power is extracted from baseline simulations
         self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
