@@ -166,7 +166,7 @@ The response to a grid service request for one 24 hours-simulation is shown in t
 
 The dummy service in kW used for these simulations is:
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=$$&space;P_{\text{service}}(t)&space;=&space;P_0&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" target="_blank"><img src="https://latex.codecogs.com/gif.latex?$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" title="$$ P_{\text{service}}(t) = -50,000 \left[1 + \sin(\frac{2\pi t}{T})\right]$$" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=$$&space;P_{\text{service}}(t)&space;=&space;P_0&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" target="_blank"><img src="https://latex.codecogs.com/gif.latex?$$&space;P_{\text{service}}(t)&space;=&space;P_0&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" title="$$ P_{\text{service}}(t) = P_0 \left[1 + \sin(\frac{2\pi t}{T})\right]$$" /></a>
 
 ![](/src/fleets/electric_vehicles_fleet/images/service_power_example.png)
 
