@@ -91,7 +91,7 @@ t = np.arange(local_time, local_time + seconds_of_simulation, dt)
 * Build request. For example, this dummy request:
 ```python
 from fleet_request import FleetRequest
-power_request = -50000*(1 + np.sin(2*np.pi(t/seconds_of_simulation))) #kW
+power_request = 50000*(1 + np.sin(2*np.pi(t/seconds_of_simulation))) #kW
 # List of requests
 requests = []
 for i in range(len(t)):
@@ -162,11 +162,11 @@ plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, SOC_midnight, SOC_tcin,
 
 ### 4. Results and analysis
 
-First, the power is shown for two different 24 hours simulations with the same power requests starting at the same timestamp, but different time steps. At the beginning, most of the vehicles are plugged out while driving, at work, or other places, and therefore, the fleet will not be able to track the service very well. Once the sub fleets start arriving to home after work around 4:30 PM, the system starts tracking the service accurately. Again, at midnight, many users choose to charge their vehicles at this time, and therefore, the service is not well-tracked.
+The response to a grid service request for one 24 hours-simulation is shown in this figure. As it can be observed, at the beginning of the day (5 AM), most of the vehicles are unplugged while driving, at work, or other places. Therefore, the fleet will not be able to track the grid service request. Once the sub fleets start arriving home after work around 4:30 PM, the fleet starts tracking the request accurately. Again, at the end of the day, when the TCIN constraint starts affecting, the request is not met.
 
 The dummy service in kW used for these simulations is:
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" target="_blank"><img src="https://latex.codecogs.com/gif.latex?$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" title="$$ P_{\text{service}}(t) = -50,000 \left[1 + \sin(\frac{2\pi t}{T})\right]$$" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=$$&space;P_{\text{service}}(t)&space;=&space;P_0&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" target="_blank"><img src="https://latex.codecogs.com/gif.latex?$$&space;P_{\text{service}}(t)&space;=&space;-50,000&space;\left[1&space;&plus;&space;\sin(\frac{2\pi&space;t}{T})\right]$$" title="$$ P_{\text{service}}(t) = -50,000 \left[1 + \sin(\frac{2\pi t}{T})\right]$$" /></a>
 
 ![](/src/fleets/electric_vehicles_fleet/images/service_power_example.png)
 
