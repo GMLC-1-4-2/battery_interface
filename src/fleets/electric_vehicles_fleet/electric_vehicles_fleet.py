@@ -3,8 +3,8 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 10/24/2018
-Version: 1.0
+Last update: 02/14/2019
+Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
 import sys
@@ -492,7 +492,7 @@ class ElectricVehiclesFleet(FleetInterface):
             
             self.SOC = SOC_step
             self.time = t + dt
-            self.ts = self.ts + timedelta(dt)
+            self.ts = self.ts + timedelta(dt/(24*3600))
             # Restart time if it surpasses 24 hours
             if self.time > 24*3600:
                 self.time = self.time - 24*3600
