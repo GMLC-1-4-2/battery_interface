@@ -321,69 +321,65 @@ class RFFleet():   #FleetInterface
 ###############################################################################
 # Add random climate zone during a summer cooling month
 
+loc = dict()
+loc["Miami"] = 0
+loc["Phoenix"] = 1
+loc["Atlanta"] = 2
+loc["Las Vegas"] = 3
+loc["Denver"] = 4
+loc["Minneapolis"] = 5
+
 def get_monthly_conditions(climate_location,  timestep_min, num_steps, start_time):
         #reads from 8760 (or 8760 * 60) input files for ambient air temp, RH, mains temp, and draw profile and loads data into arrays for future use
-        startmonthindex = [[1,0],[2,31],[3,59],[4,90],[5,120],[6,151],[7,181],[8,212],[9,243],[10,273],[11,304],[12,334]]
-        start_month = start_time.month
-        start_day = start_time.day
-        start_hour = start_time.hour
-        for m in startmonthindex:
-            if start_month == m[0]:
-                start_day += m[1]
-                break
-        start_hr = (start_day-1) * 24. + start_hour
-        
-        timestep_min = timestep_min.seconds / 60.
-        num_steps_per_hr = int(np.ceil((60./float(timestep_min))))# how many hourly steps do you need to take if timestep is in minutes
-        num_hrs = int(np.ceil(float(num_steps) / float(num_steps_per_hr)))
-        num_mins = int(np.ceil(float(num_steps) * float(timestep_min )))
-    #        print('num_mins',num_mins)
-        steps_per_min = int(np.ceil(1./float(timestep_min)))
-#        IHG = []
+        try:
+            amb_temp_column = loc[climate_location]
+            IHG_column = loc[climate_location]
+        except IndexError:
+            raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        # Orders of the locations:
-        # Miami, Phon, Atl, Vegas, Den, Minnea
+        dt = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        start_time_dec = dt.hour+dt.minute/60.0
 
-        if climate_location == 'Miami':
-            #raise NameError("Error! Only allowing Denver as a run location for now. Eventually we'll allow different locations and load different files based on the location.")
-            amb_temp_column = 0
-#            IHG_column = 0
-        elif climate_location == 'Phoenix':
-            amb_temp_column = 1
-#            IHG_column = 1
-        elif climate_location == 'Atlanta':
-            amb_temp_column = 2
-#            IHG_column = 2
-        elif climate_location == 'Las Vegas':
-            amb_temp_column = 3
-#            IHG_column = 3
-        elif climate_location == 'Denver':
-            amb_temp_column = 4
-#            IHG_column = 4
-        elif climate_location == 'Minneapolis':
-            amb_temp_column = 5
-#            IHG_column = 5
-        else:
-            raise NameError("Error! Only allowed installation locations for now !!!")
+        new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_min*num_steps/60.0, num_steps)
 
-
+        Tamb = []
+        Tind = []
+   
         # Tout and IHG profiles preprocessed for 10 mins,
         # if other time step, better to do preprocess outside the main function here
         # or use timestep_min below (we set timestep_min = 10 by default)
-
-
-        ambient_cond_file = pd.read_excel('./data_file/Cities_Tout_July_10mins.xlsx') #steply ambient air temperature and RH
+        ambient_cond_file = pd.read_excel('./data_file/Cities_Tout_July_10mins.xlsx') #steply ambient air temperature
         ambient_cond_file = np.matrix(ambient_cond_file)
         Tamb = ambient_cond_file[:,amb_temp_column]
+        Tamb = np.squeeze(np.asarray(Tamb))
+
+        Tamb_num_steps = Tamb.shape[0]
+        Tamb_stepsize_min = 10
+        Tamb_orig_time = np.linspace(start_time_dec,
+                                     start_time_dec+Tamb_stepsize_min*Tamb_num_steps/60.0,
+                                     Tamb_num_steps)       
+        new_Tamb = np.interp(new_time_list, Tamb_orig_time, Tamb)
 
 
 
-        Tin_file = pd.read_excel('./data_file/Tindoor.xlsx')  #steply ambient air temperature and RH
-        Tin_filer = np.matrix(Tin_file)
-        Tin_filer2 = Tin_filer[0:len(Tamb)-1]
-        Tind = (Tin_filer2[:]-32)/1.8  #np.max(Mdot_filer2) to get degree C
+        Tin_file = pd.read_excel('./data_file/Tindoor.xlsx')  #steply indoor temperature
+        Tin_file = np.matrix(Tin_file)
+        Tind = np.squeeze(Tin_file)
 
-        return Tamb,  Tind
+
+        Tind_num_steps = Tind.shape[0]
+        Tind_stepsize_min = 10
+        Tind_orig_time = np.linspace(start_time_dec,
+                                     start_time_dec+Tind_stepsize_min*Tind_num_steps/60.0,
+                                     Tind_num_steps)       
+        n_Tind = np.interp(new_time_list, Tind_orig_time, Tind)
+
+
+
+
+        new_Tind = (n_Tind[:]-32)/1.8  #np.max(Mdot_filer2) to get degree C
+
+        return new_Tamb,  new_Tind
 
 
 #def change_config(self, **kwargs):
