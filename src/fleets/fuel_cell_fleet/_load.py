@@ -29,6 +29,6 @@ try:
 except ImportError:
     raise ImportError('pandas package missing!!')
 try:
-    from matplotlib.pyplot import figure, subplot2grid, show, savefig
+    from matplotlib.pyplot import figure, subplot2grid, savefig
 except ImportError:
     raise ImportError('matplotlib package missing!!')

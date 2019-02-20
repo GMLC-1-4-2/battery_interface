@@ -9,6 +9,7 @@ FuelCells
 from _load import *
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
+from fleet_response  import FleetResponse
 simplefilter('ignore', RankWarning)
 colorama.init()
 
@@ -26,7 +27,8 @@ class FuelCellFleet(FleetInterface):
         :param kwargs:
         """
 
-        # Establish the grid locations that the fuelcell fleet is connected to
+        # Establish the grid locations that the fuel cell fleet is connected in the grid
+        # Not being used in the present scenario to provide grid services
         self.grid = grid_info
 
         if not p_req:
@@ -94,13 +96,12 @@ class FuelCellFleet(FleetInterface):
         # max. state of charge in the hydrogen tank
         self.max_charge = self.fc_charge_lvl_max*1e-2*self.fc_Pe_out
         # SOC initial
-        self.soc_i = self.fc_soc_lvl_init*1e-2*self.fc_Pe_out
+        self.soc = self.fc_soc_lvl_init*1e-2*self.fc_Pe_out
         # initial number of H2 moles in the tank
-        self.moles = (self.soc_i*self.fc_V_tank/self.fc_R/(25+273.15))*self.fc_Nt
-        self.P_tank = self.soc_i
+        self.moles = (self.soc*self.fc_V_tank/self.fc_R/(25+273.15))*self.fc_Nt
+        self.P_tank = self.soc
         self.DG = self.fc_DG_200+(200-self.fc_T+273.15)/175*(self.fc_DG_25-self.fc_DG_200)
         self.V_rev = self.DG/self.fc_ne0/self.fc_F
-        self.inc = 0
 
         # Thermo-neutral voltage
         self.Vtn = self.fc_DH/self.fc_ne0/self.fc_F
@@ -118,99 +119,79 @@ class FuelCellFleet(FleetInterface):
             self.p, self.timespan = fit_pdat(self.fc_pdat)
         self.inc = 0
 
-    def process_request(self, request):
-        resp = self.fc_model(request)
+    def process_request(self, fleet_request):
+        resp = self.fc_model(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
         return resp
 
-    def fc_model(self, req):
-        resp = FCResponse()
+    def fc_model(self, ts, sim_step, Preq):
+        resp = FleetResponse()
 
-        resp.ts = self.inc
-        if self.load_curve:
-            # Power profile (kW)
-            resp.Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
-            # (W) requested power for one cell
-            resp.Pr = 1e3*resp.Pl/self.fc_Nfc/self.fc_Nc
+        resp.ts = ts
+        resp.sim_step = sim_step
+        if self.soc <= self.min_charge:
+            #cprint('Discharge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
+            #cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
+            #cprint('Tank is fully discharged!!', 'cyan')
+            is_avail, resp.fc_fleet, P_tot, self.soc, ne, nf, Vr, Vi, Ir =\
+                0, 0, 0.0, self.min_charge, 0.0, 0.0, 0.0, 0.0, 0.0
         else:
-            if self.inc == 0:
-                self.fc_Nfc = int(req/self.fc_size)
-                cprint("No. of FuelCells used is:"+"\t"*5+"%d" % self.fc_Nfc, 'green')
-            resp.Pr = 1e3*req/self.fc_Nfc/self.fc_Nc
+            if self.load_curve:
+                # Power profile (kW)
+                Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
+                # (W) requested power for one cell
+                Pr = 1e3*Pl/self.fc_Nfc/self.fc_Nc
+            else:
+                if self.inc == 0:
+                    self.fc_Nfc = int(Preq/self.fc_size)
+                    cprint("No. of FuelCells used is:"+"\t"*5+"%d" % self.fc_Nfc, 'green')
+                Pr = 1e3*Preq/self.fc_Nfc/self.fc_Nc
+            resp.fc_fleet = int(self.fc_Nfc)
 
-        resp.Vi, resp.Ir = fsolve(vifc_calc, [self.fc_x01, self.fc_x02],
-                                 args=(resp.Pr, self.V_rev, self.fc_T,
-                                       self.fc_R, self.fc_alpha, self.fc_F, self.i_n1,
-                                       self.i_01, self.R_tot1, self.fc_a, self.b1,
-                                       self.fc_pH2, self.fc_pO2))
+            Vi, Ir = fsolve(vifc_calc, [self.fc_x01, self.fc_x02],
+                                     args=(Pr, self.V_rev, self.fc_T,
+                                           self.fc_R, self.fc_alpha, self.fc_F, self.i_n1,
+                                           self.i_01, self.R_tot1, self.fc_a, self.b1,
+                                           self.fc_pH2, self.fc_pO2))
 
-        resp.Vact = (self.fc_R*self.fc_T/self.fc_alpha/self.fc_F)*log((resp.Ir+self.i_n1)/self.i_01)
-        resp.Vohm = (resp.Ir+self.i_n1)*self.R_tot1
-        resp.Vcon = self.fc_a*exp(self.b1*resp.Ir)
-        #resp.V_graph = self.V_rev - resp.Vact - resp.Vohm + resp.Vcon
-        resp.Ii = resp.Ir*1e3/self.fc_A
-        resp.id0 = resp.Ir/self.fc_A
-        expo = exp(self.inc/self.fc_Tau_e)
-        conv = convolve(resp.id0, expo)
-        resp.Ed_cell = self.fc_Lambda*(resp.id0-conv)
-        resp.E_cell = self.V_rev+self.fc_R*self.fc_T/2/self.fc_F*log(self.fc_pH2*self.fc_pO2**0.5)-resp.Ed_cell
-        resp.Vr = resp.E_cell-resp.Vact-resp.Vohm+resp.Vcon
-        if resp.Vr > resp.Vi:
-            resp.Vr = resp.Vi
-        resp.Videal = resp.Vi
-        resp.Vreal = resp.Vr
+            Vact = (self.fc_R*self.fc_T/self.fc_alpha/self.fc_F)*log((Ir+self.i_n1)/self.i_01)
+            Vohm = (Ir+self.i_n1)*self.R_tot1
+            Vcon = self.fc_a*exp(self.b1*Ir)
+            Ii = Ir*1e3/self.fc_A
+            id0 = Ir/self.fc_A
+            expo = exp(self.inc/self.fc_Tau_e)
+            conv = convolve(id0, expo)
+            Ed_cell = self.fc_Lambda*(id0-conv)
+            E_cell = self.V_rev+self.fc_R*self.fc_T/2/self.fc_F*log(self.fc_pH2*self.fc_pO2**0.5)-Ed_cell
+            Vr = E_cell-Vact-Vohm+Vcon
+            if Vr > Vi:
+                Vr = Vi
 
-        # (kW)
-        resp.P = resp.Vr*resp.Ir*self.fc_Nfc*self.fc_Nc/1000
-        resp.ne = (resp.Vr/1.48)*1e2
-        # (mol/s)
-        resp.Qh2_m = self.fc_Nfc*self.fc_Nc*resp.Ir/2/self.fc_F
+            # (kW)
+            P_tot = Vr*Ir*self.fc_Nfc*self.fc_Nc*1e-3
+            ne = (Vr/1.48)*1e2
+            # (mol/s)
+            Qh2_m = self.fc_Nfc*self.fc_Nc*Ir/2/self.fc_F
 
-        # Storage Tank
-        # Number of moles in time i in the tank
-        self.moles = self.moles-resp.Qh2_m*1
-        resp.moles = self.moles
-        resp.P_tank = self.moles*self.fc_R*(self.fc_T+273.15)/self.fc_V_tank
-        resp.soc = resp.P_tank
-        resp.soc_per = resp.soc/self.max_charge*100
-        resp.isAvail = True
-        if resp.soc < self.min_charge:
-            cprint('Discharge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
-            soc_i = round((resp.soc/self.max_charge * 100), 1)
-            cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
-            cprint('Tank is fully discharged!!', 'cyan')
-            resp.isAvail = False
+            # Storage Tank
+            # Number of moles in time i in the tank
+            self.moles = self.moles-Qh2_m*1
+            resp.moles = self.moles
+            resp.P_tank = self.moles*self.fc_R*(self.fc_T+273.15)/self.fc_V_tank
+            self.soc = resp.P_tank
+            is_avail = 1
         self.inc += 1
+
+        # Response
+        # Power injected is positive
+        resp.P_togrid = P_tot
+        resp.Q_togrid = 0.0
+        resp.soc = self.soc
+        resp.ne = ne
+        resp.v_ideal = Vi
+        resp.v_real = Vr
+        resp.Ir = Ir
+        resp.status = is_avail
         return resp
-
-
-class FCResponse:
-    """
-    This class provides one time-step output for FuelCells based on time-series
-    input power curve
-    """
-    def __init__(self):
-        self.ts = 0
-        self.Pr = 0
-        self.Vi = 0
-        self.Ir = 0
-        self.Vact = 0
-        self.Vohm = 0
-        self.Vcon = 0
-        self.Ii = 0
-        self.id0 = 0
-        self.Ed_cell = 0
-        self.E_cell = 0
-        self.Vr = 0
-        self.Videal = 0
-        self.Vreal = 0
-        self.P = 0
-        self.ne = 0
-        self.Qh2_m = 0
-        self.P_tank = 0
-        self.moles = 0
-        self.soc = 0
-        self.soc_per = 0
-        self.isAvail = True
 
 
 def fit_pdat(filename, time_interval=None):
@@ -261,9 +242,9 @@ def static_plots(**kwargs):
     base_path = dirname(abspath(__file__))
     plots = int(len(kwargs))
     nplots = int(2*plots)
-    fig1 = figure(figsize=(20, 8))
-    fig1.subplots_adjust(wspace=0.4)
-    fig1.subplots_adjust(hspace=4.5)
+    fig1 = figure(figsize=(20, 12))
+    fig1.subplots_adjust(wspace=0.9)
+    fig1.subplots_adjust(hspace=9.5)
     res_plt = {}
     for i, (k, v) in enumerate(kwargs.items()):
         if i % 2 == 0:
@@ -275,5 +256,4 @@ def static_plots(**kwargs):
         res_plt[str(i)].plot(v[0], '-.r')
         res_plt[str(i)].set_ylabel(v[1])
         res_plt[str(i)].grid()
-    show()
-    fig1.savefig(join(base_path, "fc_result.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "fc_result2.png"), bbox_inches='tight')

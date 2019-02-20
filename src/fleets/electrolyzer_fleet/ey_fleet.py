@@ -9,6 +9,7 @@ Electrolyzers
 from _load import *
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
+from fleet_response  import FleetResponse
 simplefilter('ignore', RankWarning)
 colorama.init()
 
@@ -102,6 +103,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.max_charge = self.ey_charge_lvl_max*1e-2*self.ey_Pe_out
         # SOC initial
         self.soc_i = self.ey_soc_lvl_init*1e-2*self.ey_Pe_out
+        self.soc = 0
         # moles[0][0] = n_i
         self.moles = self.soc_i*self.ey_V_tank/self.ey_R/(self.ey_T+273.15)
         self.DG = self.ey_DG_25-(self.ey_T-25)/55*(self.ey_DG_25-self.ey_DG_80)
@@ -129,92 +131,80 @@ class ElectrolyzerFleet(FleetInterface):
             self.ey_Ne = ne_calc(join(base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
         self.inc = 0
 
-    def process_request(self, request):
-        resp = self.ey_model(request)
+    def process_request(self, fleet_request):
+        resp = self.ey_model(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
         return resp
 
-    def ey_model(self, req):
-        resp = EYResponse()
+    def ey_model(self, ts, sim_step, Preq):
+        resp = FleetResponse()
 
-        resp.ts = self.inc
-        if self.load_curve:
-            # Power profile (kW)
-            resp.Pl = sum([self.p[j]*(resp.ts+1)**(21-j) for j in range(22)])
-            # (W) to power one stack of electrolyzer
-            resp.Pr = 1e3*resp.Pl/self.ey_Ne
+        resp.ts = ts
+        resp.sim_step = sim_step
+        if self.soc >= self.max_charge:
+            #cprint('Charge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
+            #cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
+            #cprint('Tank is fully charged!!', 'cyan')
+            is_avail, resp.ey_fleet, P_tot, self.soc, ne, nf, V, Ir = 0, 0, 0.0, self.max_charge, 0.0, 0.0, 0.0, 0.0
         else:
-            if self.inc == 0:
-                self.ey_Ne = req/self.ey_E_size
-                cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
-            resp.Pr = 1e3 * req / self.ey_Ne
+            if self.load_curve:
+                # Power profile (kW)
+                Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
+                # (W) to power one stack of electrolyzer
+                Pr = 1e3*Pl/self.ey_Ne
+            else:
+                if self.inc == 0:
+                    self.ey_Ne = Preq/self.ey_E_size
+                    cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
+                Pr = 1e3*Preq/self.ey_Ne
+            resp.ey_fleet = int(self.ey_Ne)
 
-        resp.V, resp.Ir = fsolve(vi_calc, [self.ey_x01, self.ey_x02],
-                                 args=(resp.Pr, self.ey_Nc, self.V_rev, self.ey_T,
-                                       self.ey_r1, self.ey_r2, self.ey_s1, self.ey_s2,
-                                       self.ey_s3, self.ey_t1, self.ey_t2, self.ey_t3,
-                                       self.ey_A))
-        resp.P = self.ey_Ne*self.ey_Nc*resp.V*resp.Ir
+            V, Ir = fsolve(vi_calc, [self.ey_x01, self.ey_x02],
+                                     args=(Pr, self.ey_Nc, self.V_rev, self.ey_T,
+                                           self.ey_r1, self.ey_r2, self.ey_s1, self.ey_s2,
+                                           self.ey_s3, self.ey_t1, self.ey_t2, self.ey_t3,
+                                           self.ey_A))
+            P = self.ey_Ne*self.ey_Nc*V*Ir
 
-        # Compute Faraday Efficiency
-        resp.nf = self.ey_a1*exp((self.ey_a2+self.ey_a3*self.ey_T+self.ey_a4*self.ey_T**2) /
-                                 (resp.Ir/self.ey_A)+(self.ey_a5+self.ey_a6*self.ey_T+self.ey_a7*self.ey_T**2) /
-                                 (resp.Ir/self.ey_A)**2)
+            # Compute Faraday Efficiency
+            nf = self.ey_a1*exp((self.ey_a2+self.ey_a3*self.ey_T+self.ey_a4*self.ey_T**2) /
+                                     (Ir/self.ey_A)+(self.ey_a5+self.ey_a6*self.ey_T+self.ey_a7*self.ey_T**2) /
+                                     (Ir/self.ey_A)**2)
 
-        # Energy (or voltaje) efficiency of a cell
-        resp.ne = self.Vtn/resp.V
-        # Flow of H2 produced
-        resp.Qh2_V = 80.69*self.ey_Nc*resp.Ir*resp.nf/2/self.ey_F       # (Nm^3/h)
-        resp.Qh2_m = self.ey_Ne*self.ey_Nc*resp.Ir*resp.nf/2/self.ey_F  # (mol/s)
-        resp.m_dotH2 = resp.Qh2_m*1e-3
+            # Energy (or voltaje) efficiency of a cell
+            ne = self.Vtn/V
+            # Flow of H2 produced
+            Qh2_V = 80.69*self.ey_Nc*Ir*nf/2/self.ey_F       # (Nm^3/h)
+            Qh2_m = self.ey_Ne*self.ey_Nc*Ir*nf/2/self.ey_F  # (mol/s)
+            m_dotH2 = Qh2_m*1e-3
+            resp.nf = nf*1e2
 
-        # Compressor model
-        resp.P_tank = self.moles*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank
-        resp.Tout = (self.ey_T+273.15)*(resp.P_tank/self.ey_Pe)**((self.ey_gamma-1)/self.ey_gamma)
-        resp.W_c = (resp.m_dotH2/self.ey_eta_c)*self.ey_cpH2*(resp.Tout-(self.ey_T+273.15))  # (kW)
-        resp.P_tot = resp.W_c*1e3+resp.P
+            # Compressor model
+            P_tank = self.moles*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank
+            Tout = (self.ey_T+273.15)*(P_tank/self.ey_Pe)**((self.ey_gamma-1)/self.ey_gamma)
+            W_c = (m_dotH2/self.ey_eta_c)*self.ey_cpH2*(Tout-(self.ey_T+273.15))  # (W)
 
-        # Storage Tank
-        # Number of moles in time i in the tank
-        self.moles = self.moles+resp.Qh2_m*1/self.ey_Nt
-        resp.moles = self.moles
-        resp.soc = resp.P_tank
-        resp.soc_per = resp.soc/self.max_charge*100
-        resp.isAvail = True
-        if resp.soc >= self.max_charge:
-            cprint('Charge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
-            soc_i = round((resp.soc/self.max_charge * 100), 1)
-            cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
-            cprint('Tank is fully charged!!', 'cyan')
-            resp.isAvail = False
+            # Total power demanded from the grid in Watts
+            P_tot = W_c*1e3+P
+
+            # Storage Tank
+            # Number of moles in time i in the tank
+            self.moles = self.moles+Qh2_m*1/self.ey_Nt
+            resp.moles = self.moles
+            self.soc = P_tank
+            is_avail = 1
         self.inc += 1
+
+        # Response
+        # Power consumed is negative
+        resp.P_togrid = -P_tot*1e-3     # (kW)
+        resp.Q_togrid = 0.0
+        resp.soc = (self.soc/self.max_charge)*1e2
+        resp.status = is_avail
+        resp.ne = ne*1e2
+        resp.nf = nf*1e2
+        resp.V = V
+        resp.Ir = Ir
         return resp
-
-
-class EYResponse:
-    """
-    This class provides one time-step output for Electrolyzer based on time-series
-    input power curve
-    """
-    def __init__(self):
-        self.ts = 0
-        self.Pl = 0
-        self.Pr = 0
-        self.V = 0
-        self.Ir = 0
-        self.P = 0
-        self.nf = 0
-        self.ne = 0
-        self.Qh2_V = 0
-        self.Qh2_m = 0
-        self.m_dotH2 = 0
-        self.P_tank = 0
-        self.Tout = 0
-        self.W_c = 0
-        self.P_tot = 0
-        self.moles = 0
-        self.soc = 0
-        self.soc_per = 0
-        self.isAvail = True
 
 
 def ne_calc(filename, e_size, ne=None):
@@ -277,9 +267,9 @@ def static_plots(**kwargs):
     base_path = dirname(abspath(__file__))
     plots = int(len(kwargs))
     nplots = int(2*plots)
-    fig1 = figure(figsize=(20, 8))
-    fig1.subplots_adjust(wspace=0.4)
-    fig1.subplots_adjust(hspace=4.5)
+    fig1 = figure(figsize=(20, 12))
+    fig1.subplots_adjust(wspace=0.9)
+    fig1.subplots_adjust(hspace=9.5)
     res_plt = {}
     for i, (k, v) in enumerate(kwargs.items()):
         if i % 2 == 0:
@@ -291,5 +281,4 @@ def static_plots(**kwargs):
         res_plt[str(i)].plot(v[0], '-.r')
         res_plt[str(i)].set_ylabel(v[1])
         res_plt[str(i)].grid()
-    show()
     fig1.savefig(join(base_path, "Ey_result.png"), bbox_inches='tight')

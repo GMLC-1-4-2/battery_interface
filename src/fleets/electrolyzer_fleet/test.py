@@ -9,6 +9,8 @@ from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet, static_plots
+from fleet_request import FleetRequest
+from datetime import datetime, timedelta
 from scipy.io import loadmat
 base_path = dirname(abspath(__file__))
 
@@ -18,37 +20,46 @@ def fleet_test1(fleet):
     """
     SCENARIO 1: Pre-load the power request curve
     Number of electrolyzers (Ne) automatically computed based on the
-    area of te power request curve
+    area of the power request curve
     """
     # Set p_req as None in the model
     # Get simulation duration based on pre-loaded power curve data
     n = fleet.timespan
 
+    # Create fleet request
+    ts = datetime.utcnow()
+    dt = timedelta(seconds=1)
+    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=None, q=None) for i in range(n)]
+
     # Process the request
-    soc, Ptot, m_dotH2, moles, V, Ir = [], [], [], [], [], []
-    for i in range(n):
-        fleet_response = fleet.process_request(i)
-        soc.append(fleet_response.soc_per)
-        Ptot.append(fleet_response.P_tot)
-        m_dotH2.append(fleet_response.m_dotH2)
-        moles.append(fleet_response.moles)
+    p_resp, q_resp, soc, ne, nf, V, Ir, status, fleetsize = [], [], [], [], [], [], [], [], []
+    for fr in fleet_request:
+        fleet_response = fleet.process_request(fr)
+        p_resp.append(fleet_response.P_togrid)
+        q_resp.append(fleet_response.Q_togrid)
+        soc.append(fleet_response.soc)
+        ne.append(fleet_response.ne)
+        nf.append(fleet_response.nf)
         V.append(fleet_response.V)
         Ir.append(fleet_response.Ir)
-        if not fleet_response.isAvail:
-            break
+        status.append(fleet_response.status)
+        fleetsize.append(fleet_response.ey_fleet)
 
-    # Print the results
-    kwargs = {'Ptot': (Ptot, 'Watts'), 'm_dotH2': (m_dotH2, 'Kg/s'),
-              'SoC': (soc, '%'), 'moles': (moles, 'mol'),
-              'V': (V, 'Volts'), 'Ir': (Ir, 'Amps')}
+    # Simulation results
+    stat = "fully charged at %s sec." % str(sum(status))
+
+    # Plot the results
+    kwargs = {'P_response': (p_resp, 'kW'),
+              'Q_request': (q_resp, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
+              'Faraday Efficiency': (nf, '%'), 'Energy efficiency of a cell': (ne, '%'),
+              'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
+              'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
 
 
 def fleet_test2(fleet):
     """
     SCENARIO 2: Use instantaneous power request
-    Number of electrolyzers (Ne) needs to be specified in the
-    config.ini file
     """
     p_data = loadmat(join(base_path, 'pdata.mat'), squeeze_me=True)
     time = p_data['TT']
@@ -59,27 +70,36 @@ def fleet_test2(fleet):
 
     # base load of 20% of initial power requirement
     bload = p_req[0]*0.2
+    p_curve = [bload if v < 0 else abs(v)-bload for _, v in enumerate(p_req)]
 
-    p_curve = [abs(p_req[i])-bload if p_req[i] < 0 else bload for i in range(len(p_req))]
+    # Create fleet request
+    ts = datetime.utcnow()
+    dt = timedelta(seconds=1)
+    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=v, q=None) for i, v in enumerate(p_curve)]
 
     # Process the request
-    soc, Ptot, m_dotH2, moles, V, Ir, P = [], [], [], [], [], [], []
-    for i in range(len(p_curve)):
-        fleet_response = fleet.process_request(p_req[i])
-        soc.append(fleet_response.soc_per)
-        Ptot.append(fleet_response.P_tot)
-        m_dotH2.append(fleet_response.m_dotH2)
-        moles.append(fleet_response.moles)
+    p_resp, q_resp, soc, ne, nf, V, Ir, status, fleetsize = [], [], [], [], [], [], [], [], []
+    for fr in fleet_request:
+        fleet_response = fleet.process_request(fr)
+        p_resp.append(fleet_response.P_togrid)
+        q_resp.append(fleet_response.Q_togrid)
+        soc.append(fleet_response.soc)
+        ne.append(fleet_response.ne)
+        nf.append(fleet_response.nf)
         V.append(fleet_response.V)
         Ir.append(fleet_response.Ir)
-        P.append(fleet_response.Pl)
-        if not fleet_response.isAvail:
-            break
+        status.append(fleet_response.status)
+        fleetsize.append(fleet_response.ey_fleet)
 
-    # Print the results
-    kwargs = {'Ptot': (Ptot, 'Watts'), 'm_dotH2': (m_dotH2, 'Kg/s'),
-              'SoC': (soc, '%'), 'moles': (moles, 'mol'),
-              'V': (V, 'Volts'), 'Ir': (Ir, 'Amps')}
+    # Simulation results
+    stat = "fully charged at %s sec." % str(sum(status))
+
+    # Plot the results
+    kwargs = {'P_request': (p_curve, 'kW'), 'P_response': (p_resp, 'kW'),
+              'Q_request': (q_resp, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
+              'Faraday Efficiency': (nf, '%'), 'Energy efficiency of a cell': (ne, '%'),
+              'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
+              'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
 
 
