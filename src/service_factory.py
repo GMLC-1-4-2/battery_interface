@@ -8,5 +8,10 @@ def create_service(name, **kwargs):
         from services.artificial_inertia_service.artificial_inertia_service import ArtificialInertiaService
         return ArtificialInertiaService()
 
+    elif name == 'Reserve':
+        from services.reserve_service.reserve_service import ReserveService
+
+        return ReserveService()
+
     raise "There is no service with name: " + name
 

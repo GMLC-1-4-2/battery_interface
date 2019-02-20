@@ -7,7 +7,7 @@
 import sys
 from dateutil import parser
 from datetime import datetime, timedelta
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 import numpy as np
 import pandas as pd
@@ -47,6 +47,7 @@ class ReserveService():
                      fleet_name="PVInverterFleet"):
 
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
+        clearing_price_filename = join(dirname(abspath(__file__)), clearing_price_filename)
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
         if not(four_scenario_testing):
@@ -239,6 +240,7 @@ class ReserveService():
         # TODO: (minor) replace the temporary test file name with final event signal file name.
         historial_signal_filename = "gmlc_events_2017_1min.xlsx"
         # Returns a DataFrame that contains historical signal data in the events data file.
+        historial_signal_filename = join(dirname(abspath(__file__)), historial_signal_filename)
         self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, fleet_is_load)
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
