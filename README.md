@@ -50,5 +50,16 @@ $ python test.py
 ```
 
 
+# How to test a pull request
+- Download GIT if you don't have it from https://git-scm.com/downloads
+- Create a new folder "battery_interface" for the code
+- Go to command prompt (on Windows) or terminal (Unix/Linux/Mac)
+- Change directory to the folder created above
+- Clone to your local: git clone https://github.com/GMLC-1-4-2/battery_interface.git
+- Check out a new branch: git checkout -b **your_new_branch_name**
+- Pull the pull request to the branch created above: git pull origin pull/**the_PR_id_from_github**/head
+- You should see the new service or device in the project folder
+
+
 ## License
 The project is private and the license will be added soon.
