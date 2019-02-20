@@ -140,6 +140,8 @@ class ElectricVehiclesFleet(FleetInterface):
         # Schedules of all the sub fleets
         self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(self.seed,self.SOC,self.Voltage)
         
+        # Weight used to scale the service request
+        self.service_weight = LC.get_service_weight()
         """
         Can this fleet operate in autonomous operation?
         """
@@ -1132,3 +1134,10 @@ class ElectricVehiclesFleet(FleetInterface):
         self.Vset = fleet_config.v_thresholds
         
         pass
+    
+    def assigned_service_weight(self):
+        """ 
+        This function allows weight to be passed to the service model. 
+        Scale the service to the size of the fleet
+        """
+        return self.service_weight
