@@ -502,7 +502,7 @@ class ElectricVehiclesFleet(FleetInterface):
             
             self.SOC = SOC_step
             self.time = t + dt
-            self.ts = self.ts + timedelta(dt/(24*3600))
+            self.ts = self.ts + timedelta(seconds = dt)
             # Restart time if it surpasses 24 hours
             if self.time > 24*3600:
                 self.time = self.time - 24*3600
