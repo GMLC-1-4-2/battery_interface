@@ -142,6 +142,23 @@ class ElectricVehiclesFleet(FleetInterface):
         
         # Weight used to scale the service request
         self.service_weight = LC.get_service_weight()
+        
+        # How to calculate effective fleet rating: this is going to be poorly
+        # met because it does not consider random availability of the fleet. 
+        # However this seems to be the best approximation
+        self.mean_base = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'] + 
+                          self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW']  +
+                          self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW']).mean()
+        self.mean_driven = 1 - 0.01*((self.df_VehicleModels['Total_Vehicles'] * 
+                                 self.df_VehicleModels['Sitting_cars_per']).sum()/
+                                 self.df_VehicleModels['Total_Vehicles'].sum())
+        self.mean_charger_kW = 1e-3*((self.df_VehicleModels['Total_Vehicles'] * 
+                                      self.df_VehicleModels['Max_Charger_AC_Watts']).sum()/
+                                      self.df_VehicleModels['Total_Vehicles'].sum())
+        self.fleet_rating = self.strategies[1][0]*self.mean_driven*self.mean_charger_kW*self.df_VehicleModels['Total_Vehicles'].sum()
+        self.fleet_rating = self.fleet_rating - self.mean_base
+
+        
         """
         Can this fleet operate in autonomous operation?
         """
@@ -1135,9 +1152,9 @@ class ElectricVehiclesFleet(FleetInterface):
         
         pass
     
-    def assigned_service_weight(self):
+    def assigned_service_kW(self):
         """ 
         This function allows weight to be passed to the service model. 
         Scale the service to the size of the fleet
         """
-        return self.service_weight
+        return self.service_weight*self.fleet_rating
