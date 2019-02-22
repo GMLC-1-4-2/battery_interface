@@ -194,7 +194,8 @@ class RegService():
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
         sim_step = timedelta(seconds=2)
-        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_regulation_MW()) for x,i in signals.items()]
+        # Convert response kW into MW.
+        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()/1000) for x,i in signals.items()]
         requests = [x[0] for x in reqrespitems]
         responses = [x[1] for x in reqrespitems]
 

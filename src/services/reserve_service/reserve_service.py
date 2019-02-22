@@ -248,9 +248,9 @@ class ReserveService():
         responses = []
 
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
-        # TODO: [minor] _fleet.assigned_regulation_MW() is currently only implemented in the fleet model within the same folder but not in the "fleets" folder.
         for timestamp, normalized_signal in signals.items():
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_regulation_MW())
+            # Convert response kW into MW.
+            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW()/1000)
             requests.append(request)
             responses.append(response)
         #print(requests)
