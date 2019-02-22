@@ -23,12 +23,11 @@ Function Inputs
 HVAC model is a polynomial fit of Tout and Tin
 From manufacture name plate performance curve
 
-@author: Jin Dong (ORNL), Jeffrey Munk (ORNL), Teja Kuruganti (ORNL)
+@author: dongj@ornl.gov
+ORNL
 """
 
 # depending on the IDE used these libraries might need to be imported manually
-
-from AC_Response import ACResponse
 
 import numpy as np
 import control
@@ -175,36 +174,32 @@ class BuildingModel():
             return((AC.C7+AC.C8*Tin+AC.C9*Tin*Tin+AC.C10*Tout+AC.C11*Tout*Tout+AC.C12*Tout*Tin)*AC.EIRrated)
             
             
-        def execute(self, Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, timestep, forecast_IHL, IsForecast):
-            # (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
-            #      service_calls_accepted, Element_on, self.max_service_calls, timestep, forecast_IHL, IsForecast)
-            (response) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
-                 timestep, forecast_IHL, IsForecast)
+        def execute(self, Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, service_calls_accepted, Element_on, timestep, forecast_IHL, IsForecast):
+            (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
+                 Element_on, service_calls_accepted, self.max_service_calls, timestep, forecast_IHL, IsForecast)
             
-            return response
+            return Tin, Twall, Tmass,  Tattic, Tset, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, Eservice, is_available_add, is_available_shed, ElementOn, Eused, PusedMax
     
         def HVAC(self, Tlast, Twall_last, Tmass_last, Tattic_last, Tset, Tamb_ts, Tsol_w_ts, 
                  QIHL_i_ts, Qsolar_i_ts, Tsol_r_ts, QIHL_mass_ts, Qsolar_mass_ts, Rwall, Rattic, Cmass, control_signal_ts, 
-                 timestep, forecast_IHL, is_forecast):
+                 Element_on_ts, service_calls_accepted_ts, max_service_calls, timestep, forecast_IHL, is_forecast):
         
         
 #############################################################################
         #        Baseline operation - Base Loads
 #############################################################################
             BM = BuildingModel
-#            ts = timestep
-            ts = 10
+            ts = timestep
                 
           #estimate on what the maximum power usage could be
-            E_cool= 1e-3*Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)     # power consumpstion in kW
+            E_cool= 1.000*Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)     # power consumpstion in W
             Eused_baseline_ts = 0
             PusedMax_ts = Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)   # max instant power (EIR or COP is changing)
-         
-            Element_on_ts = 0
         
 #            Tin = Tlast + dTin
 #            Twall_lasat = 
-     
+             
+            
             # Record control states
           
             if Tlast > Tset + self.Tdeadband:
@@ -216,37 +211,28 @@ class BuildingModel():
             else:
                 Eused_baseline_ts = 0
                 Element_on_ts = 0
-    
+                
+      
       ###########################################################################          
             # Modify operation based on control signal #
             # Reduce loads
-            
-            
-       ###########################################################################          
-        #modify operation based on control signal 
-        # Assumed to work in Summer Cooling Only!
-        #TODO: temporary code for integration testing while I figure out where to track max service calls
-            max_service_calls = 100000000000
-            service_calls_accepted_ts = 0
-            
-            # Reduce loads 
-            if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            if control_signal_ts  < 0 and Tlast < (Tset + self.Tdeadband) and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 service_calls_accepted_ts += 1
                 
       
-            elif control_signal_ts  > 0 and Tlast >= Tset + self.Tdeadband:
+            elif control_signal_ts  < 0 and Tlast >= Tset + self.Tdeadband:
                 # don't change anything
                 Eused_ts = Eused_baseline_ts
                 
             # Increase loads    
-            elif control_signal_ts  < 0 and Tlast <= Tset - self.Tdeadband:
+            elif control_signal_ts  > 0 and Tlast <= Tset - self.Tdeadband:
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 
                   
-            elif control_signal_ts  < 0 and Tlast >= Tset - self.Tdeadband and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
+            elif control_signal_ts  > 0 and Tlast >= Tset - self.Tdeadband and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
                 #make sure it stays on
                 Eused_ts = E_cool*1.000 #W used
                 Element_on_ts = 1
@@ -331,10 +317,9 @@ class BuildingModel():
             isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband) and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
 
 
+
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool
-
-            PusedMin_ts = 0
 
 #            isAvailable_add_ts = 1
 #            isAvailable_shed_ts = 1
@@ -411,34 +396,11 @@ class BuildingModel():
 #            Available_Capacity_Add = (1-SOC)*1.005*732*1000*(self.Tmax - self.Tmin)*isAvailable_ts/(timestep*60) #/timestep converts from Joules to Watts, 1.005 = kJ/kg*k, 732 kg air
 #            Available_Capacity_Shed = SOC*1.005*732*1000*(self.Tmax - self.Tmin)*isAvailable_ts/(timestep*60) #/timestep*60 converts from Joules to Watts,
             
-            
-            response = ACResponse()
-        
-            response.Tin = Tin_ts
-            response.Twall = Twall_ts
-            response.Tmass = Tmass_ts
-            response.Tattic = Tattic_ts
-            response.Tset = Tset_ts 
-            response.Eused = Eused_ts 
-            response.PusedMax = PusedMax_ts
-            response.PusedMin = PusedMin_ts
-            response.ElementOn = Element_on_ts
-            response.Eservice = float(Eservice_ts)
-            # response.Estored = Estored
-            response.SOC = SOC
-            response.AvailableCapacityAdd = Available_Capacity_Add
-            response.AvailableCapacityShed = Available_Capacity_Shed
-            response.ServiceCallsAccepted = service_calls_accepted_ts
-            response.IsAvailableAdd = isAvailable_add_ts
-            response.IsAvailableShed = isAvailable_shed_ts
-            
-            return response    
-            
-
-           # No direct calculation of Eloss_ts, 
+            return Tin_ts, Twall_ts, Tmass_ts, Tattic_ts, Tset_ts, Eused_ts, PusedMax_ts, Element_on_ts, Eservice_ts, SOC, Available_Capacity_Add, Available_Capacity_Shed, service_calls_accepted_ts, isAvailable_add_ts, isAvailable_shed_ts
+            # No direct calculation of Eloss_ts, 
             # , CountC, CountD, E_cool
-if __name__ == '__main__':
-   main()
+#if __name__ == '__main__':
+#    main()
         
   
 #    

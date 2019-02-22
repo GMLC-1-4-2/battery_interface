@@ -4,10 +4,10 @@ Created on Mon Jan 29 15:07:49 2018
 For GMLC 1.4.2, fleet Virtual Battery Model for HVACs
 Based on a valided 4R4C building thermal model
 
-Last update: 02/14/2019
+Last update: 08/02/2018
 Version: 1.0
 
-@author: Jin Dong (ORNL), Jeffrey Munk (ORNL), Teja Kuruganti (ORNL)
+@author: dongj@ornl.gov
 """
 
 #from fleet_interface import FleetInterface
@@ -23,23 +23,16 @@ import pandas as pd
 import scipy as sp
 import time
 
-import datetime
-
 # this is the actual building thermal and HVAC models
 #import build_model as bm
 from build_model import BuildingModel
 from build_model import AC
 
-#from HVACFleet import FleetResponse   #HVACFleet
-from fleet_response import FleetResponse
-
-from fleet_interface import FleetInterface
-
 class HVACFleet():   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40):
+    def __init__(self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0):
         """
         Constructor
         """
@@ -88,22 +81,9 @@ class HVACFleet():   #FleetInterface
         
          ########################################################################
     
+     
     
-    def process_request(self, ServiceRequest):
-        
-        response = self.ExecuteFleet(ServiceRequest)   #response        
-        return response     
-    
-    
-    def forecast(self, fleet_requests):
-        responses = []
-        for request in fleet_requests:
-            response = self.ExecuteFleet(request, forecast=1)
-            responses.append(response)
-
-        return responses
-
-    def ExecuteFleet(self, ServiceRequest): #ExecuteFleet(self, Steps, Timestep, P_request, Q_request, forecast):
+    def ExecuteFleet(self, Steps, Timestep, P_request, Q_request, forecast):
         
    
 #    generate distribution of initial WH fleet states. this means Rext, Rattic, Cmass,
@@ -129,7 +109,7 @@ class HVACFleet():   #FleetInterface
     #    V = [ Tsol_w,   QIHL_i,   Qsolar_i;   Tsol_r,   QIHL_mass,   Qsolar_mass]
  
         # load the weather profile
-  
+       
         measurement = pd.read_excel('./data_file/Vegas_TMY3_July_10mins.xlsx')   # or Min5_data_vegas.xlsx
 #        measurement_or['Date/Time']=pd.to_datetime(measurement_or['Date/Time'])
 #        measurement_or = measurement_or.set_index('Date/Time')
@@ -186,7 +166,7 @@ class HVACFleet():   #FleetInterface
         for a in range(self.numHVAC):             
             if a <= (self.MaxNumMonthlyConditions-1): #if numHVAC > MaxNumAnnualConditions just start reusing older conditions to save computational time               
       
-                (tamb, IHL_s) = get_monthly_conditions(Location[a], ServiceRequest.Timestep, ServiceRequest.Steps, ServiceRequest.StartTime)
+                (tamb, IHL_s) = get_monthly_conditions(Location[a])
                 
                 tsol_W = tamb + temp_sol_W
                 tsol_R = tamb + temp_sol_R
@@ -214,80 +194,60 @@ class HVACFleet():   #FleetInterface
         ##################################     
 #    Initializing lists to be saved to track indivisual HVAC performance over each timestep
         
-        Tset = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        Tin = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        Twall = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        Tmass = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        Tattic = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        SoC = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        AvailableCapacityAdd = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        AvailableCapacityShed = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        ServiceCallsAccepted = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        ServiceProvided = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        IsAvailableAdd = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        IsAvailableShed = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-        elementOn = [[0 for x in range(ServiceRequest.Steps)] for y in range(self.numHVAC)]
-
-        # TotalServiceProvidedPerHVAC = [0 for y in range(self.numHVAC)]
-        TotalServiceProvidedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
-        
-        # MaxServiceAddedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
-        # MaxServiceShedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
-
+        Tset = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        Tin = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        Twall = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        Tmass = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        Tattic = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        SoC = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        AvailableCapacityAdd = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        AvailableCapacityShed = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        ServiceCallsAccepted = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        ServiceProvided = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        IsAvailableAdd = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        IsAvailableShed = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        elementOn = [[0 for x in range(Steps)] for y in range(self.numHVAC)]
+        TotalServiceProvidedPerHVAC = [0 for y in range(self.numHVAC)]
+        TotalServiceProvidedPerTimeStep = [0 for y in range(Steps)]
+        MaxServiceAddedPerTimeStep = [0 for y in range(Steps)]
+        MaxServiceShedPerTimeStep = [0 for y in range(Steps)]
         TotalServiceCallsAcceptedPerHVAC = [0 for y in range(self.numHVAC)]    
    
         SoCInit = [0.5 for y in range(self.numHVAC)]
-
         AvailableCapacityAddInit = [0 for y in range(self.numHVAC)]
         AvailableCapacityShedInit = [0 for y in range(self.numHVAC)]
-
         IsAvailableAddInit = [1 for y in range(self.numHVAC)]
         IsAvailableShedInit = [1 for y in range(self.numHVAC)]
         
-        ServiceRequest.P_req = 0
+        P_req = 0
         ##############################################################################################################
  
     #    Initializing the building HVAC models
         hvacs = [BuildingModel(Tamb[0], Tsol_W[0], QIHL_i[0], Qsolar_i[0], Tsol_R[0],
-                               QIHL_mass[0],Qsolar_mass[0], ServiceRequest.P_req, Rext[number], 
+                               QIHL_mass[0],Qsolar_mass[0], P_req, Rext[number], 
                                Rattic[number], Cmass[number], 0, MaxServiceCalls[number], self.ts) for number in range(self.numHVAC)]
         
-        FleetResponse.P_service = 0
-        FleetResponse.P_service_max = 0
-        FleetResponse.P_service_min = 0
-        FleetResponse.P_togrid = 0
-        FleetResponse.P_togrid_max = 0
-        FleetResponse.P_togrid_min = 0
-        FleetResponse.P_forecast = 0
-        FleetResponse.E = 0
-        FleetResponse.C = 0
-
-
-        P_request_perHVAC = ServiceRequest.P_request[0] / self.numHVAC # this is only for the first step
+        P_service = 0
+        P_service_max = 0
+        P_injected = 0
+        P_injected_max = 0
+        P_forecast = 0
+        P_request_perHVAC = P_request[0] / self.numHVAC # this is only for the first step
 #        print(P_request_perWH)
         
-        FleetResponse.Q_togrid = 0
-        FleetResponse.Q_service = 0
-        FleetResponse.Q_service_max = 0
-        FleetResponse.Q_service_min = 0
-        FleetResponse.Q_togrid_min = 0  
-        FleetResponse.Q_togrid_max = 0
-        Eloss = 0
-        Edel = 0 
-        
-        FleetResponse.Q_dot_up       = 0
-        FleetResponse.Q_dot_down       = 0
-        FleetResponse.P_dot_up       = 0
-        FleetResponse.P_dot_down       = 0
+        Q_injected = 0
+        Q_service = 0
+        Q_service_max = 0
+        Q_forecast = 0    
    
         # run through fleet once as a forecast just to get initial conditions
         number = 0
         for h in hvacs:
             fcst = 1   #  setting the forecast to 1 for this initialization only
-            response = h.execute(TinInitial[number], TwallInitial[number], TmassInitial[number], TatticInitial[number], TsetInitial[number], Tamb[number][0], Tsol_W[number][0], QIHL_i[number][0], Qsolar_i[0], Tsol_R[number][0], QIHL_mass[number][0], Qsolar_mass[0], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceRequest.Timestep, IHL_fleet_ave[0], fcst) #forecast = 1
+            tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed = h.execute(TinInitial[number], TwallInitial[number], TmassInitial[number], TatticInitial[number], TsetInitial[number], Tamb[number][0], Tsol_W[number][0], QIHL_i[number][0], Qsolar_i[0], Tsol_R[number][0], QIHL_mass[number][0], Qsolar_mass[0], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceCallsAccepted[number][0], elementOn[number][0], Timestep, IHL_fleet_ave[0], fcst) #forecast = 1
             number += 1
            
-        for step in range(ServiceRequest.Steps):    
+        for step in range(Steps):    
             number = 0
             servsum = 0
             servmax = 0
@@ -300,29 +260,27 @@ class HVACFleet():   #FleetInterface
 
             if step == 0: #use the initialized values to determine how many devices are available
                 for n in range(self.numHVAC):
-                    if P_request_perHVAC < 0 and IsAvailableAddInit[n] > 0 and SoCInit[n] < self.maxSOC and AvailableCapacityAddInit[n] > self.minCapacityAdd:
+                    if P_request_perHVAC > 0 and IsAvailableAddInit[n] > 0 and SoCInit[n] < self.maxSOC and AvailableCapacityAddInit[n] > self.minCapacityAdd:
                         NumDevicesToCall += 1
-                    elif P_request_perHVAC > 0 and IsAvailableShedInit[n] > 0 and SoCInit[n] > self.minSOC and AvailableCapacityShedInit[n] > self.minCapacityShed:
+                    elif P_request_perHVAC < 0 and IsAvailableShedInit[n] > 0 and SoCInit[n] > self.minSOC and AvailableCapacityShedInit[n] > self.minCapacityShed:
                         NumDevicesToCall += 1
             elif step > 0: #use the last temperature to determine how many devices are available
                 for n in range(self.numHVAC):
-                    if P_request_perHVAC < 0 and IsAvailableAdd[n][laststep] > 0 and SoC[n][laststep] < self.maxSOC and AvailableCapacityAdd[n][laststep] > self.minCapacityAdd:
+                    if P_request_perHVAC > 0 and IsAvailableAdd[n][laststep] > 0 and SoC[n][laststep] < self.maxSOC and AvailableCapacityAdd[n][laststep] > self.minCapacityAdd:
                         NumDevicesToCall += 1
-                    elif P_request_perHVAC > 0 and IsAvailableShed[n][laststep] > 0 and SoC[n][laststep] > self.minSOC and AvailableCapacityShed[n][laststep] > self.minCapacityShed:
+                    elif P_request_perHVAC < 0 and IsAvailableShed[n][laststep] > 0 and SoC[n][laststep] > self.minSOC and AvailableCapacityShed[n][laststep] > self.minCapacityShed:
                         NumDevicesToCall += 1          
       
-            P_request_perHVAC =  ServiceRequest.P_request[step] / max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
+            P_request_perHVAC = P_request[step] / max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
 
             #################################
       
             for hvac in hvacs: #loop through all HVACs
                 if step == 0:
                     ### call hvac.execute
-
-                    # response = tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed
-                    response = hvac.execute(TinInitial[number], TwallInitial[number], TmassInitial[number], TatticInitial[number],TsetInitial[number], Tamb[number][0], Tsol_W[number][0], QIHL_i[number][0], Qsolar_i[0], Tsol_R[number][0], QIHL_mass[number][0], Qsolar_mass[0], Rext[number], Rattic[number], Cmass[number],  0, ServiceRequest.Timestep, IHL_fleet_ave[0], ServiceRequest.Forecast)
+                    tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed = hvac.execute(TinInitial[number], TwallInitial[number], TmassInitial[number], TatticInitial[number],TsetInitial[number], Tamb[number][0], Tsol_W[number][0], QIHL_i[number][0], Qsolar_i[0], Tsol_R[number][0], QIHL_mass[number][0], Qsolar_mass[0], Rext[number], Rattic[number], Cmass[number],  0, ServiceCallsAccepted[number][0], elementOn[number][0], Timestep, IHL_fleet_ave[0], forecast)
                 
-                elif step>0 and  ServiceRequest.P_request[step]<=0 and IsAvailableAdd[number][laststep] > 0 :
+                elif step>0 and P_request[step]>=0 and IsAvailableAdd[number][laststep] > 0 :
                 # For step >=1, can use last step temperature...
                     TsetLast = Tset[number][laststep]
                     TinLast = Tin[number][laststep]     
@@ -330,12 +288,12 @@ class HVACFleet():   #FleetInterface
                     TmassLast = Tmass[number][laststep] 
                     TatticLast = Tattic[number][laststep] 
              
-                    response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceRequest.Timestep, IHL_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast)
+                    tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceCallsAccepted[number][laststep], elementOn[number][laststep], Timestep, IHL_fleet_ave[min([step,Steps-1])], forecast)
 
-                    ServiceRequest.P_request[step] =  ServiceRequest.P_request[step] - response.Eservice
+                    P_request[step] = P_request[step] - eservice*1e3
 
 
-                elif step>0 and  ServiceRequest.P_request[step]>0 and IsAvailableShed[number][laststep] > 0 :
+                elif step>0 and P_request[step]<0 and IsAvailableShed[number][laststep] > 0 :
                 # For step >=1, can use last step temperature...
                     TsetLast = Tset[number][laststep]
                     TinLast = Tin[number][laststep]     
@@ -343,8 +301,8 @@ class HVACFleet():   #FleetInterface
                     TmassLast = Tmass[number][laststep] 
                     TatticLast = Tattic[number][laststep] 
              
-                    response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceRequest.Timestep, IHL_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast)
-                    ServiceRequest.P_request[step] =  ServiceRequest.P_request[step] - response.Eservice    
+                    tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], P_request_perHVAC, ServiceCallsAccepted[number][laststep], elementOn[number][laststep], Timestep, IHL_fleet_ave[min([step,Steps-1])], forecast)
+                    P_request[step] = P_request[step] - eservice*1e3    
 #                    break
 
                 else:
@@ -354,162 +312,127 @@ class HVACFleet():   #FleetInterface
                     TmassLast = Tmass[number][laststep] 
                     TatticLast = Tattic[number][laststep] 
              
-                    response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], 0, ServiceRequest.Timestep, IHL_fleet_ave[min([step,ServiceRequest.Steps-1])], ServiceRequest.Forecast)
+                    tin, twall, tmass, tattic, tset, eused, pusedmax, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, Tamb[number][step], Tsol_W[number][step], QIHL_i[number][step], Qsolar_i[step], Tsol_R[number][step], QIHL_mass[number][step], Qsolar_mass[step], Rext[number], Rattic[number], Cmass[number], 0, ServiceCallsAccepted[number][laststep], elementOn[number][laststep], Timestep, IHL_fleet_ave[min([step,Steps-1])], forecast)
 
 
 #                assign returned parameters to associated lists to be recorded
-                Tset[number][step] = response.Tset
-                Tin[number][step] = response.Tin
-                Twall[number][step] = response.Twall
-                Tmass[number][step] = response.Tmass
-                Tattic[number][step] = response.Tattic
+                Tset[number][step] = tset
+                Tin[number][step] = tin
+                Twall[number][step] = twall
+                Tmass[number][step] = tmass
+                Tattic[number][step] = tattic
                 
-                SoC[number][step] = response.SOC
-                IsAvailableAdd[number][step] = response.IsAvailableAdd
-                IsAvailableShed[number][step] = response.IsAvailableShed
+                SoC[number][step] = soC
+                IsAvailableAdd[number][step] = isAvailableAdd
+                IsAvailableShed[number][step] = isAvailableShed
                 
-                elementOn[number][step] = response.ElementOn
-                AvailableCapacityAdd[number][step] = response.AvailableCapacityAdd 
-                AvailableCapacityShed[number][step] = response.AvailableCapacityShed 
-                ServiceCallsAccepted[number][step] = response.ServiceCallsAccepted
-                ServiceProvided[number][step] += response.Eservice
+                elementOn[number][step] = elementon
+                AvailableCapacityAdd[number][step] = availableCapacityAdd
+                AvailableCapacityShed[number][step] = availableCapacityShed
+                ServiceCallsAccepted[number][step] = serviceCallsAccepted
+                ServiceProvided[number][step] = eservice
                 
-                servsum += response.Eservice
-
-#                TotalServiceProvidedPerHVAC[number] = TotalServiceProvidedPerHVAC[number] + ServiceProvided[number][step]
-#                P_injected += eused
-#                P_injected_max += pusedmax
-#                
-#                servmax += availableCapacityAdd*1e3
-#                servmax2 += availableCapacityShed*1e3
-                               
+                servsum += eservice*1e3
+                TotalServiceProvidedPerHVAC[number] = TotalServiceProvidedPerHVAC[number] + ServiceProvided[number][step]
+                P_injected += eused
+                P_injected_max += pusedmax
                 
-                FleetResponse.P_togrid += response.Eused
-                FleetResponse.P_togrid_max += response.PusedMax
-                FleetResponse.P_togrid_min += response.PusedMin
-                
-                FleetResponse.P_service += response.Eservice
+                servmax += availableCapacityAdd*1e3
+                servmax2 += availableCapacityShed*1e3
                 
                 number += 1  # go to next building
 
-
-                # Available Energy stored at the end of the most recent timestep
-#                FleetResponse.E += response.Estored
-                FleetResponse.E = 0
-                FleetResponse.C += response.SOC / (self.numHVAC)
-                FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
-                
-#            FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
-            FleetResponse.P_dot = FleetResponse.P_togrid / ServiceRequest.Timestep.seconds
-            FleetResponse.P_service_min  = 0
-            
-#            FleetResponse.Q_dot_down     = 0
-            FleetResponse.dT_hold_limit  = None
-            FleetResponse.T_restore      = None
-            FleetResponse.Strike_price   = None
-            FleetResponse.SOC_cost       = None
-
-            TotalServiceProvidedPerTimeStep[step] = -1.0*servsum   # per time step for all hvacs  -1.0*
-#            MaxServiceAddedPerTimeStep[step] = servmax 
-#            MaxServiceShedPerTimeStep[step] = servmax2 
+            TotalServiceProvidedPerTimeStep[step] = -1.0*servsum   # per time step for all hvacs
+            MaxServiceAddedPerTimeStep[step] = servmax 
+            MaxServiceShedPerTimeStep[step] = servmax2 
  
                     
-#        for n in range(number):
-#            TotalServiceCallsAcceptedPerHVAC[n] = ServiceCallsAccepted[n][step]
-#    
-#    
-#        for m in range(Steps):
-#            P_service += TotalServiceProvidedPerTimeStep[m]
-#            for q in range(number):
-#               P_service_max += AvailableCapacityShed[q][m] 
+        for n in range(number):
+            TotalServiceCallsAcceptedPerHVAC[n] = ServiceCallsAccepted[n][step]
+    
+    
+        for m in range(Steps):
+            P_service += TotalServiceProvidedPerTimeStep[m]
+            for q in range(number):
+               P_service_max += AvailableCapacityShed[q][m] 
                 
     
-        if ServiceRequest.Forecast == 1:
-            FleetResponse.P_forecast = FleetResponse.P_service
+        if forecast == 1:
+            P_forecast = P_service
         else:
-            FleetResponse.P_forecast = 0
+            P_forecast = 0
     
-        # return TotalServiceProvidedPerTimeStep, MaxServiceAddedPerTimeStep, MaxServiceShedPerTimeStep, P_injected, Q_injected, P_service, Q_service, P_injected_max, Q_service_max, P_forecast, Q_forecast
-        return FleetResponse
+        return TotalServiceProvidedPerTimeStep, MaxServiceAddedPerTimeStep, MaxServiceShedPerTimeStep, P_injected, Q_injected, P_service, Q_service, P_injected_max, Q_service_max, P_forecast, Q_forecast
    
 ###############################################################################    
 # Add random climate zone during a summer cooling month
-
-loc = dict()
-loc["Miami"] = 0
-loc["Phoenix"] = 1
-loc["Atlanta"] = 2
-loc["Las Vegas"] = 3
-loc["Denver"] = 4
-loc["Minneapolis"] = 5
-
-def get_monthly_conditions(climate_location,  timestep_min, num_steps, start_time):
+    
+def get_monthly_conditions(climate_location):
         #reads from 8760 (or 8760 * 60) input files for ambient air temp, RH, mains temp, and draw profile and loads data into arrays for future use
-        
-        
-        try:
-            amb_temp_column = loc[climate_location]
-            IHG_column = loc[climate_location]
-        except IndexError:
-            raise IndexError("Error! Only allowed installation locations for now !!!")
-
-        dt = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-        start_time_dec = dt.hour+dt.minute/60.0
-
-        new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_min*num_steps/60.0, num_steps)
-
         Tamb = []
         IHG = []
-   
+
+        # Orders of the locations:
+        # Miami, Phon, Atl, Vegas, Den, Minnea
+        
+        if climate_location == 'Miami':            
+            #raise NameError("Error! Only allowing Denver as a run location for now. Eventually we'll allow different locations and load different files based on the location.")
+            amb_temp_column = 0
+            IHG_column = 0
+        elif climate_location == 'Phoenix':
+            amb_temp_column = 1
+            IHG_column = 1
+        elif climate_location == 'Atlanta':
+            amb_temp_column = 2
+            IHG_column = 2
+        elif climate_location == 'Las Vegas':
+            amb_temp_column = 3
+            IHG_column = 3
+        elif climate_location == 'Denver':
+            amb_temp_column = 4
+            IHG_column = 4
+        elif climate_location == 'Minneapolis':
+            amb_temp_column = 5
+            IHG_column = 5
+        else:
+            raise NameError("Error! Only allowed installation locations for now !!!")
+ 
+        
         # Tout and IHG profiles preprocessed for 10 mins,
         # if other time step, better to do preprocess outside the main function here
         # or use timestep_min below (we set timestep_min = 10 by default)
+        
+   
         ambient_cond_file = pd.read_excel('./data_file/Cities_Tout_July_10mins.xlsx') #steply ambient air temperature and RH
         ambient_cond_file = np.matrix(ambient_cond_file)
         Tamb = ambient_cond_file[:,amb_temp_column]
-        Tamb = np.squeeze(np.asarray(Tamb))
-
-        Tamb_num_steps = Tamb.shape[0]
-        Tamb_stepsize_min = 10
-        Tamb_orig_time = np.linspace(start_time_dec,
-                                     start_time_dec+Tamb_stepsize_min*Tamb_num_steps/60.0,
-                                     Tamb_num_steps)       
-        new_Tamb = np.interp(new_time_list, Tamb_orig_time, Tamb)
-
-
+        
+   
         IHG_file = pd.read_excel('./data_file/Cities_IHG_July_10mins.xlsx')  #steply ambient air temperature and RH
         IHG_file = np.matrix(IHG_file)
         IHG = IHG_file[:,IHG_column]
-        IHG = np.squeeze(np.asarray(IHG))
 
-        IHG_num_steps = IHG.shape[0]
-        IHG_stepsize_min = 10
-        IHG_orig_time = np.linspace(start_time_dec,
-                                    start_time_dec+IHG_stepsize_min*IHG_num_steps/60.0,
-                                    IHG_num_steps)       
-        new_IHG = np.interp(new_time_list, IHG_orig_time, IHG)
-
-        return new_Tamb, new_IHG
+        return Tamb, IHG
 
 
-#def change_config(self, **kwargs):
-#    """
-#    This function is here for future use. The idea of having it is for a service to communicate with a fleet
-#    in a nondeterministic manner during a simulation
-#
-#    :param kwargs: a dictionary of (key, value) pairs. The exact keys are decided by a fleet.
-#
-#    Example: Some fleets can operate in an autonomous mode, where they're not responding to requests,
-#    but watching, say, the voltage. If the voltage dips below some defined threshold (which a service might define),
-#    then the fleet responds in a pre-defined way.
-#    In this example, the kwargs can be {"voltage_threshold": new_value}
-#    """
-#    pass
-#    
-#if __name__ == '__main__':
-#    fleet = HVACFleet()
-##    print(fleet.P_service)
-##    print(fleet.P_forecast)
+def change_config(self, **kwargs):
+    """
+    This function is here for future use. The idea of having it is for a service to communicate with a fleet
+    in a nondeterministic manner during a simulation
+
+    :param kwargs: a dictionary of (key, value) pairs. The exact keys are decided by a fleet.
+
+    Example: Some fleets can operate in an autonomous mode, where they're not responding to requests,
+    but watching, say, the voltage. If the voltage dips below some defined threshold (which a service might define),
+    then the fleet responds in a pre-defined way.
+    In this example, the kwargs can be {"voltage_threshold": new_value}
+    """
+    pass
+    
+if __name__ == '__main__':
+    fleet = HVACFleet()
+#    print(fleet.P_service)
+#    print(fleet.P_forecast)
 
 
 

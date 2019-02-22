@@ -75,7 +75,7 @@ class c():
     COL_QSENS="Qsens"
 
 class AC:
-        C_Air = 1793.031*6   # of the case air J/K
+        C_Air = 1793.031*1   # of the case air J/K
         m_dot_Cair = 455.7897
 #        infil = 455.7896896  # W/K
         
@@ -84,11 +84,11 @@ class AC:
 #        R_Case = 0.097211  #K/W
 #        R_food = 0.001177  #K/W
         
-#        def __init__(self, Qrated, EIRrated):
-#            self.Qrated=Qrated
-#            self.EIRrated=EIRrated
-#
-#AC = AC(1.15,0.85)  
+        def __init__(self, Qrated, EIRrated):
+            self.Qrated=Qrated
+            self.EIRrated=EIRrated
+
+AC = AC(1.15,0.85)  
 
 #def model(z,t,*u):
 #    Rcase,Rfood,Cair,Cfood,Qheat,Tamb,Tevap,Qsens,infil,C1 = u
@@ -129,10 +129,10 @@ class CaseModel():
                        
             self.Qsens = [0]
             self.m_dot = [100]
-            self.infil = [0.6]
+            self.infil = [0.8]
             
-            self.C1 = 0.5
-            self.Qheat = [800.0]
+            self.C1 = 0.42
+            self.Qheat = [1500.0]
             
             self.dt = [time_step*60.0]   # 10 mins discretization
 
@@ -204,21 +204,21 @@ class CaseModel():
 ###########################################################################          
             # Modify operation based on control signal #
             # Reduce loads
-            if control_signal_ts  < 0 and Tfood_last < self.T_food_max and Tair_last < self.T_air_max and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            if control_signal_ts  < 0 and Tfood_last < self.T_food_max and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 service_calls_accepted_ts += 1
       
-            elif control_signal_ts  < 0 and Tfood_last >= self.T_food_max or Tair_last >= self.T_air_max:
+            elif control_signal_ts  < 0 and Tfood_last >= self.T_food_max:
                 # don't change anything
                 Eused_ts = Eused_baseline_ts
                 
             # Increase loads    
-            elif control_signal_ts  > 0 and Tfood_last <= self.T_food_min or Tair_last <= self.T_air_min:
+            elif control_signal_ts  > 0 and Tfood_last <= self.T_food_min:
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
              
-            elif control_signal_ts  > 0 and Tfood_last >= self.T_food_min  and Element_on_ts == 0: #and Tair_last >= self.T_air_min Element_on_ts = 0 requirement eliminates free rider situation
+            elif control_signal_ts  > 0 and Tfood_last >= self.T_food_min and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
                 #make sure it stays on
                 Eused_ts = E_cool*1.000 #W used
                 Element_on_ts = 1
@@ -239,10 +239,10 @@ class CaseModel():
     
             Eservice_ts = Eused_ts - Eused_baseline_ts
                 
-#            print('Tfood:')    
-#            print(Tfood_last)
-#            print('Tair:')    
-#            print(Tair_last)
+            print('Tfood:')    
+            print(Tfood_last)
+            print('Tair:')    
+            print(Tair_last)
 #            print('Tind:')    
 #            print(Tind_ts)
 #            print('Predict Tind')
