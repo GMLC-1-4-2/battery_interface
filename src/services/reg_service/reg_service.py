@@ -16,7 +16,7 @@ from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
-# from fleet_config import FleetConfig
+from utils import ensure_ddir
 
 from services.reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reg_service.helpers.clearing_price_helper import ClearingPriceHelper
@@ -48,11 +48,13 @@ class RegService():
         if service_type not in ['Traditional', 'Dynamic']:
             raise ValueError("service_type has to be either 'Traditional' or 'Dynamic'!")
         # Generate lists of 2s request and response class objects based on regulation service type (i.e. traditional vs. dynamic).
+
         print('     Generating traditional signal lists')
         request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time)
         if service_type == 'Dynamic':
             print('     Generating dynamic signal lists')
             request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time)
+
             # Assign generic names to signal lists.
             request_list_2s_tot = request_list_2s_dynm
             response_list_2s_tot = response_list_2s_dynm
@@ -145,12 +147,14 @@ class RegService():
             SOC = [r.soc for r in response_list_2s_tot]
             results_df['SOC'] = SOC
         results_df_dir = dirname(abspath(__file__)) + '\\results\\'
+        ensure_ddir(results_df_dir)
         results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
         plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+        ensure_ddir(plot_dir)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
                         ts_request[0].strftime('%B') +\
                         '_2secnormsignals_' +\
@@ -204,6 +208,7 @@ class RegService():
     # Method for retrieving device fleet's response to each individual request.
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
+        print("Processing request at timestep %s" % ts)
         fleet_response = self.fleet.process_request(fleet_request)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response

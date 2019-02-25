@@ -74,8 +74,8 @@ for i in range(len(t)):
     power_response.append(FORECAST[i].P_togrid)
     energy_stored[i] = FORECAST[i].E
  
-fleet_test.output_impact_metrics()  
-print("The impact metrics file has been produced: state of health of the batteries")
+#fleet_test.output_impact_metrics()  
+#print("The impact metrics file has been produced: state of health of the batteries")
 print(pd.read_csv('impact_metrics.csv'))
 
 plots = Plots()
