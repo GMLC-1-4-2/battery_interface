@@ -33,14 +33,16 @@ def integration_test(service_name, fleet_name, **kwargs):
 
     # Assign test fleet to test service to use
     service.fleet = fleet
+    assigned_fleet_name = service.fleet.__class__.__name__
 
     # Run test
     if service_name == 'Regulation':
         fleet_responses = service.request_loop(service_type='Dynamic',
-                                              start_time=parser.parse('2017-08-01 16:00:00'),
-                                              # end_time=parser.parse('2017-08-02 15:00:00'),
-                                              end_time=parser.parse('2017-08-01 23:00:00'),
-                                              clearing_price_filename='historical-ancillary-service-data-2017.xls')
+                                               start_time=parser.parse('2017-08-01 16:00:00'),
+                                               # end_time=parser.parse('2017-08-02 15:00:00'),
+                                               end_time=parser.parse('2017-08-01 23:00:00'),
+                                               clearing_price_filename='historical-ancillary-service-data-2017.xls',
+                                               fleet_name=assigned_fleet_name)
         for key_1, value_1 in fleet_responses.items():
             for key_2, value_2 in value_1.items():
                 print('\t\t\t\t\t\t', key_2, value_2)
@@ -80,13 +82,12 @@ def integration_test(service_name, fleet_name, **kwargs):
         for month in monthtimes.keys():
             print('Starting ' + str(month) + ' at ' + datetime.now().strftime('%H:%M:%S'))
             start_time = parser.parse(monthtimes[month][0])
-            fleet_response = service.request_loop(fleet_is_load=False,
-                                                  start_time=start_time,
+            fleet_response = service.request_loop(start_time=start_time,
                                                   end_time=parser.parse(monthtimes[month][1]),
                                                   clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
                                                   previous_event_end=previous_event_end,
                                                   four_scenario_testing=False,
-                                                  fleet_name=fleet_name)
+                                                  fleet_name=assigned_fleet_name)
             try:
                 previous_event_end = fleet_response[0].Event_End_Time[-1]
             except:
@@ -139,7 +140,7 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Dev test
-    services = ['Reserve']
+    services = ['Regulation']
     fleets = ['WaterHeater']
     kwargs = {}
 
