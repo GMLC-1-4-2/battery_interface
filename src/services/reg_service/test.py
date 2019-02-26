@@ -1,6 +1,6 @@
 import sys
 from dateutil import parser
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 import pandas as pd
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         all_results.drop(columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
                          inplace=True)
         print('Writing result .csv')
-        file_dir = dirname(abspath(__file__)) + '\\results\\'
+        file_dir = join(dirname(abspath(__file__)), 'results')
         all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_annual_hourlyresults_' + service_type + '_' + fleet_name + '.csv')
     print('Duration:')
     print(datetime.now() - startTime)

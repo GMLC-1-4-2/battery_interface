@@ -1,6 +1,6 @@
 import sys
 from dateutil import parser
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -111,10 +111,10 @@ if __name__ == '__main__':
         annual_signals = pd.concat([annual_signals, fleet_response[1]],sort=True)
         
     print('Writing event results .csv')
-    file_dir = dirname(abspath(__file__)) + '\\results\\'
+    file_dir = join(dirname(abspath(__file__)), 'results')
     all_results.to_csv(file_dir + datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + fleet_name + '.csv')
     print('Plotting annual signals and SOC (if necessary)')
-    plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+    plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
     plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + fleet_name + '.png'
     plt.figure(1)
     plt.figure(figsize=(15,8))
