@@ -1158,3 +1158,10 @@ class ElectricVehiclesFleet(FleetInterface):
         Scale the service to the size of the fleet
         """
         return self.service_weight*self.fleet_rating
+    
+    def print_performance_info(self):
+        """
+        This function is to dump the performance metrics either to screen or file or both
+        :return:
+        """
+        pass
