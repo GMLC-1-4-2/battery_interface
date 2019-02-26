@@ -221,7 +221,7 @@ class ElectricVehiclesFleet(FleetInterface):
         :return res: an instance of FleetResponse
         """
         # call simulate method with proper inputs
-        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, self.dt)
+        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, fleet_request.sim_step)
 
         return FleetResponse
     
