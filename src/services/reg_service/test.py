@@ -78,7 +78,6 @@ if __name__ == '__main__':
         for month in monthtimes.keys():
             print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
             fleet_response = service.request_loop(service_type=service_type,
-                                                  fleet_is_load=False,
                                                   start_time=parser.parse(monthtimes[month][0]),
                                                   end_time=parser.parse(monthtimes[month][1]),
                                                   clearing_price_filename='historical-ancillary-service-data-2017.xls',

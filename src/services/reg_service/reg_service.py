@@ -16,7 +16,7 @@ from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
-# from fleet_config import FleetConfig
+from utils import ensure_ddir
 
 from services.reg_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reg_service.helpers.clearing_price_helper import ClearingPriceHelper
@@ -39,7 +39,6 @@ class RegService():
     # It returns a 2-level dictionary; 1st level key is the starting time of each hour.
     # TODO: [minor] currently, the start and end times are hardcoded. Ideally, they would be based on promoted user inputs.
     def request_loop(self, service_type="Traditional",
-                     fleet_is_load=False,
                      start_time=parser.parse("2017-08-01 16:00:00"),
                      end_time=parser.parse("2017-08-01 21:00:00"),
                      clearing_price_filename='historical-ancillary-service-data-2017.xls',
@@ -49,11 +48,13 @@ class RegService():
         if service_type not in ['Traditional', 'Dynamic']:
             raise ValueError("service_type has to be either 'Traditional' or 'Dynamic'!")
         # Generate lists of 2s request and response class objects based on regulation service type (i.e. traditional vs. dynamic).
+
         print('     Generating traditional signal lists')
-        request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time, fleet_is_load)
+        request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time)
         if service_type == 'Dynamic':
             print('     Generating dynamic signal lists')
-            request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time, fleet_is_load)
+            request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time)
+
             # Assign generic names to signal lists.
             request_list_2s_tot = request_list_2s_dynm
             response_list_2s_tot = response_list_2s_dynm
@@ -146,12 +147,14 @@ class RegService():
             SOC = [r.soc for r in response_list_2s_tot]
             results_df['SOC'] = SOC
         results_df_dir = join(dirname(abspath(__file__)), 'results')
+        ensure_ddir(results_df_dir)
         results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
         plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+        ensure_ddir(plot_dir)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
                         ts_request[0].strftime('%B') +\
                         '_2secnormsignals_' +\
@@ -176,7 +179,7 @@ class RegService():
         return hourly_results
 
     # Returns lists of requests and responses at 2s intervals.
-    def get_signal_lists(self, service_type, start_time, end_time, fleet_is_load):
+    def get_signal_lists(self, service_type, start_time, end_time):
         # Note: If you would like to infer input filename from start_time, use the following
         #       method. However, since the input files are not in the same directory as this code,
         #       file path still needs to be specified.
@@ -189,14 +192,17 @@ class RegService():
         historial_signal_filename = join(dirname(abspath(__file__)), historial_signal_filename)
 
         # Returns a DataFrame that contains data in the entire specified sheet (i.e. tab).
-        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, fleet_is_load)
+        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename)
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
         sim_step = timedelta(seconds=2)
-        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_regulation_MW()) for x,i in signals.items()]
+        # Convert response kW into MW.
+        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x,i in signals.items()]
         requests = [x[0] for x in reqrespitems]
         responses = [x[1] for x in reqrespitems]
+        requests = requests/1000
+        responses = responses/1000
 
         return requests, responses
 
@@ -204,6 +210,7 @@ class RegService():
     # Method for retrieving device fleet's response to each individual request.
     def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
+        print("Processing request at timestep %s" % ts)
         fleet_response = self.fleet.process_request(fleet_request)
         #print(fleet_response.P_service)
         return fleet_request, fleet_response

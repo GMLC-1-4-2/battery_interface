@@ -15,13 +15,12 @@ import matplotlib.pyplot as plt
 # Import modules from "src\services"
 from fleet_request import FleetRequest
 from fleet_config import FleetConfig
+from utils import ensure_ddir
 
 from pdb import set_trace as bp
 
-
 from services.reserve_service.helpers.historical_signal_helper import HistoricalSignalHelper
 from services.reserve_service.helpers.clearing_price_helper import ClearingPriceHelper
-
 
 
 # Class for synchronized reserve service.
@@ -39,7 +38,7 @@ class ReserveService():
     # The time step for simulating fleet's response is at 1 minute.
     # It returns a 2-level dictionary; 1st level key is the month.
     # TODO: [minor] currently, the start and end times are hardcoded. Ideally, they would be based on promoted user inputs.
-    def request_loop(self, fleet_is_load=False,
+    def request_loop(self,
                      start_time=parser.parse("2017-01-01 00:00:00"),
                      end_time=parser.parse("2017-01-01 05:00:00"),
                      clearing_price_filename="201701.csv",
@@ -48,12 +47,13 @@ class ReserveService():
                      fleet_name="PVInverterFleet"):
 
         # Returns a Dictionary containing a month-worth of hourly SRMCP price data indexed by datetime.
+        clearing_price_filename = join(dirname(abspath(__file__)), clearing_price_filename)
         self._clearing_price_helper.read_and_store_clearing_prices(clearing_price_filename, start_time)
 
         if not(four_scenario_testing):
 
             # Generate lists of 1-min request and response class objects.
-            request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time, fleet_is_load)
+            request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
 
             # Generate lists containing tuples of (timestamp, power) for request and response
             request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
@@ -80,6 +80,7 @@ class ReserveService():
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
             plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+            ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
             plt.figure(figsize=(15,8))
@@ -102,10 +103,6 @@ class ReserveService():
             # Dummy values for plotting
             if 'battery' in fleet_name.lower():
                 df_1m['SoC'] = 1.
-            if fleet_is_load:
-                # If the fleet is a load (e.g., battery or EV), not a generator (e.g., PV), then the signals
-                # should be negative
-                df_1m.Request = -1. * df_1m.Request
 
         # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
@@ -235,11 +232,13 @@ class ReserveService():
             return [results_df, df_1m]
 
     # Returns lists of requests and responses at 1m intervals.
-    def get_signal_lists(self, start_time, end_time, fleet_is_load):
+    def get_signal_lists(self, start_time, end_time):
         # TODO: (minor) replace the temporary test file name with final event signal file name.
         historial_signal_filename = "gmlc_events_2017_1min.xlsx"
         # Returns a DataFrame that contains historical signal data in the events data file.
-        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename, fleet_is_load)
+        historial_signal_filename = join(dirname(abspath(__file__)), historial_signal_filename)
+        self._historial_signal_helper.read_and_store_historical_signals(historial_signal_filename)
+
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
@@ -248,11 +247,13 @@ class ReserveService():
         responses = []
 
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
-        # TODO: [minor] _fleet.assigned_regulation_MW() is currently only implemented in the fleet model within the same folder but not in the "fleets" folder.
         for timestamp, normalized_signal in signals.items():
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_regulation_MW())
+            # Convert response kW into MW.
+            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
             requests.append(request)
             responses.append(response)
+        requests = requests / 1000
+        responses = responses / 1000
         #print(requests)
         #print(responses)
 

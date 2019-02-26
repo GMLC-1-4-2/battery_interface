@@ -92,8 +92,7 @@ if __name__ == '__main__':
     for month in monthtimes.keys():
         print('Starting ' + str(month) + ' at ' + datetime.now().strftime('%H:%M:%S'))
         start_time=parser.parse(monthtimes[month][0])
-        fleet_response = service.request_loop(fleet_is_load=False,
-                                              start_time=start_time,
+        fleet_response = service.request_loop(start_time=start_time,
                                               end_time=parser.parse(monthtimes[month][1]),
                                               clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
                                               previous_event_end=previous_event_end,
