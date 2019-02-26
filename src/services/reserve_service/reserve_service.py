@@ -249,9 +249,11 @@ class ReserveService():
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
         for timestamp, normalized_signal in signals.items():
             # Convert response kW into MW.
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW()/1000)
+            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
             requests.append(request)
             responses.append(response)
+        requests = requests / 1000
+        responses = responses / 1000
         #print(requests)
         #print(responses)
 
