@@ -1,13 +1,14 @@
 from datetime import datetime
 from grid_info import GridInfo
 
-grid1 = GridInfo('Grid_Info_DATA_2.csv')
-#grid2 = GridInfo('Grid_Info_data_artificial_inertia.csv')
-
 
 def create_fleet(name, grid_type=1, **kwargs):
-    #grid = grid1 if grid_type == 1 else grid2
-    grid = grid1
+    if grid_type == 2:
+        from grid_info_artificial_inertia import GridInfo  #Use for artificial Inertia case
+        grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
+    else:
+        from grid_info import GridInfo
+        grid = GridInfo('Grid_Info_DATA_2.csv')
 
     if name == 'BatteryInverter':
         from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
@@ -30,6 +31,10 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet_test = ElectricVehiclesFleet(grid, ts)
         fleet_test.is_autonomous = False
         fleet_test.is_P_priority = True
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet_test.is_autonomous = True
+        fleet_test.VV11_Enabled = False
+        fleet_test.FW21_Enabled = True
         fleet_test.dt = dt
 
         return fleet_test
@@ -37,11 +42,18 @@ def create_fleet(name, grid_type=1, **kwargs):
     elif name == 'PV':
         from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
         fleet = PVInverterFleet(GridInfo=grid)
-
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
     elif name == 'WaterHeater':
         from fleets.water_heater_fleet.WH_fleet_control import WaterHeaterFleet
         fleet = WaterHeaterFleet()
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
 
     elif name == 'HVAC':
