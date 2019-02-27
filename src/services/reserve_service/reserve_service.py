@@ -250,10 +250,8 @@ class ReserveService():
         for timestamp, normalized_signal in signals.items():
             # Convert response kW into MW.
             request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
-            requests.append(request)
-            responses.append(response)
-        requests = requests / 1000
-        responses = responses / 1000
+            requests.append(request/1000)
+            responses.append(response/1000)
         #print(requests)
         #print(responses)
 

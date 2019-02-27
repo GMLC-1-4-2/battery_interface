@@ -199,10 +199,8 @@ class RegService():
         sim_step = timedelta(seconds=2)
         # Convert response kW into MW.
         reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x,i in signals.items()]
-        requests = [x[0] for x in reqrespitems]
-        responses = [x[1] for x in reqrespitems]
-        requests = requests/1000
-        responses = responses/1000
+        requests = [x[0]/1000 for x in reqrespitems]
+        responses = [x[1]/1000 for x in reqrespitems]
 
         return requests, responses
 
