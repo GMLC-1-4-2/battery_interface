@@ -108,9 +108,9 @@ class RegService():
                 request_list_2s_65min = request_list_2s_65min_trad
                 response_list_2s_65min = response_list_2s_65min_trad
                 mileage_ratio = 1
-            # Convert lists into arrays.
-            request_array_2s = np.asarray(request_list_2s_65min)
-            response_array_2s = np.asarray(response_list_2s_65min)
+            # Convert lists into arrays. convert units from kW to MW.
+            request_array_2s = np.asarray(request_list_2s_65min)/1000
+            response_array_2s = np.asarray(response_list_2s_65min)/1000
             # Slice arrays at 10s intervals - resulted arrays have 390 data points.
             request_array_10s = request_array_2s[::5]
             response_array_10s = response_array_2s[::5]
@@ -197,10 +197,9 @@ class RegService():
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
         sim_step = timedelta(seconds=2)
-        # Convert response kW into MW.
         reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x,i in signals.items()]
-        requests = [x[0]/1000 for x in reqrespitems]
-        responses = [x[1]/1000 for x in reqrespitems]
+        requests = [x[0] for x in reqrespitems]
+        responses = [x[1] for x in reqrespitems]
 
         return requests, responses
 
