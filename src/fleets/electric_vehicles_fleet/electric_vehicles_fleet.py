@@ -221,10 +221,13 @@ class ElectricVehiclesFleet(FleetInterface):
         :return res: an instance of FleetResponse
         """
         # call simulate method with proper inputs
+        ts = fleet_request.ts_req
         dt = int(fleet_request.sim_step.total_seconds())
-        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, dt)
+        p_req = fleet_request.P_req
+        q_req = fleet_request.Q_req
+        fleet_response = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts)
 
-        return FleetResponse
+        return fleet_response
     
     def frequency_watt(self, p_req = 0,ts=datetime.utcnow(),location=0):
         """
@@ -251,7 +254,7 @@ class ElectricVehiclesFleet(FleetInterface):
            
         return SOC_update
     
-    def simulate(self, P_req, Q_req, initSOC, t, dt):
+    def simulate(self, P_req, Q_req, initSOC, t, dt, ts):
         """ 
         Simulation part of the code: charge, discharge, ...:
         everything must be referenced to baseline power from Montecarlo 
@@ -277,6 +280,7 @@ class ElectricVehiclesFleet(FleetInterface):
             return [[], []]
         else:
             response = FleetResponse()
+            response.ts = ts
             
             # SOC at the next time step
             SOC_step = np.zeros([self.N_SubFleets,])
@@ -549,9 +553,11 @@ class ElectricVehiclesFleet(FleetInterface):
         responses = []
         
         for req in requests:
+            ts = req.ts_req
             dt = int(req.sim_step.total_seconds())
-            FleetResponse = self.simulate(req.P_req, req.Q_req, self.SOC, self.time, dt)
-            res = FleetResponse
+            p_req = req.P_req
+            q_req = req.Q_req
+            res = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts)
             responses.append(res)     
         # restart the state of charge
         self.SOC = SOC_aux
