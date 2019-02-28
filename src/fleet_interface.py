@@ -69,7 +69,7 @@ class FleetInterface:
         This function allows weight and fleet rating to be passed to the service model. 
         Scale the service to the size of the fleet
         """
-        return 1.0
+        return self.service_weight*self.fleet_rating
 
     def print_performance_info(self):
         """
