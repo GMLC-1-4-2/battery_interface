@@ -221,8 +221,8 @@ class ElectricVehiclesFleet(FleetInterface):
         :return res: an instance of FleetResponse
         """
         # call simulate method with proper inputs
-        self.dt = int(fleet_request.sim_step.total_seconds())
-        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, self.dt)
+        dt = int(fleet_request.sim_step.total_seconds())
+        FleetResponse = self.simulate(fleet_request.P_req, fleet_request.Q_req, self.SOC, self.time, dt)
 
         return FleetResponse
     
@@ -547,8 +547,10 @@ class ElectricVehiclesFleet(FleetInterface):
         
         SOC_aux = self.SOC
         responses = []
+        
         for req in requests:
-            FleetResponse = self.simulate(req.P_req, req.Q_req, self.SOC, self.time, req.sim_step)
+            dt = int(req.sim_step.total_seconds())
+            FleetResponse = self.simulate(req.P_req, req.Q_req, self.SOC, self.time, dt)
             res = FleetResponse
             responses.append(res)     
         # restart the state of charge
