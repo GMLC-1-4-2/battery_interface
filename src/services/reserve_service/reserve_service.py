@@ -56,12 +56,12 @@ class ReserveService():
             request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
 
             # Generate lists containing tuples of (timestamp, power) for request and response
-            request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
+            request_list_1m = [(r.ts_req, r.P_req / 1000) for r in request_list_1m_tot]
             if 'battery' in fleet_name.lower():
                 # Include battery SoC in response list for plotting purposes
-                response_list_1m = [(r.ts, r.P_service, r.soc) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000, r.soc) for r in response_list_1m_tot]
             else:
-                response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000) for r in response_list_1m_tot]
             # Convert the lists of tuples into dataframes
             request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
             if 'battery' in fleet_name.lower():
