@@ -15,6 +15,12 @@ class FleetInterface:
         """
         Constructor
         """
+        # It represents the percentage of devices within the fleet that are available to provide grid services
+        # It is a number between 0-1
+        self.service_weight = 1
+        # Maximum absolute power that the fleet is able to provide (kW)
+        self.fleet_rating = 1000
+        
         pass
 
     def process_request(self, fleet_request):
