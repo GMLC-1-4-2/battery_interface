@@ -27,19 +27,21 @@ class ArtificialInertiaService():
     def fleet(self, value):
         self.fleet_device = value
 
-    def request_loop(self):
+    def request_loop(self, start_time):
         responses = []
 
-        inittime = parser.parse("2018-10-12 00:00:00")
+        #inittime = parser.parse("2018-10-12 00:00:00")
         delt = timedelta(seconds=2 / 60)
-        cur_time = inittime
+        cur_time = start_time
         end_time = cur_time + timedelta(seconds=149)
         while cur_time < end_time:
-            fleet_request = FleetRequest(cur_time, delt)
+            fleet_request = FleetRequest(cur_time, delt, start_time)
             fleet_response = self.fleet_device.process_request(fleet_request)
+           # fleet_response = self.fleet_device.frequency_watt(fleet_request)
+
             responses.append(fleet_response)
             cur_time += delt
-            # print("{}".format(cur_time))
+            print("{}".format(cur_time))
 
         return responses
 
@@ -48,7 +50,8 @@ class ArtificialInertiaService():
         # responses []
         sum = 0
         for response in responses:
-            p_togrid = response.P_togrid  # or P_service
+        #    p_togrid = response.P_togrid  # or P_service
+            p_togrid = response.P_service
             sum += p_togrid
         avg = sum / len(responses)
 
@@ -64,8 +67,8 @@ if __name__ == "__main__":
 
     # Create a fleet and pass in gridinfo (contains the frequency from CSV file)
     grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
-    #fleet_device = BatteryInverterFleet(GridInfo=grid)  # establish the battery inverter fleet with a grid
-    fleet_device = HomeAcFleet(GridInfo=grid)
+    fleet_device = BatteryInverterFleet(GridInfo=grid)  # establish the battery inverter fleet with a grid
+    #fleet_device = HomeAcFleet(GridInfo=grid)
 
     # Create a service
     service = ArtificialInertiaService(fleet_device)
