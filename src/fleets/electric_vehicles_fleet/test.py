@@ -89,7 +89,6 @@ plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
 # Initialization of important variables in the constructor
 fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
 fleet_test.time = fleet_test.get_time_of_the_day(ts)
-fleet_test.dt = dt
 
 # process the requests 
 SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
