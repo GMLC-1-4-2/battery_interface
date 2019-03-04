@@ -43,9 +43,6 @@ power_baseline = - (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'
                     fleet_test.strategies[1][1]*df_baseline['power_Midnight_kW'].iloc[local_time:local_time+seconds_of_simulation]  +
                     fleet_test.strategies[1][2]*df_baseline['power_TCIN_kW'].iloc[local_time:local_time+seconds_of_simulation])
 
-# Initialization of the time step 
-fleet_test.dt = dt
-
 # Power requested (kW): test
 power_request = 50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 #power_request = 50000*(np.ones([len(t),]))
