@@ -1,17 +1,18 @@
-# Testing the ElectricVehiclesFleet class
-
 from datetime import datetime
 import numpy as np
 import time
 import os
 import pandas as pd
 
-from plot_test import Plots
+import sys
+from os.path import dirname, abspath
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
-from fleet_response import FleetResponse
 from grid_info import GridInfo
-from electric_vehicles_fleet import ElectricVehiclesFleet
+
+from fleets.electric_vehicles_fleet.plot_test import Plots
+from fleets.electric_vehicles_fleet.electric_vehicles_fleet import ElectricVehiclesFleet
 
 
 ###############################################################################
@@ -22,7 +23,7 @@ dirname = os.path.dirname(__file__)
 ts = datetime(2018, 9, 20, 5, 0, 00, 000000)
 
 # Parameters of the grid
-grid = GridInfo(os.path.join(dirname, 'data/Grid_Info_DATA_2.csv'))
+grid = GridInfo('Grid_Info_DATA_2.csv')
 
 # Instantiation of an object of the ElectricVehiclesFleet class
 fleet_test = ElectricVehiclesFleet(grid, ts)
@@ -73,8 +74,8 @@ for i in range(len(t)):
     power_response.append(FORECAST[i].P_togrid)
     energy_stored[i] = FORECAST[i].E
  
-fleet_test.output_impact_metrics()  
-print("The impact metrics file has been produced: state of health of the batteries")
+#fleet_test.output_impact_metrics()  
+#print("The impact metrics file has been produced: state of health of the batteries")
 print(pd.read_csv('impact_metrics.csv'))
 
 plots = Plots()

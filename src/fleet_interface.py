@@ -26,7 +26,7 @@ class FleetInterface:
         """
         fleet_response = FleetResponse()
         fleet_response.ts = fleet_request.ts_req
-        fleet_response.P_service = 0.8*fleet_request.P_req
+        fleet_response.P_service = fleet_request.P_req
 
         return fleet_response
 
@@ -61,10 +61,12 @@ class FleetInterface:
     def assigned_regulation_MW(self):
         return 1.0
 
+    def assigned_service_kW(self):
+        return 1.0
+
     def print_performance_info(self):
         """
         This function is to dump the performance metrics either to screen or file or both
         :return:
         """
         pass
-

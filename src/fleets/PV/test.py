@@ -5,18 +5,18 @@ Created on Wed Aug 29 11:47:28 2018
 @author: rmahmud
 """
 
+import sys
+from os.path import dirname, abspath
+sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from datetime import datetime, timedelta
 import numpy
-#import sys
-#from os.path import dirname, abspath
-#sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-
-from fleet_request import FleetRequest
-from PV_Inverter_Fleet import PVInverterFleet
-from grid_info import GridInfo
 import matplotlib.pyplot as plt
 import scipy.io as spio
+
+from fleet_request import FleetRequest
+from grid_info import GridInfo
+from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
 
 
 def fleet_test(Fleet,Grid):
@@ -152,10 +152,8 @@ def fleet_test(Fleet,Grid):
         plt.legend(loc='lower right')
         plt.show()
         
-    
-    
+
 if __name__ == '__main__':
-    
     location = 0
     i = 0
     Grid = GridInfo('Grid_Info_DATA_2.csv')

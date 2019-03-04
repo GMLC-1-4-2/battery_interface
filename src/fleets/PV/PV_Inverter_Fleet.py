@@ -7,7 +7,7 @@ Created on Wed Aug 29 11:07:32 2018
 
 import sys
 from os.path import dirname, abspath, join
-sys.path.insert(0,dirname(dirname(dirname(abspath('__file__')))))
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 import configparser
 import numpy  
@@ -15,13 +15,10 @@ import math
 import collections
 from scipy import signal
 import numpy as np
-import os
 from datetime import datetime, timedelta
 
 from fleet_interface import FleetInterface
-from fleet_request import FleetRequest
 from fleet_response import FleetResponse
-
 
 
 class PVInverterFleet(FleetInterface):
@@ -41,11 +38,11 @@ class PVInverterFleet(FleetInterface):
         # establish the grid locations that the battery fleet is conected to
         self.grid = GridInfo
         # Get cur directory
-        base_path = dirname(abspath('__file__'))
+        self.base_path = dirname(abspath(__file__))
 
         # Read config file
         self.config = configparser.ConfigParser()
-        self.config.read(join(base_path, 'config.ini'))
+        self.config.read(join(self.base_path, 'config.ini'))
         
         #%% initialize panel data
         self.PanelModel='M2453BB'
@@ -429,9 +426,8 @@ class PVInverterFleet(FleetInterface):
                 #print(Pmpp_AC)
             Forecast_Data=[Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]
             
-            File_Path=os.getcwd()+'\Forecast.npy'
-                #import numpy as np
-            np.save(File_Path,Forecast_Data)
+            File_Path = self.base_path + '/Forecast.npy'
+            np.save(File_Path, Forecast_Data)
     
             #%% Variable initiation
     ####################################################################
@@ -476,9 +472,9 @@ class PVInverterFleet(FleetInterface):
         #Time_Current=[]
         
             #%% Retrieve last operating status and forecast
-        File_Path_Forecast=os.getcwd()+'\Forecast.npy'
-        File_Path_OperatingPoint=os.getcwd()+'\Operating_Point_Pre.npy'
-        [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]=np.load(File_Path_Forecast)
+        File_Path_Forecast = self.base_path + '/Forecast.npy'
+        File_Path_OperatingPoint = self.base_path + '/Operating_Point_Pre.npy'
+        [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp] = np.load(File_Path_Forecast)
     
         [P_req,Q_req]=Direct_Control
         
@@ -677,8 +673,7 @@ class PVInverterFleet(FleetInterface):
         Day_Target = 31
         Month_Target=12
         
-        File_Name='467381_39.73_-105.14_2015.csv'
-        
+        File_Name = join(self.base_path, '467381_39.73_-105.14_2015.csv')
         
         with open(File_Name, newline='') as csvfile:
             read_csv = csv.reader(csvfile, delimiter=' ', quotechar='|')
@@ -810,7 +805,7 @@ class PVInverterFleet(FleetInterface):
         
         def Grid_Param():
             from grid_info import GridInfo
-            a=GridInfo()
+            a=GridInfo('Grid_Info_DATA_2.csv')
             V=a.get_voltage('XX')
             f=a.get_frequency('XX')
             return f, V
@@ -1007,8 +1002,8 @@ class PVInverterFleet(FleetInterface):
         f = self.grid.get_frequency(ts,location) 
         
         
-        File_Path_Forecast=os.getcwd()+'\Forecast.npy'
-        File_Path_OperatingPoint=os.getcwd()+'\Operating_Point_Pre.npy'
+        File_Path_Forecast = self.base_path + '/Forecast.npy'
+        File_Path_OperatingPoint = self.base_path + '/Operating_Point_Pre.npy'
         [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]=np.load(File_Path_Forecast)
     
         [P_pre,Q_Pre,P_Requested,Q_Requested,Last_Time]=np.load(File_Path_OperatingPoint)

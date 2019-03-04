@@ -10,9 +10,9 @@ class FleetRequest:
     """
     This class describes input fields required by fleets 
     """
-# why is the above comment exactly the same as that one in fleet_config.py ??
-	
-    def __init__(self, ts=datetime.utcnow(), sim_step=timedelta(hours=1), p=None, q=None):
+    def __init__(self, ts=datetime.utcnow(),
+                 sim_step=timedelta(hours=1),
+                 p=None, q=None, steps=1):
         """
         Constructor
         """
@@ -27,3 +27,7 @@ class FleetRequest:
 
         # Reactive power request
         self.Q_req = q
+
+        # NREL WaterHeater only: Number of steps in simulation.
+        # This value is always = 1 for the sake of not changing WaterHeater code
+        self.steps = 1

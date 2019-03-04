@@ -8,15 +8,16 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 import configparser
 from datetime import datetime, timedelta
-import numpy  
-import copy 
+import numpy
+import copy
 import math
 import csv
 
 from fleet_interface import FleetInterface
-from fleet_request import FleetRequest
 from fleet_response import FleetResponse
 from frequency_droop import FrequencyDroop
+
+
 
 class BatteryInverterFleet(FleetInterface):
     """
@@ -204,7 +205,10 @@ class BatteryInverterFleet(FleetInterface):
         else: 
             print('Error: ModelType not selected as either energy reservoir model (self), or charge reservoir model (self)')
             print('Battery-Inverter model config unable to continue. In config.ini, set ModelType to self or self')
-        
+
+        # frequency regulation variables
+        self.freq_reg_weight = float(self.config.get('freq_reg_config', 'Freq_Reg_Weight', fallback=1.0))
+
         # fleet configuration variables
         self.is_P_priority = bool(self.config.get('Fleet configuration', 'is_P_priority', fallback=True))
         self.is_autonomous = bool(self.config.get('Fleet configuration', 'is_autonomous', fallback=False))
@@ -758,6 +762,7 @@ class BatteryInverterFleet(FleetInterface):
             writer.writerows(impact_metrics_DATA)     
 
         pass
+
     def change_config(self, fleet_config):
         """
         This function updates the fleet configuration settings programatically.
@@ -775,5 +780,6 @@ class BatteryInverterFleet(FleetInterface):
         self.autonomous_threshold = fleet_config.autonomous_threshold
         self.Vset = fleet_config.v_thresholds
 
-        pass
+    def assigned_regulation_MW(self):
+        return self.freq_reg_weight
 

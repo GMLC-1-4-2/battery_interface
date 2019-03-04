@@ -38,6 +38,7 @@ class ArtificialInertiaService():
             fleet_request = FleetRequest(cur_time, delt, start_time)
             fleet_response = self.fleet_device.process_request(fleet_request)
            # fleet_response = self.fleet_device.frequency_watt(fleet_request)
+
             responses.append(fleet_response)
             cur_time += delt
             print("{}".format(cur_time))

@@ -3,42 +3,53 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 10/24/2018
-Version: 1.0
+Last update: 02/20/2019
+Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
-from fleet_interface import FleetInterface
-from fleet_request   import FleetRequest
-from fleet_response  import FleetResponse
-from frequency_droop import FrequencyDroop
-
+from configparser import ConfigParser
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-import os
 from scipy.stats import truncnorm
 import csv
 
+from fleet_interface import FleetInterface
+from fleet_response  import FleetResponse
+from frequency_droop import FrequencyDroop
+from fleets.electric_vehicles_fleet.load_config import LoadConfig
+
+
 class ElectricVehiclesFleet(FleetInterface):
     
-    def __init__(self, GridInfo, ts):
+    def __init__(self, grid_info, ts):
         """
         Constructor
         """
+        # Location of working path
+        base_path = dirname(abspath(__file__))
+        
+        # Read config file
+        config = ConfigParser()
+        config.read(join(base_path, 'config.ini'))
+        
+        # Load config file and store data in a dataframe
+        LC = LoadConfig(config)
+        self.df_VehicleModels = LC.get_config_models()
+        
         # Run baseline power to store baseline power and SOC if parameters 
         # of the fleet are changed. ONLY ASSIGN TRUE IF YOU CHANGE THE 
         # PARAMETERS OF THE FLEET AS IT WILL DRAMATICALLY INCREASE THE CPU TIME
-        self.run_baseline = False
-        self.n_days_base = 10
+        self.run_baseline = LC.get_run_baseline()
+        self.n_days_base = LC.get_n_days_MC()
         # Establish the properties of the grid on which the fleet is connected on
-        self.grid = GridInfo
+        self.grid = grid_info
         # Number of subfleets that are going to be simulated
-        self.N_SubFleets = 100
-        # Location of working path
-        dirname = os.path.dirname(__file__)
-        # Read the vehicle models and store them in a pandas dataframe
-        self.df_VehicleModels = pd.read_csv(os.path.join(dirname,'data/vehicle_models.csv' ))  
+        self.N_SubFleets = LC.get_n_subfleets()
         # Number of vehicle models
         self.N_Models = self.df_VehicleModels.shape[0]
         # Total number of vehicles
@@ -58,22 +69,22 @@ class ElectricVehiclesFleet(FleetInterface):
             NL = NL + self.N_VehiclesSubFleet[i]   
             
         # Weibull distribution: From statistical studies of the NHTS survey
-        self.a = 3                                          # a value of the exponent
-        peak = 1/3                                          # Peak in 1/3 of the range
+        self.a = LC.get_weibull_exp()               # a value of the exponent
+        peak = LC.get_weibull_peak()                # Peak in 1/3 of the range
         self.lambd = peak/(((self.a-1)/self.a)**(1/self.a)) # Shape value 
         # Random seed for matching schedule and getting charging strategies
         self.seed = 0
         np.random.seed(self.seed)
         
         # Read data from NHTS survey      
-        self.df_Miles     = pd.read_table(os.path.join(dirname,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
-        self.df_StartTime = pd.read_table(os.path.join(dirname,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
-        self.df_EndTime   = pd.read_table(os.path.join(dirname,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
-        self.df_WhyTo     = pd.read_table(os.path.join(dirname,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
+        self.df_Miles     = pd.read_table(join(base_path,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
+        self.df_StartTime = pd.read_table(join(base_path,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
+        self.df_EndTime   = pd.read_table(join(base_path,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
+        self.df_WhyTo     = pd.read_table(join(base_path,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
         
         # Percentage of cars that are charged at work/other places: Statistical studies from real data
-        self.ChargedAtWork_per  = 0.17
-        self.ChargedAtOther_per = 0.02
+        self.ChargedAtWork_per  = LC.get_charged_at_work_per()
+        self.ChargedAtOther_per = LC.get_charged_at_other_per()
 
         # Initialize timestamps and local times of the class for future calculations
         self.initial_ts = ts 
@@ -83,7 +94,7 @@ class ElectricVehiclesFleet(FleetInterface):
         self.dt = 1
         
         # Mix of charging strategies: charging right away, start charging at midnight, start charging to be fully charged before the TCIN (percentage included)
-        self.strategies = [ ['right away', 'midnight', 'tcin'], [0.4, 0.3, 0.3] ]
+        self.strategies = LC.get_charging_strategies()
         # Charging strategy corresponding to each sub fleet
         self.monitor_strategy = []
         for i in range(len(self.strategies[0])):
@@ -95,10 +106,10 @@ class ElectricVehiclesFleet(FleetInterface):
         if self.run_baseline == True:
             self.run_baseline_simulation()
         # Read the SOC curves from baseline Montecarlo simulations of the different charging strategies
-        self.df_SOC_curves = pd.read_csv(os.path.join(dirname,'data/SOC_curves_charging_modes.csv' ))
+        self.df_SOC_curves = pd.read_csv(join(base_path,'data/SOC_curves_charging_modes.csv' ))
         
         # Read the baseline power from Montecarlo simulations of the different charging strategies
-        self.df_baseline_power = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
+        self.df_baseline_power = pd.read_csv(join(base_path,'data/power_baseline_charging_modes.csv' ))
         self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.initial_time] + 
                            self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.initial_time] + 
                            self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.initial_time])
@@ -129,6 +140,8 @@ class ElectricVehiclesFleet(FleetInterface):
         # Schedules of all the sub fleets
         self.ScheduleStartTime, self.ScheduleEndTime, self.ScheduleMiles, self.SchedulePurpose, self.ScheduleTotalMiles = self.match_schedule(self.seed,self.SOC,self.Voltage)
         
+        # Weight used to scale the service request
+        self.service_weight = LC.get_service_weight()
         """
         Can this fleet operate in autonomous operation?
         """
@@ -137,37 +150,39 @@ class ElectricVehiclesFleet(FleetInterface):
         self.location = np.random.randint(0,2,self.N_SubFleets)
         
         # Fleet configuration variables
-        self.is_P_priority = True
-        self.is_autonomous = False
+        self.is_P_priority = LC.get_fleet_config()[0]
+        self.is_autonomous = LC.get_fleet_config()[1]
         
         # Autonomous operation
-        self.FW21_Enabled = True
+        fw_21 = LC.get_FW()
+        self.FW21_Enabled = fw_21[0]
         if self.FW21_Enabled == True:
             # Single-sided deadband value for low-frequency, in Hz
-            db_UF = 0.036
+            db_UF = fw_21[1]
             # Single-sided deadband value for high-frequency, in Hz
-            db_OF = 0.036
+            db_OF = fw_21[2]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            k_UF  = 0.05
+            k_UF  = fw_21[3]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            k_OF  = 0.05
+            k_OF  = fw_21[4]
             # Available active power, in p.u. of the DER rating
-            P_avl = 1.0
+            P_avl = fw_21[5]
             # Minimum active power output due to DER prime mover constraints, in p.u. of the DER rating
-            P_min = 0.0
-            P_pre = 1.0
+            P_min = fw_21[6]
+            P_pre = fw_21[7]
             self.fw_function = FrequencyDroop(db_UF, db_OF, k_UF, k_OF, P_avl, P_min, P_pre)
         
         # Impact metrics of the fleet
         # End of life cost
-        self.eol_cost = 6000
+        metrics = LC.get_impact_metrics_params()
+        self.eol_cost = metrics[0]
         # Cylce life
-        self.cycle_life = 1e3
+        self.cycle_life = metrics[1]
         # State of health of the battery for all the subfleets
-        self.soh_init = np.repeat(100.0, self.N_SubFleets)
-        self.soh = np.repeat(100.0, self.N_SubFleets)
+        self.soh_init = np.repeat(metrics[2], self.N_SubFleets)
+        self.soh = np.repeat(metrics[2], self.N_SubFleets)
         # Energy efficiency
-        self.energy_efficiency = 0.9
+        self.energy_efficiency = metrics[3]
         
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the discharge and charge of the subfleets """
@@ -224,6 +239,12 @@ class ElectricVehiclesFleet(FleetInterface):
         everything must be referenced to baseline power from Montecarlo 
         simulations of the different charging strategies
         """
+        
+        # Give the code the capability to respond to None requests
+        if P_req == None:
+            P_req = 0
+        if Q_req == None:
+            Q_req = 0
 
         # Baseline power is extracted from baseline simulations
         self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
@@ -483,7 +504,7 @@ class ElectricVehiclesFleet(FleetInterface):
             
             self.SOC = SOC_step
             self.time = t + dt
-            self.ts = self.ts + timedelta(dt)
+            self.ts = self.ts + timedelta(seconds = dt)
             # Restart time if it surpasses 24 hours
             if self.time > 24*3600:
                 self.time = self.time - 24*3600
@@ -729,11 +750,11 @@ class ElectricVehiclesFleet(FleetInterface):
                                                               'power_RightAway_kW',
                                                               'power_Midnight_kW',
                                                               'power_TCIN_kW'])
-        dirname = os.path.dirname(__file__)
-        path = os.path.join(dirname,'data')
+        base_path = dirname(abspath(__file__))
+        path = join(base_path,'data')
         
-        df_soc.to_csv(os.path.join(path, r'SOC_curves_charging_modes.csv'), index = False)
-        df_power.to_csv(os.path.join(path, r'power_baseline_charging_modes.csv'), index = False)
+        df_soc.to_csv(join(path, r'SOC_curves_charging_modes.csv'), index = False)
+        df_power.to_csv(join(path, r'power_baseline_charging_modes.csv'), index = False)
         print("Exported")
         
     def discharge_baseline(self, StartTime_secs, EndTime_secs, Miles, Purpose, MilesSubfleet, SOC, SOC_sf, sim_time, power_ac, v):
@@ -1113,3 +1134,10 @@ class ElectricVehiclesFleet(FleetInterface):
         self.Vset = fleet_config.v_thresholds
         
         pass
+    
+    def assigned_service_weight(self):
+        """ 
+        This function allows weight to be passed to the service model. 
+        Scale the service to the size of the fleet
+        """
+        return self.service_weight
