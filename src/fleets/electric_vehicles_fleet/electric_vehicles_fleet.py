@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 02/20/2019
+Last update: 03/05/2019
 Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
@@ -244,7 +244,7 @@ class ElectricVehiclesFleet(FleetInterface):
         
         if f < 60 - db_UF:
             p_mod = 0
-        if f > 60 + db_OF:
+        elif f > 60 + db_OF:
             p_mod = p_req
         else:
             p_mod = p_prev
@@ -474,12 +474,6 @@ class ElectricVehiclesFleet(FleetInterface):
                 if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
                     if self.monitor_strategy[subfleet] == 'right away':
                         SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
-                        if self.FW21_Enabled == True and self.is_autonomous == True:
-                            # Update the power
-                            power_subfleet[subfleet] = power_subfleet[subfleet]*self.frequency_watt(
-                                    power_subfleet[subfleet],
-                                    self.ts,
-                                    self.location[subfleet])
                         if SOC_check > 1:
                             power_subfleet[subfleet] = 0
 
