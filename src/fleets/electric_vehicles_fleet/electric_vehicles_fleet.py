@@ -175,19 +175,22 @@ class ElectricVehiclesFleet(FleetInterface):
         self.FW21_Enabled = fw_21[0]
         if self.FW21_Enabled == True:
             # Single-sided deadband value for low-frequency, in Hz
-            db_UF = fw_21[1]
+            self.db_UF = fw_21[1]
             # Single-sided deadband value for high-frequency, in Hz
-            db_OF = fw_21[2]
+            self.db_OF = fw_21[2]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            k_UF  = fw_21[3]
+            self.k_UF  = fw_21[3]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            k_OF  = fw_21[4]
+            self.k_OF  = fw_21[4]
             # Available active power, in p.u. of the DER rating
-            P_avl = fw_21[5]
+            self.P_avl = fw_21[5]
             # Minimum active power output due to DER prime mover constraints, in p.u. of the DER rating
-            P_min = fw_21[6]
-            P_pre = fw_21[7]
-            self.fw_function = FrequencyDroop(db_UF, db_OF, k_UF, k_OF, P_avl, P_min, P_pre)
+            self.P_min = fw_21[6]
+            self.P_pre = fw_21[7]
+            
+            # Randomization of discrete devices: deadbands must be randomize to provide a continuous response
+            self.db_UF_subfleet = np.random.uniform(low = self.db_UF[0], high = self.db_UF[1], size = (self.N_SubFleets, ))
+            self.db_OF_subfleet = np.random.uniform(low = self.db_OF[0], high = self.db_OF[1], size = (self.N_SubFleets, ))
         
         # Impact metrics of the fleet
         # End of life cost
@@ -229,30 +232,51 @@ class ElectricVehiclesFleet(FleetInterface):
 
         return fleet_response
     
-    def frequency_watt(self, p_req = 0,ts=datetime.utcnow(),location=0):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
         """
-        This function takes the requested power, date, time, and location
-        and modifies the requested power according to the configured FW21 
-        :param p_req: real power requested, ts:datetime object,
-               location: numerical designation for the location of the BESS
-        :return p_mod: modified real power based on FW21 function
+        This function takes the requested power, the previous baseline power of the device, date,
+        time, location, and the deadbands for low and high frequency.
+     
+        :param: p_req, p_prev (base), date, location of the subfleet, deadbands
+        :return p_mod: modified power of the subfleet (turn on/off for discrete fleets)
         """
         f = self.grid.get_frequency(ts,location)
-        self.fw_function.P_pre = p_req
-        p_mod = self.fw_function.F_W(f) 
+        
+        if f < 60 - db_UF:
+            p_mod = 0
+        if f > 60 + db_OF:
+            p_mod = p_req
+        else:
+            p_mod = p_prev
+        
         return p_mod
     
-    def update_soc_due_to_frequency_dropp(self, initSOC, SOC, p_tot, p_mod):
+    def update_soc_due_to_frequency_droop(self, initSOC, subfleet_number, p_subfleet, dt):
         """
         This method returns the modified state of charge of each subfleet 
         due to frequency droop in the grid
         """
-        if p_tot !=0:
-            SOC_update = initSOC + (p_mod/p_tot)*(SOC - initSOC)
-        else:
+        p_dc = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[subfleet_number]],
+                                     self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[subfleet_number]],
+                                     self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[subfleet_number]],
+                                     self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet_number]], p_subfleet)
+        R = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[subfleet_number]],
+                                    self.df_VehicleModels['R_SOC_1'][self.SubFleetId[subfleet_number]],
+                                    self.df_VehicleModels['R_SOC_2'][self.SubFleetId[subfleet_number]], initSOC)
+        v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[subfleet_number]],
+                                    self.df_VehicleModels['V_SOC_1'][self.SubFleetId[subfleet_number]],
+                                    self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet_number]], 
+                                    self.df_VehicleModels['Number_of_cells'][self.SubFleetId[subfleet_number]],initSOC,0,0)
+        ibat_charging = self.current_charging(v_oc,R,p_dc) 
+        Ah_rate = ibat_charging/3600
+        charge_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet_number]]
+        SOC_update = initSOC + charge_rate*dt
+        
+        if SOC_update > 1:
+            p_subfleet = 0
             SOC_update = initSOC
-           
-        return SOC_update
+
+        return p_subfleet*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000, SOC_update
     
     def simulate(self, P_req, Q_req, initSOC, t, dt, ts):
         """ 
@@ -279,9 +303,6 @@ class ElectricVehiclesFleet(FleetInterface):
             print('ERROR: initial SOC out of range')
             return [[], []]
         else:
-            response = FleetResponse()
-            response.ts = ts
-            
             # SOC at the next time step
             SOC_step = np.zeros([self.N_SubFleets,])
             SOC_step[:] = initSOC[:]
@@ -427,21 +448,21 @@ class ElectricVehiclesFleet(FleetInterface):
             Modify the power and SOC of the different subfeets according 
             to the frequency droop regulation according to IEEE standard
             """
-            power_aux = power_subfleet
             for subfleet in range(self.N_SubFleets):
                 if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':
-                    if self.FW21_Enabled == True and self.is_autonomous == True:
-                        # Update the power
-                        power_subfleet[subfleet] = power_subfleet[subfleet]*self.frequency_watt(
-                                power_subfleet[subfleet],
-                                self.ts,
-                                self.location[subfleet])
-                        # Update the state of charge of the batteries of the different subfleets
-                        SOC_step[subfleet] = self.update_soc_due_to_frequency_dropp(
-                                initSOC[subfleet],
-                                SOC_step[subfleet],
-                                power_aux[subfleet],
-                                power_subfleet[subfleet])
+                    if self.FW21_Enabled and self.is_autonomous:
+                        power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet]]
+                        p_prev = power_subfleet[subfleet]*1000/(self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]]))
+                        power_subfleet[subfleet] = self.frequency_watt(power_ac,
+                                                                       p_prev,
+                                                                       self.ts,
+                                                                       self.location[subfleet],
+                                                                       self.db_UF_subfleet[subfleet],
+                                                                       self.db_OF_subfleet[subfleet])
+                        power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
+                                                                                                              subfleet,
+                                                                                                              power_subfleet[subfleet],
+                                                                                                              dt)
                     else:
                         break
 
@@ -491,6 +512,9 @@ class ElectricVehiclesFleet(FleetInterface):
                 total_energy += energy_per_subfleet[subfleet]
             
             # response outputs 
+            response = FleetResponse()
+            
+            response.ts = ts
             response.P_togrid  = - power_demanded
             response.Q_togrid  = 0
             response.P_service = - power_demanded + self.p_baseline
