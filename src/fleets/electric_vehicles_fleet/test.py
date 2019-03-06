@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import time
 import os
@@ -30,8 +30,9 @@ fleet_test = ElectricVehiclesFleet(grid, ts)
 fleet_test.is_autonomous = False
 fleet_test.is_P_priority = True
 
-dt = 30*60                                  # time step (in seconds)
-seconds_of_simulation = 24*3600             # (in seconds)
+dt = 30*60                                   # time step (in seconds)
+sim_step = timedelta(seconds = dt)
+seconds_of_simulation = 24*3600              # (in seconds)
 local_time = fleet_test.get_time_of_the_day(ts)
 t = np.arange(local_time,local_time+seconds_of_simulation,dt) # array of time in seconds 
 
@@ -42,17 +43,16 @@ power_baseline = - (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'
                     fleet_test.strategies[1][1]*df_baseline['power_Midnight_kW'].iloc[local_time:local_time+seconds_of_simulation]  +
                     fleet_test.strategies[1][2]*df_baseline['power_TCIN_kW'].iloc[local_time:local_time+seconds_of_simulation])
 
-# Initialization of the time step 
-fleet_test.dt = dt
-
 # Power requested (kW): test
 power_request = 50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 #power_request = 50000*(np.ones([len(t),]))
+#power_request = np.zeros([len(t), ])
+#power_request[90:180] = fleet_test.assigned_service_kW()
 
 # List of requests
 requests = []
 for i in range(len(t)):
-    req = FleetRequest(ts, dt, power_request[i], 0.)
+    req = FleetRequest(ts, sim_step, power_request[i], 0.)
     requests.append(req)
    
 print("SOC init = ", fleet_test.SOC)
@@ -89,7 +89,6 @@ plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
 # Initialization of important variables in the constructor
 fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
 fleet_test.time = fleet_test.get_time_of_the_day(ts)
-fleet_test.dt = dt
 
 # process the requests 
 SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
