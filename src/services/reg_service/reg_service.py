@@ -146,14 +146,14 @@ class RegService():
         if 'battery' in fleet_name.lower():
             SOC = [r.soc for r in response_list_2s_tot]
             results_df['SOC'] = SOC
-        results_df_dir = join(dirname(abspath(__file__)), 'results')
+        results_df_dir = join(dirname(abspath(__file__)), 'results', '')
         ensure_ddir(results_df_dir)
         results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
-        plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+        plot_dir = join(dirname(abspath(__file__)), 'results', 'plots', '')
         ensure_ddir(plot_dir)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
                         ts_request[0].strftime('%B') +\

@@ -37,15 +37,48 @@ def integration_test(service_name, fleet_name, **kwargs):
 
     # Run test
     if service_name == 'Regulation':
-        fleet_responses = service.request_loop(service_type='Dynamic',
-                                               start_time=parser.parse('2017-08-01 16:00:00'),
-                                               # end_time=parser.parse('2017-08-02 15:00:00'),
-                                               end_time=parser.parse('2017-08-01 23:00:00'),
-                                               clearing_price_filename='historical-ancillary-service-data-2017.xls',
-                                               fleet_name=assigned_fleet_name)
-        for key_1, value_1 in fleet_responses.items():
-            for key_2, value_2 in value_1.items():
-                print('\t\t\t\t\t\t', key_2, value_2)
+        monthtimes = dict({
+            # 'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:59"],
+            # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
+            # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
+            # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
+            # 'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:59"],
+            # 'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:59"],
+            # 'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:59"],
+            'August': ["2017-08-01 16:00:00", "2017-08-01 18:59:59"],
+            # 'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:59"],
+            # 'October': ["2017-10-01 00:00:00", "2017-10-31 23:59:59"],
+            # 'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:59"],
+            # 'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:00"]
+        })
+        for service_type in ['Dynamic']:
+            all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
+                                            'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
+                                            'Reg_Clearing_Price_Credit'])
+            for month in monthtimes.keys():
+                print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
+                fleet_response = service.request_loop(service_type=service_type,
+                                                      start_time=parser.parse(monthtimes[month][0]),
+                                                      end_time=parser.parse(monthtimes[month][1]),
+                                                      clearing_price_filename='historical-ancillary-service-data-2017.xls',
+                                                      fleet_name=fleet_name)
+                month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
+                all_results = pd.concat([all_results, month_results])
+                print('     Finished ' + str(month) + ' ' + service_type)
+            # Fix formatting of all_results dataframe to remove tuples
+            all_results[['Perf_score', 'Delay_score', 'Corr_score', 'Prec_score']] = all_results['performance_score'].apply(
+                pd.Series)
+            all_results[['MCP', 'REG_CCP', 'REG_PCP']] = all_results['Regulation_Market_Clearing_Price(RMCP)'].apply(
+                pd.Series)
+            all_results[['Reg_Clr_Pr_Credit', 'Reg_RMCCP_Credit', 'Reg_RMPCP_Credit']] = all_results[
+                'Reg_Clearing_Price_Credit'].apply(pd.Series)
+            all_results.drop(
+                columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
+                inplace=True)
+            print('Writing result .csv')
+            file_dir = join(dirname(abspath(__file__)), 'services', 'reg_service', 'results', '')
+            all_results.to_csv(file_dir + datetime.now().strftime(
+                '%Y%m%d') + '_annual_hourlyresults_' + service_type + '_' + fleet_name + '.csv')
     elif service_name == 'Reserve':
         monthtimes = dict({
             'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:59"],
@@ -141,7 +174,7 @@ if __name__ == '__main__':
 
     # Dev test
     services = ['Regulation']
-    fleets = ['WaterHeater']
+    fleets = ['BatteryInverter']
     kwargs = {}
 
     for service in services:
