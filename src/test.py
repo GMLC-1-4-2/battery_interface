@@ -149,7 +149,7 @@ if __name__ == '__main__':
     kwargs = {}
     kwargs['start_time'] = start_time
 
-for service in services:
+    for service in services:
         for fleet in fleets:
             if service == 'ArtificialInertia':
                 kwargs['autonomous'] = 'autonomous'
