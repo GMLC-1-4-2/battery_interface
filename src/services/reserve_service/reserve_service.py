@@ -56,12 +56,12 @@ class ReserveService():
             request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
 
             # Generate lists containing tuples of (timestamp, power) for request and response
-            request_list_1m = [(r.ts_req, r.P_req) for r in request_list_1m_tot]
+            request_list_1m = [(r.ts_req, r.P_req / 1000) for r in request_list_1m_tot]
             if 'battery' in fleet_name.lower():
                 # Include battery SoC in response list for plotting purposes
-                response_list_1m = [(r.ts, r.P_service, r.soc) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000, r.soc) for r in response_list_1m_tot]
             else:
-                response_list_1m = [(r.ts, r.P_service) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000) for r in response_list_1m_tot]
             # Convert the lists of tuples into dataframes
             request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
             if 'battery' in fleet_name.lower():
@@ -79,7 +79,7 @@ class ReserveService():
 
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
-            plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
             ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
@@ -208,7 +208,7 @@ class ReserveService():
                 plot_start = previous_event_end
                 plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
                 plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
-                plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+                plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
                 plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M') + '_' + fleet_name + '.png'
                 plt.figure(1)
                 plt.figure(figsize=(15,8))
@@ -248,8 +248,7 @@ class ReserveService():
 
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
         for timestamp, normalized_signal in signals.items():
-            # Convert response kW into MW.
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW()/1000)
+            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
             requests.append(request)
             responses.append(response)
         #print(requests)
