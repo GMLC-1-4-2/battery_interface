@@ -35,10 +35,12 @@ def integration_test(service_name, fleet_name, **kwargs):
     service.fleet = fleet
     assigned_fleet_name = service.fleet.__class__.__name__
 
+    start_time = kwargs['start_time']
+
     # Run test
     if service_name == 'Regulation':
         fleet_responses = service.request_loop(service_type='Dynamic',
-                                               start_time=parser.parse('2017-08-01 16:00:00'),
+                                               start_time=start_time,
                                                # end_time=parser.parse('2017-08-02 15:00:00'),
                                                end_time=parser.parse('2017-08-01 23:00:00'),
                                                clearing_price_filename='historical-ancillary-service-data-2017.xls',
@@ -125,7 +127,7 @@ def integration_test(service_name, fleet_name, **kwargs):
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
-        fleet_responses = service.request_loop()
+        fleet_responses = service.request_loop(start_time=start_time)
         avg = service.calculation(fleet_responses)
         print(avg)
 
@@ -140,10 +142,15 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Dev test
-    services = ['Regulation']
-    fleets = ['WaterHeater']
+    services = ['ArtificialInertia']
+    fleets = ['BatteryInverter']
+    start_time = parser.parse('2017-08-01 00:00:00')
+
     kwargs = {}
+    kwargs['start_time'] = start_time
 
     for service in services:
         for fleet in fleets:
+            if service == 'ArtificialInertia':
+                kwargs['autonomous'] = 'autonomous'
             integration_test(service, fleet, **kwargs)
