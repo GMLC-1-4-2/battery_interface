@@ -37,7 +37,6 @@ def create_fleet(name, grid_type=1, **kwargs):
            fleet_test.is_autonomous = True
         fleet_test.VV11_Enabled = False
         fleet_test.FW21_Enabled = True
-        fleet_test.dt = dt
 
         return fleet_test
 
