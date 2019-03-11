@@ -27,7 +27,7 @@ def create_fleet(name, grid_type=1, **kwargs):
         # Time stamp to start the simulation
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
-        ts = datetime(2018, 9, 20, 16, 0, 00, 000000)
+        ts = kwargs['start_time'] # Read it from kwargs dictionary
 
         fleet_test = ElectricVehiclesFleet(grid, ts)
         fleet_test.is_autonomous = False
