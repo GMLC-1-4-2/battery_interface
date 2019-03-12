@@ -5,9 +5,11 @@
 Description: This class implements the FuelCell FleetInterface to integrate with a fleet of
 FuelCells
 """
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
-from _load import *
-sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
+from fleets.fuel_cell_fleet._load import *
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 simplefilter('ignore', RankWarning)

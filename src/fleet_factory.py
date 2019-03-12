@@ -48,6 +48,7 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
+
     elif name == 'WaterHeater':
         from fleets.water_heater_fleet.WH_fleet_control import WaterHeaterFleet
         fleet = WaterHeaterFleet()
@@ -56,6 +57,17 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
+
+    elif name == 'Electrolyzer':
+        from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet
+        fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+        return fleet
+
+    elif name == 'FuelCell':
+        from fleets.fuel_cell_fleet.fuelcell_fleet import FuelCellFleet
+        fleet = FuelCellFleet("", "config.ini", "FuelCell")
+        return fleet
+
 
     elif name == 'HVAC':
         return None

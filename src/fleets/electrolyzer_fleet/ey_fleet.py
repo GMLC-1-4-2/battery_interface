@@ -5,9 +5,11 @@
 Description: This class implements the Electrolyzer FleetInterface to integrate with a fleet of
 Electrolyzers
 """
+import sys
+from os.path import dirname, abspath, join
+sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
-from _load import *
-sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
+from fleets.electrolyzer_fleet._load import *
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 simplefilter('ignore', RankWarning)

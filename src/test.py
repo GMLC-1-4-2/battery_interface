@@ -138,12 +138,12 @@ def integration_test(service_name, fleet_name, **kwargs):
 if __name__ == '__main__':
     # Full test
     # services = ['Regulation', 'Reserve', 'ArtificialInertia']
-    # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'HVAC', 'Refridge' ]
+    # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Dev test
-    services = ['ArtificialInertia']
-    fleets = ['BatteryInverter']
+    services = ['Regulation']
+    fleets = ['FuelCell']
     start_time = parser.parse('2017-08-01 00:00:00')
 
     kwargs = {}
