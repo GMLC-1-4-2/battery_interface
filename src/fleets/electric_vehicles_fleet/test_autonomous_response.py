@@ -38,8 +38,7 @@ def main(ts, grid):
     # List of requests
     requests = []
     for i in range(len(t)):
-        req = FleetRequest(ts, sim_step, power_request[i], 0.)
-        ts+=sim_step
+        req = FleetRequest(ts+i*sim_step, sim_step, ts, power_request[i], 0.)
         requests.append(req)
     
     # power and frequency empty lists
@@ -50,7 +49,7 @@ def main(ts, grid):
     for req in requests:
         r = fleet_test.process_request(req)
         p.append(r.P_service)
-        f.append(grid.get_frequency(fleet_test.ts, 0))
+        f.append(grid.get_frequency(req.ts_req, 0, req.start_time))
         print('t = %s' %str(req.ts_req))
         print('service power is = %f MW at f = %f Hz' %(p[i]/1e3, f[i]))
 
@@ -58,20 +57,10 @@ def main(ts, grid):
         i+=1
         
     p = np.array(p)
-    f = np.array(f)
-
-    fig, ax1 = plt.subplots()
-    ax1.set_title('Discretized Frequency Response for EVs')
-    ax1.plot(t-t[0], p/1000, 'b-')
-    ax1.set_ylabel('Service Power (MW)', color='b')
-    ax1.tick_params('y', colors='b')
-    ax1.set_xlabel('Time (s)')
-
-    ax2 = ax1.twinx()
-    ax2.plot(t-t[0], 60-f, 'r-')
-    ax2.set_ylabel('60 - f (Hz)', color='r')
-    ax2.tick_params('y', colors='r')
-    
+    f = np.array(f)        
+        
+    return t-t[0], f, p/1000
+        
 if __name__ == "__main__":
     
     dirname = os.path.dirname(__file__)
@@ -81,5 +70,18 @@ if __name__ == "__main__":
     # Parameters of the grid (ARTIFICIAL INERTIA)
     grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
     
-    main(ts, grid)
+    time, freq, power = main(ts, grid)
+    
+    fig, ax1 = plt.subplots()
+    ax1.set_title('Discretized Frequency Response for EVs - %s' %str(ts))
+    ax1.plot(time, power, 'b-')
+    ax1.set_ylabel('Service Power (MW)', color='b')
+    ax1.tick_params('y', colors='b')
+    ax1.set_xlabel('Time (s)')
+    ax1.set_ylim([-50, 350])
+
+    ax2 = ax1.twinx()
+    ax2.plot(time, 60-freq, 'r-')
+    ax2.set_ylabel('60 - f (Hz)', color='r')
+    ax2.tick_params('y', colors='r')
 

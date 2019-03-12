@@ -226,13 +226,15 @@ class ElectricVehiclesFleet(FleetInterface):
         # call simulate method with proper inputs
         ts = fleet_request.ts_req
         dt = int(fleet_request.sim_step.total_seconds())
+        start_time = fleet_request.start_time
         p_req = fleet_request.P_req
         q_req = fleet_request.Q_req
-        fleet_response = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts)
+        fleet_response = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts, start_time)
 
         return fleet_response
     
-    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0,
+                       db_UF = 0.05, db_OF = 0.05, start_time = None):
         """
         This function takes the requested power, the previous baseline power of the device, date,
         time, location, and the deadbands for low and high frequency.
@@ -240,7 +242,7 @@ class ElectricVehiclesFleet(FleetInterface):
         :param: p_req, p_prev (base), date, location of the subfleet, deadbands
         :return p_mod: modified power of the subfleet (turn on/off for discrete fleets)
         """
-        f = self.grid.get_frequency(ts,location)
+        f = self.grid.get_frequency(ts,location,start_time)
         
         if f < 60 - db_UF:
             p_mod = 0
@@ -278,7 +280,7 @@ class ElectricVehiclesFleet(FleetInterface):
 
         return p_subfleet*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000, SOC_update
     
-    def simulate(self, P_req, Q_req, initSOC, t, dt, ts):
+    def simulate(self, P_req, Q_req, initSOC, t, dt, ts, start_time):
         """ 
         Simulation part of the code: charge, discharge, ...:
         everything must be referenced to baseline power from Montecarlo 
@@ -458,7 +460,8 @@ class ElectricVehiclesFleet(FleetInterface):
                                                                        self.ts,
                                                                        self.location[subfleet],
                                                                        self.db_UF_subfleet[subfleet],
-                                                                       self.db_OF_subfleet[subfleet])
+                                                                       self.db_OF_subfleet[subfleet],
+                                                                       start_time)
                         power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
                                                                                                               subfleet,
                                                                                                               power_subfleet[subfleet],
