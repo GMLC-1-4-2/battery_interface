@@ -13,11 +13,12 @@ class HomeAcFleet(FleetInterface):
     This class implements FleetInterface so that it can communicate with a fleet
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, GridInfo, *args, **kwargs):
         # This set is a subset of FleetConfig
         self.is_P_priority = True
         self.is_autonomous = False
         self.autonomous_threshold = None
+        self.grid_info = GridInfo
 
     def process_request(self, fleet_request):
         """
@@ -30,6 +31,11 @@ class HomeAcFleet(FleetInterface):
         """
 
         res = FleetResponse()
+        # Dummy values for testing
+        res.P_togrid = 100
+        res.P_service = 100
+        res.Q_service = 100
+        res.Q_togrid = 100
 
         return res
 

@@ -84,10 +84,6 @@ def fleet_test(Fleet,Grid):
     v[i,0] = Grid.get_voltage(ts+i*dt,0)
     v[i,1] = Grid.get_voltage(ts+i*dt,1)
     
-    
-    
-             
-       
     plt.figure(1)
     plt.subplot(211)
     plt.plot(t[0:n], P[0:n], label='Power Requested')
@@ -134,6 +130,7 @@ def fleet_test(Fleet,Grid):
 #        plt.ylabel('Reactive Power (kvar)')
 #        plt.legend(loc='lower right')
 #        plt.show()
+
         
 
 if __name__ == '__main__':

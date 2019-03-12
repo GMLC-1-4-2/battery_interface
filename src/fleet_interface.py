@@ -15,7 +15,11 @@ class FleetInterface:
         """
         Constructor
         """
-        pass
+        # It represents the percentage of devices within the fleet that are available to provide grid services
+        # It is a number between 0-1
+        self.service_weight = 1
+        # Maximum absolute power that the fleet is able to provide (kW)
+        self.fleet_rating = 1000
 
     def process_request(self, fleet_request):
         """
@@ -25,8 +29,9 @@ class FleetInterface:
         :return fleet_response: an instance of FleetResponse
         """
         fleet_response = FleetResponse()
-        fleet_response2 = FleetResponse()
-		
+        fleet_response.ts = fleet_request.ts_req
+        fleet_response.P_service = fleet_request.P_req
+
         return fleet_response
 
     def forecast(self, fleet_requests):
@@ -43,7 +48,7 @@ class FleetInterface:
 
         return fleet_responses
 
-    def change_config(self, **kwargs):
+    def change_config(self, fleet_config, **kwargs):
         """
         This function is here for future use. The idea of having it is for a service to communicate with a fleet
         in a nondeterministic manner during a simulation
@@ -54,5 +59,28 @@ class FleetInterface:
         but watching, say, the voltage. If the voltage dips below some defined threshold (which a service might define),
         then the fleet responds in a pre-defined way.
         In this example, the kwargs can be {"voltage_threshold": new_value}
+        """
+        pass
+
+    def output_impact_metrics(self): 
+        """
+        This function exports the impact metrics of each sub fleet
+        """
+        pass        
+
+    def assigned_service_kW(self):
+        """ 
+        This function allows weight and fleet rating to be passed to the service model. 
+        Scale the service to the size of the fleet
+        """
+        return self.service_weight*self.fleet_rating
+
+    def assigned_service_kW(self):
+        return 1.0
+
+    def print_performance_info(self):
+        """
+        This function is to dump the performance metrics either to screen or file or both
+        :return:
         """
         pass

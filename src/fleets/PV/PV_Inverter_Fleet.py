@@ -46,7 +46,7 @@ class PVInverterFleet(FleetInterface):
         # Read config file
         self.config = configparser.ConfigParser()
         self.config.read(join(self.base_path, 'config.ini'))
-        
+
         #assign service weight
         self.service_weight=1
         
