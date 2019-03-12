@@ -46,6 +46,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_T = float(self.config.get(mdl_type, "T", fallback=25))
         self.ey_Pe = float(self.config.get(mdl_type, "Pe", fallback=101000))
         self.ey_Pe_out = float(self.config.get(mdl_type, "Pe_out", fallback=50000000))
+        self.ey_Pe_base = float(self.config.get(mdl_type, "Pe_base", fallback=0.0))
         self.ey_E_size = float(self.config.get(mdl_type, "E_size", fallback=2.0))
         self.ey_eta_c = float(self.config.get(mdl_type, "eta_c", fallback=0.8))
         self.ey_A = float(self.config.get(mdl_type, "A", fallback=0.25))
@@ -132,18 +133,13 @@ class ElectrolyzerFleet(FleetInterface):
         self.inc = 0
 
     def process_request(self, fleet_request):
-        resp = self.ey_model(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
+        resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
         return resp
 
-    def ey_model(self, ts, sim_step, Preq):
+    def run_ey_fleet(self, ts, sim_step, Preq):
         resp = FleetResponse()
 
-        resp.ts = ts
-        resp.sim_step = sim_step
-        if self.soc >= self.max_charge:
-            #cprint('Charge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
-            #cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
-            #cprint('Tank is fully charged!!', 'cyan')
+        if self.soc_i >= self.max_charge:
             is_avail, resp.ey_fleet, P_tot, self.soc, ne, nf, V, Ir = 0, 0, 0.0, self.max_charge, 0.0, 0.0, 0.0, 0.0
         else:
             if self.load_curve:
@@ -153,11 +149,16 @@ class ElectrolyzerFleet(FleetInterface):
                 Pr = 1e3*Pl/self.ey_Ne
             else:
                 if self.inc == 0:
-                    self.ey_Ne = Preq/self.ey_E_size
+                    self.ey_Ne = round(abs(Preq)/self.ey_E_size, 1)
                     cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
-                Pr = 1e3*Preq/self.ey_Ne
+                Pr = 1e3*abs(Preq)/self.ey_Ne
             resp.ey_fleet = int(self.ey_Ne)
 
+            if Preq > 0:
+                is_avail = 0
+                Pr = abs(self.ey_Pe_base)*1e3/self.ey_Ne
+            else:
+                is_avail = 1
             V, Ir = fsolve(vi_calc, [self.ey_x01, self.ey_x02],
                                      args=(Pr, self.ey_Nc, self.V_rev, self.ey_T,
                                            self.ey_r1, self.ey_r2, self.ey_s1, self.ey_s2,
@@ -176,7 +177,7 @@ class ElectrolyzerFleet(FleetInterface):
             Qh2_V = 80.69*self.ey_Nc*Ir*nf/2/self.ey_F       # (Nm^3/h)
             Qh2_m = self.ey_Ne*self.ey_Nc*Ir*nf/2/self.ey_F  # (mol/s)
             m_dotH2 = Qh2_m*1e-3
-            resp.nf = nf*1e2
+            #resp.nf = nf*1e2
 
             # Compressor model
             P_tank = self.moles*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank
@@ -189,21 +190,60 @@ class ElectrolyzerFleet(FleetInterface):
             # Storage Tank
             # Number of moles in time i in the tank
             self.moles = self.moles+Qh2_m*1/self.ey_Nt
-            resp.moles = self.moles
-            self.soc = P_tank
-            is_avail = 1
+            #resp.moles = self.moles
+            self.soc_i = P_tank
         self.inc += 1
 
         # Response
-        # Power consumed is negative
-        resp.P_togrid = -P_tot*1e-3     # (kW)
+        # Power injected to the Grid is positive
+        # Only respond to negative P as that is request to consume
+        # active power
+        # Send 0 for positive request
+        # Ignore all negative P incase of Fuelcell, set P = 0 if Preq < 0
+        # Send Preq only for Preq>0 for fuelcell
+
+        # Responses
+        # CHECK PV LINES 925 TO 950
+        """
+        resp.P_togrid = P_tot*1e-3     # (kW)
         resp.Q_togrid = 0.0
-        resp.soc = (self.soc/self.max_charge)*1e2
+        resp.soc = (self.soc_i/self.max_charge)*1e2
         resp.status = is_avail
         resp.ne = ne*1e2
         resp.nf = nf*1e2
         resp.V = V
         resp.Ir = Ir
+        """
+        resp.ts = ts
+        resp.sim_step = sim_step
+        resp.C = None
+        resp.dT_hold_limit = None
+        resp.E = (self.soc_i/self.max_charge)*1e2  # SoC in %
+        resp.Eff_charge = 0
+        resp.Eff_discharge = 0
+        resp.P_dot_down = 0
+        resp.P_dot_up = 0
+        resp.P_service = -P_tot*1e-3 + self.ey_Pe_base
+        resp.P_service_max = 0
+        resp.P_service_min = 0
+        resp.P_togrid = -P_tot*1e-3     # (kW)
+        #print(resp.P_togrid)
+        resp.P_togrid_max = 0
+        resp.P_togrid_min = 0
+        resp.Q_dot_down = 0
+        resp.Q_dot_up = 0
+        resp.Q_service = 0
+        resp.Q_service_max = 0
+        resp.Q_service_min = 0
+        resp.Q_togrid = 0
+        resp.Q_togrid_max = 0
+        resp.Q_togrid_min = 0
+        resp.T_restore = 0
+        resp.status = is_avail
+        resp.V = V
+        resp.Ir = Ir
+        resp.ne = ne*1e2
+        resp.nf = nf*1e2
         return resp
 
 

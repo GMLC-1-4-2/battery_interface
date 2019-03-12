@@ -44,8 +44,10 @@ class FuelCellFleet(FleetInterface):
         # Read the model parameters from config file with defaults as fallback
         self.fc_model_name = self.config.get(mdl_type, "Name", fallback="Default FuelCell Fleet")
         self.fc_T = float(self.config.get(mdl_type, "T", fallback=70))
+        self.fc_Ts = float(self.config.get(mdl_type, "Ts", fallback=25))
         self.fc_Pe = float(self.config.get(mdl_type, "Pe", fallback=101000))
         self.fc_Pe_out = float(self.config.get(mdl_type, "Pe_out", fallback=50000000))
+        self.fc_Pe_base = float(self.config.get(mdl_type, "Pe_base", fallback=0.0))
         self.fc_size = float(self.config.get(mdl_type, "Fc_size", fallback=1.6))
         self.fc_A = float(self.config.get(mdl_type, "A", fallback=200))
         self.fc_Nc = float(self.config.get(mdl_type, "Nc", fallback=20))
@@ -53,14 +55,13 @@ class FuelCellFleet(FleetInterface):
         self.fc_ne0 = float(self.config.get(mdl_type, "ne0", fallback=2))
         self.fc_charge_lvl_min = float(self.config.get(mdl_type, "charge_lvl_min", fallback=19))
         self.fc_charge_lvl_max = float(self.config.get(mdl_type, "charge_lvl_max", fallback=95))
-        self.fc_soc_lvl_init = float(self.config.get(mdl_type, "soc_lvl_init", fallback=95))
         self.fc_DG_25 = float(self.config.get(mdl_type, "DG_25", fallback=237100.0))
         self.fc_DG_200 = float(self.config.get(mdl_type, "DG_200", fallback=220370.0))
         self.fc_DH = float(self.config.get(mdl_type, "DH", fallback=286000.0))
         self.fc_R = float(self.config.get(mdl_type, "R", fallback=8.31447))
         self.fc_Nfc = float(self.config.get(mdl_type, "Nfc", fallback=50))
         self.fc_V_tank = float(self.config.get(mdl_type, "V_tank", fallback=0.3))
-        self.fc_Nt = float(self.config.get(mdl_type, "Nt", fallback=8))
+        self.fc_Nt = float(self.config.get(mdl_type, "Nt", fallback=5))
         self.fc_I_initial = int(self.config.get(mdl_type, "I_initial", fallback=0))
         self.fc_I_final = int(self.config.get(mdl_type, "I_final", fallback=200))
         self.fc_I_step = int(self.config.get(mdl_type, "I_step", fallback=1))
@@ -96,10 +97,9 @@ class FuelCellFleet(FleetInterface):
         # max. state of charge in the hydrogen tank
         self.max_charge = self.fc_charge_lvl_max*1e-2*self.fc_Pe_out
         # SOC initial
-        self.soc = self.fc_soc_lvl_init*1e-2*self.fc_Pe_out
+        self.P_tank = self.max_charge
         # initial number of H2 moles in the tank
-        self.moles = (self.soc*self.fc_V_tank/self.fc_R/(25+273.15))*self.fc_Nt
-        self.P_tank = self.soc
+        self.moles = (self.P_tank*self.fc_V_tank/self.fc_R/(self.fc_Ts+273.15))*self.fc_Nt
         self.DG = self.fc_DG_200+(200-self.fc_T+273.15)/175*(self.fc_DG_25-self.fc_DG_200)
         self.V_rev = self.DG/self.fc_ne0/self.fc_F
 
@@ -126,14 +126,9 @@ class FuelCellFleet(FleetInterface):
     def fc_model(self, ts, sim_step, Preq):
         resp = FleetResponse()
 
-        resp.ts = ts
-        resp.sim_step = sim_step
-        if self.soc <= self.min_charge:
-            #cprint('Discharge time:' + '\t' * 7 + '%dsec.' % self.inc, 'green')
-            #cprint('State of Charge:' + '\t' * 6 + '%d%%' % soc_i, 'green')
-            #cprint('Tank is fully discharged!!', 'cyan')
-            is_avail, resp.fc_fleet, P_tot, self.soc, ne, nf, Vr, Vi, Ir =\
-                0, 0, 0.0, self.min_charge, 0.0, 0.0, 0.0, 0.0, 0.0
+        if self.P_tank <= self.min_charge:
+            is_avail, resp.fc_fleet, P_tot, ne, nf, Vr, Vi, Ir =\
+                0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         else:
             if self.load_curve:
                 # Power profile (kW)
@@ -142,16 +137,19 @@ class FuelCellFleet(FleetInterface):
                 Pr = 1e3*Pl/self.fc_Nfc/self.fc_Nc
             else:
                 if self.inc == 0:
-                    self.fc_Nfc = int(Preq/self.fc_size)
+                    #self.fc_Nfc = int(Preq/self.fc_size)
                     cprint("No. of FuelCells used is:"+"\t"*5+"%d" % self.fc_Nfc, 'green')
-                Pr = 1e3*Preq/self.fc_Nfc/self.fc_Nc
+                Pr = 1e3*abs(Preq)/self.fc_Nfc/self.fc_Nc
             resp.fc_fleet = int(self.fc_Nfc)
 
+            if Preq < 0:
+                Pr = abs(self.fc_Pe_base)*1e3/self.fc_Nfc/self.fc_Nc
+            print(self.inc, Pr, self.max_charge, self.min_charge, self.P_tank)
             Vi, Ir = fsolve(vifc_calc, [self.fc_x01, self.fc_x02],
-                                     args=(Pr, self.V_rev, self.fc_T,
-                                           self.fc_R, self.fc_alpha, self.fc_F, self.i_n1,
-                                           self.i_01, self.R_tot1, self.fc_a, self.b1,
-                                           self.fc_pH2, self.fc_pO2))
+                                         args=(Pr, self.V_rev, self.fc_T,
+                                               self.fc_R, self.fc_alpha, self.fc_F, self.i_n1,
+                                               self.i_01, self.R_tot1, self.fc_a, self.b1,
+                                               self.fc_pH2, self.fc_pO2))
 
             Vact = (self.fc_R*self.fc_T/self.fc_alpha/self.fc_F)*log((Ir+self.i_n1)/self.i_01)
             Vohm = (Ir+self.i_n1)*self.R_tot1
@@ -165,7 +163,6 @@ class FuelCellFleet(FleetInterface):
             Vr = E_cell-Vact-Vohm+Vcon
             if Vr > Vi:
                 Vr = Vi
-
             # (kW)
             P_tot = Vr*Ir*self.fc_Nfc*self.fc_Nc*1e-3
             ne = (Vr/1.48)*1e2
@@ -176,13 +173,16 @@ class FuelCellFleet(FleetInterface):
             # Number of moles in time i in the tank
             self.moles = self.moles-Qh2_m*1
             resp.moles = self.moles
-            resp.P_tank = self.moles*self.fc_R*(self.fc_T+273.15)/self.fc_V_tank
-            self.soc = resp.P_tank
+            self.P_tank = self.moles/self.fc_Nt*self.fc_R*(self.fc_Ts+273.15)/self.fc_V_tank
+            self.soc = self.P_tank/self.max_charge
             is_avail = 1
+
+            #Vr, Ir, P_tot, ne, is_avail = 0, 0, 0, 0, 0
         self.inc += 1
 
         # Response
         # Power injected is positive
+        """
         resp.P_togrid = P_tot
         resp.Q_togrid = 0.0
         resp.soc = self.soc
@@ -191,6 +191,37 @@ class FuelCellFleet(FleetInterface):
         resp.v_real = Vr
         resp.Ir = Ir
         resp.status = is_avail
+        """
+        #print(self.inc, P_tot, self.max_charge, self.min_charge, self.soc)
+
+        resp.ts = ts
+        resp.sim_step = sim_step
+        resp.C = None
+        resp.dT_hold_limit = None
+        resp.E = self.soc*1e2  # SoC in %
+        resp.Eff_charge = 0
+        resp.Eff_discharge = 0
+        resp.P_dot_down = 0
+        resp.P_dot_up = 0
+        resp.P_service = P_tot + self.fc_Pe_base
+        resp.P_service_max = 0
+        resp.P_service_min = 0
+        resp.P_togrid = P_tot
+        resp.P_togrid_max = 0
+        resp.P_togrid_min = 0
+        resp.Q_dot_down = 0
+        resp.Q_dot_up = 0
+        resp.Q_service = 0
+        resp.Q_service_max = 0
+        resp.Q_service_min = 0
+        resp.Q_togrid = 0
+        resp.Q_togrid_max = 0
+        resp.Q_togrid_min = 0
+        resp.T_restore = 0
+        resp.status = is_avail
+        resp.V = Vr
+        resp.Ir = Ir
+        resp.ne = ne
         return resp
 
 
@@ -256,4 +287,4 @@ def static_plots(**kwargs):
         res_plt[str(i)].plot(v[0], '-.r')
         res_plt[str(i)].set_ylabel(v[1])
         res_plt[str(i)].grid()
-    fig1.savefig(join(base_path, "fc_result2.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "FC_result.png"), bbox_inches='tight')
