@@ -335,22 +335,23 @@ class ReserveService():
 
             Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
             
-            # Calculate shortfall
-            Shortfall_MW = max(0, Requested_MW - Responded_MW_at_10minOrEnd)
+        # Calculate average ramp rate
+        Avg_Ramp_Rate = Responded_MW_at_10minOrEnd / min(10, Event_Duration_mins)
         
-        # Calculate time to committed response or max response 
-        # @JJ: For the time to committed or max response, should we be ignoring
-        # the -1 minute and the additional minute we added at the end (for shorter events)?
+        # Calculate best ramp rate
+        if Response_to_Request_Ratio >= 1:
         try:
             # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
             # If no such index exists, skip down to the "except" call where the time to the max response will be
             # returned instead
             Response_MeetReqOrMax_Index_number = event.loc[(event.Date_Time >= Event_Start_Time) & (event.Response >= Requested_MW + Response_0min_Min_MW), :].index[0]
-        except: # If the response never matches the commitment, return infinity as an indicator
+            except: 
             Response_Max_MW = event.loc[event.Date_Time >= Event_Start_Time, 'Response'].max()
             Response_MeetReqOrMax_Index_number = event.loc[event.Response == Response_Max_MW, :].index[0]
-
-        
+            Best_Ramp_Rate = Requested_MW / Response_MeetReqOrMax_Index_number
+        else:
+            Response_MeetReqOrMax_Index_number = min(10, Event_Duration_mins)
+            Best_Ramp_Rate = Avg_Ramp_Rate
         
         return dict({
             'Event_Start_Time': Event_Start_Time,
