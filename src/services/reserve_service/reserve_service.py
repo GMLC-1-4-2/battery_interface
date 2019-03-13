@@ -302,17 +302,13 @@ class ReserveService():
             # This is the average response from 11 minutes on
             event_response_after11min_df = event.loc[11:, :]
             Response_After10minToEnd_MW = event_response_after11min_df.Response.mean()
-            # Calculate metric of response after 11 minutes
-            Response_After10minToEnd_To_First10min_Ratio = Response_After10minToEnd_MW / Response_10minOrEnd_Max_MW
-
-            # Calculate event response to request ratio and shortfall
-            if Response_After10minToEnd_To_First10min_Ratio < 0.95:
-                Response_to_Request_Ratio = (Response_After10minToEnd_MW - Response_0min_Min_MW) / Requested_MW
-                Shortfall_MW = max(max(0, Requested_MW - Responded_MW_at_10minOrEnd),
-                                   Requested_MW - (Response_After10minToEnd_MW - Response_0min_Min_MW))
+            # Calculate ratio of response after 10 minutes to response at 10 minutes
+            if Event_Duration_mins > 30:
+                Responded_MW_After10minToEndOr30min = event.loc[11:30, :].Response.min() - Response_0min_Min_MW
+                Response_After10minToEndOr30min_To_First10min_Ratio = event.loc[11:30, :].Response.min() / Response_10minOrEnd_Max_MW 
             else:
-                Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
-                Shortfall_MW = max(0, Requested_MW - Responded_MW_at_10minOrEnd)            
+                Responded_MW_After10minToEndOr30min = event.loc[11:, :].Response.min() - Response_0min_Min_MW
+                Response_After10minToEndOr30min_To_First10min_Ratio = event.loc[11:, :].Response.min() / Response_10minOrEnd_Max_MW   
 
         else:
             # Calculate the event response over the last 3 minutes of the event (including the additional
@@ -322,11 +318,12 @@ class ReserveService():
 
             # The event is shorter than 11 minutes, so return NaN for these two metrics
             Response_After10minToEnd_MW = np.nan
-            Response_After10minToEnd_To_First10min_Ratio = np.nan
+            Response_After10minToEndOr30min_To_First10min_Ratio = np.nan
 
             # Calculate the response ratio for the event
             # Calculate responded MW at 10 min mark or end of event
             Responded_MW_at_10minOrEnd = Response_10minOrEnd_Max_MW - Response_0min_Min_MW
+            Responded_MW_After10minToEndOr30min = np.nan
 
             Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
             
