@@ -335,6 +335,7 @@ class ReserveService():
 
         
 
+        # Calculate response:request ratio
             Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
             
         # Calculate average ramp rate
