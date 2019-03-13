@@ -85,17 +85,23 @@ class ReserveService():
             ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
-            plt.figure(figsize=(15,8))
-            plt.subplot(211)
+            plt.figure(figsize=(15, 15))
+            plt.subplot(311)
             plt.plot(df_1m.Date_Time, df_1m.Request, label='P Request')
             plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
             plt.ylabel('Power (MW)')
             plt.legend(loc='best')
             if 'battery' in fleet_name.lower():
-                plt.subplot(212)
+                plt.subplot(312)
                 plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
+            if not(all(pd.isnull(df_1m['P_togrid']))):
+                plt.subplot(313)
+                plt.plot(df_1m.Date_Time, df_1m.P_togrid, label='P_togrid')
+                plt.plot(df_1m.Date_Time, df_1m.P_base, label='P_base')
+                plt.ylabel('Power (MW)')
+                plt.legend(loc='best')
             plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
@@ -220,17 +226,23 @@ class ReserveService():
                 plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'reserve_service')
                 plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M') + '_' + fleet_name + '.png'
                 plt.figure(1)
-                plt.figure(figsize=(15,8))
-                plt.subplot(211)
+                plt.figure(figsize=(15, 15))
+                plt.subplot(311)
                 plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
                 plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
                 plt.ylabel('Power (MW)')
                 plt.legend(loc='best')
                 if 'battery' in fleet_name.lower():
-                    plt.subplot(212)
+                    plt.subplot(312)
                     plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
                     plt.ylabel('SoC (%)')
                     plt.xlabel('Time')
+                if not(all(pd.isnull(plot_df['P_togrid']))):
+                    plt.subplot(313)
+                    plt.plot(plot_df.Date_Time, plot_df.P_togrid, label='P_togrid')
+                    plt.plot(plot_df.Date_Time, plot_df.P_base, label='P_base')
+                    plt.ylabel('Power (MW)')
+                    plt.legend(loc='best')
                 if not(four_scenario_testing):
                     plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
                 plt.close()

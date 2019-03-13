@@ -141,17 +141,23 @@ def integration_test(service_name, fleet_name, **kwargs):
         plot_dir = file_dir
         plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + fleet_name + '.png'
         plt.figure(1)
-        plt.figure(figsize=(15, 8))
-        plt.subplot(211)
+        plt.figure(figsize=(15, 15))
+        plt.subplot(311)
         plt.plot(annual_signals.Date_Time, annual_signals.Request, label='P Request')
         plt.plot(annual_signals.Date_Time, annual_signals.Response, label='P Response')
         plt.ylabel('Power (MW)')
         plt.legend(loc='best')
         if 'battery' in fleet_name.lower():
-            plt.subplot(212)
+            plt.subplot(312)
             plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
             plt.ylabel('SoC (%)')
             plt.xlabel('Time')
+        if not(all(pd.isnull(annual_signals['P_togrid']))):
+            plt.subplot(313)
+            plt.plot(annual_signals.Date_Time, annual_signals.P_togrid, label='P_togrid')
+            plt.plot(annual_signals.Date_Time, annual_signals.P_base, label='P_base')
+            plt.ylabel('Power (MW)')
+            plt.legend(loc='best')
         plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
         plt.close()
         print('Saving .csv of annual signals and SOC (if necessary)')
