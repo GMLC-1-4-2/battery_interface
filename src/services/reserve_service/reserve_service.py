@@ -79,7 +79,7 @@ class ReserveService():
 
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
-            plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+            plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'reserve_service')
             ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
@@ -94,7 +94,7 @@ class ReserveService():
                 plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
-            plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+            plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
             df_1m = pd.read_excel(
@@ -215,7 +215,7 @@ class ReserveService():
                 plot_start = previous_event_end
                 plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
                 plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
-                plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+                plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'reserve_service')
                 plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M') + '_' + fleet_name + '.png'
                 plt.figure(1)
                 plt.figure(figsize=(15,8))
@@ -230,7 +230,7 @@ class ReserveService():
                     plt.ylabel('SoC (%)')
                     plt.xlabel('Time')
                 if not(four_scenario_testing):
-                    plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+                    plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
                 plt.close()
 
                 # Reset previous_end_end to be the end of this event before moving on to the next event

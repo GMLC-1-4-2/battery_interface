@@ -134,7 +134,7 @@ def integration_test(service_name, fleet_name, **kwargs):
             all_results = pd.concat([all_results, fleet_response[0]], sort=True)
             annual_signals = pd.concat([annual_signals, fleet_response[1]], sort=True)
         print('Writing event results .csv')
-        file_dir = join( dirname(abspath(__file__)), 'integration_test', 'reserve_service')
+        file_dir = join(dirname(abspath(__file__)), 'integration_test', 'reserve_service')
         all_results.to_csv(join(file_dir,
                                 datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + fleet_name + '.csv'))
         print('Plotting annual signals and SOC (if necessary)')
