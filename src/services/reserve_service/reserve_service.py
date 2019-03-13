@@ -310,6 +310,9 @@ class ReserveService():
                 Responded_MW_After10minToEndOr30min = event.loc[11:, :].Response.min() - Response_0min_Min_MW
                 Response_After10minToEndOr30min_To_First10min_Ratio = event.loc[11:, :].Response.min() / Response_10minOrEnd_Max_MW   
 
+            # Calculate shortfall ratio
+            Shortfall_Ratio = min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min) / Requested_MW        
+
         else:
             # Calculate the event response over the last 3 minutes of the event (including the additional
             # minute we already added on)
@@ -324,6 +327,11 @@ class ReserveService():
             # Calculate responded MW at 10 min mark or end of event
             Responded_MW_at_10minOrEnd = Response_10minOrEnd_Max_MW - Response_0min_Min_MW
             Responded_MW_After10minToEndOr30min = np.nan
+
+            # Calculate shortfall ratio
+            Shortfall_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
+
+        
 
             Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
             
