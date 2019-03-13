@@ -169,14 +169,16 @@ class ReserveService():
 
                 # Call the perf_metrics() method to obtain key event metrics
                 performance_results = self.perf_metrics(event, shorter_than_11_min)
+
                 # Call the event_value() method to calculate the event's value
                 value_results = self.event_value(
-                    performance_results['Event_Start_Time'],
-                    performance_results['Event_End_Time'],
-                    previous_event_end,
-                    performance_results['Event_Duration_mins'],
-                    performance_results['Requested_MW'],
-                    performance_results['Shortfall_MW'])
+                    Event_Start_Time=performance_results['Event_Start_Time'],
+                    Event_End_Time=performance_results['Event_End_Time'],
+                    Previous_Event_End_Time=previous_event_end,
+                    Requested_MW=performance_results['Requested_MW'],
+                    Responded_MW_at_10minOrEnd=performance_results['Responded_MW_at_10minOrEnd'],
+                    Responded_MW_After10minToEndOr30min=performance_results['Responded_MW_After10minToEndOr30min'],
+                    Shortfall_Ratio=performance_results['Shortfall_Ratio'])
 
                 # Create temporary dataframe to contain the results
                 event_results_df = pd.DataFrame({
@@ -368,10 +370,11 @@ class ReserveService():
             'Response_After10minToEnd_MW': Response_After10minToEnd_MW})
 
     def event_value(self, Event_Start_Time, Event_End_Time, Previous_Event_End_Time,
-                    Event_Duration_mins, Requested_MW, Shortfall_MW,
+                    Requested_MW, Responded_MW_at_10minOrEnd, 
+                    Responded_MW_After10minToEndOr30min, Shortfall_Ratio,
                     hours_assigned_per_event_day=5, days_apart_each_assignment=5,
                     hours_assigned_on_each_bw_day=3):
-        ''' Method to calculate an event's value, whic his based on the requested MW for the event, the event duration,
+        ''' Method to calculate an event's value, which is based on the requested MW for the event, the event duration,
         the event's shortfall (in MW), the time between the current event's end and the previous event's end, and
         the hourly price.
         '''
@@ -398,7 +401,17 @@ class ReserveService():
         Period_from_Last_Event_Days = Period_from_Last_Event_Hours / 24.
 
         # Calculate value of event
-        Service_Value_NotInclShortfall_dollars = SRMCP_DollarsperMWh_DuringEvent * (Requested_MW - Shortfall_MW) * hours_assigned_per_event_day
+        # Note in these calculations that Responded_MW_After10minToEndOr30min can be NaN.
+        # Therefore, when we call the min() function for these equations, the first value
+        # in the min() call must be Responded_MW_at_10minOrEnd, which will never be NaN
+        # (otherwise, NaN could be returned for events shorter than 10 minutes).
+        Service_Value_NotInclShortfall_dollars = (SRMCP_DollarsperMWh_DuringEvent *
+                min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min) *
+                hours_assigned_per_event_day)
+        if Shortfall_Ratio >= 1:
+            Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars
+        else:
+            Shortfall_MW = Requested_MW - min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min)
         Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars - (SRMCP_DollarsperMWh_SinceLastEvent * Shortfall_MW * Period_from_Last_Event_Hours / 24. / days_apart_each_assignment * hours_assigned_on_each_bw_day)
         return dict({
             'SRMCP_DollarsperMWh_DuringEvent': SRMCP_DollarsperMWh_DuringEvent,
