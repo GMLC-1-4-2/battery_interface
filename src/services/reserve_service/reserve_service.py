@@ -107,10 +107,11 @@ class ReserveService():
         # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
             'Response_to_Request_Ratio', 'Response_MeetReqOrMax_Index_number',
-            'Event_Duration_mins', 'Response_After10minToEnd_To_First10min_Ratio',
-            'Requested_MW', 'Responded_MW_at_10minOrEnd', 'Shortfall_MW',
+            'Event_Duration_mins', 'Response_After10minToEndOr30min_To_First10min_Ratio',
+            'Requested_MW', 'Responded_MW_at_10minOrEnd', 'Shortfall_Ratio',
             'Response_0min_Min_MW', 'Response_10minOrEnd_Max_MW',
-            'Response_After10minToEnd_MW', 'SRMCP_DollarsperMWh_DuringEvent',
+            'Response_After10minToEnd_MW', 'Avg_Ramp_Rate', 'Best_Ramp_Rate',
+            'SRMCP_DollarsperMWh_DuringEvent',
             'SRMCP_DollarsperMWh_SinceLastEvent',
             'Service_Value_NotInclShortfall_dollars',
             'Service_Value_InclShortfall_dollars',
@@ -187,13 +188,15 @@ class ReserveService():
                     'Response_to_Request_Ratio': performance_results['Response_to_Request_Ratio'],
                     'Response_MeetReqOrMax_Index_number': performance_results['Response_MeetReqOrMax_Index_number'],
                     'Event_Duration_mins': performance_results['Event_Duration_mins'],
-                    'Response_After10minToEnd_To_First10min_Ratio': performance_results['Response_After10minToEnd_To_First10min_Ratio'],
+                    'Response_After10minToEndOr30min_To_First10min_Ratio': performance_results['Response_After10minToEndOr30min_To_First10min_Ratio'],
                     'Requested_MW': performance_results['Requested_MW'],
                     'Responded_MW_at_10minOrEnd': performance_results['Responded_MW_at_10minOrEnd'],
-                    'Shortfall_MW': performance_results['Shortfall_MW'],
+                    'Shortfall_Ratio': performance_results['Shortfall_Ratio'],
                     'Response_0min_Min_MW': performance_results['Response_0min_Min_MW'],
                     'Response_10minOrEnd_Max_MW': performance_results['Response_10minOrEnd_Max_MW'],
                     'Response_After10minToEnd_MW': performance_results['Response_After10minToEnd_MW'],
+                    'Avg_Ramp_Rate': performance_results['Avg_Ramp_Rate'],
+                    'Best_Ramp_Rate': performance_results['Best_Ramp_Rate'],
                     'SRMCP_DollarsperMWh_DuringEvent': value_results['SRMCP_DollarsperMWh_DuringEvent'],
                     'SRMCP_DollarsperMWh_SinceLastEvent': value_results['SRMCP_DollarsperMWh_SinceLastEvent'],
                     'Service_Value_NotInclShortfall_dollars': value_results['Service_Value_NotInclShortfall_dollars'],
@@ -336,39 +339,41 @@ class ReserveService():
         
 
         # Calculate response:request ratio
-            Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
-            
+        Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
+
         # Calculate average ramp rate
         Avg_Ramp_Rate = Responded_MW_at_10minOrEnd / min(10, Event_Duration_mins)
-        
+
         # Calculate best ramp rate
         if Response_to_Request_Ratio >= 1:
-        try:
-            # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
-            # If no such index exists, skip down to the "except" call where the time to the max response will be
-            # returned instead
-            Response_MeetReqOrMax_Index_number = event.loc[(event.Date_Time >= Event_Start_Time) & (event.Response >= Requested_MW + Response_0min_Min_MW), :].index[0]
+            try:
+                # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
+                # If no such index exists, skip down to the "except" call where the time to the max response will be
+                # returned instead
+                Response_MeetReqOrMax_Index_number = event.loc[(event.Date_Time >= Event_Start_Time) & (event.Response >= Requested_MW + Response_0min_Min_MW), :].index[0]
             except: 
-            Response_Max_MW = event.loc[event.Date_Time >= Event_Start_Time, 'Response'].max()
-            Response_MeetReqOrMax_Index_number = event.loc[event.Response == Response_Max_MW, :].index[0]
+                Response_Max_MW = event.loc[event.Date_Time >= Event_Start_Time, 'Response'].max()
+                Response_MeetReqOrMax_Index_number = event.loc[event.Response == Response_Max_MW, :].index[0]
             Best_Ramp_Rate = Requested_MW / Response_MeetReqOrMax_Index_number
         else:
             Response_MeetReqOrMax_Index_number = min(10, Event_Duration_mins)
             Best_Ramp_Rate = Avg_Ramp_Rate
-        
+
         return dict({
             'Event_Start_Time': Event_Start_Time,
             'Event_End_Time': Event_End_Time,
             'Response_to_Request_Ratio': Response_to_Request_Ratio,
             'Response_MeetReqOrMax_Index_number': Response_MeetReqOrMax_Index_number,
             'Event_Duration_mins': Event_Duration_mins,
-            'Response_After10minToEnd_To_First10min_Ratio': Response_After10minToEnd_To_First10min_Ratio,
+            'Response_After10minToEndOr30min_To_First10min_Ratio': Response_After10minToEndOr30min_To_First10min_Ratio,
             'Requested_MW': Requested_MW,
             'Responded_MW_at_10minOrEnd': Responded_MW_at_10minOrEnd,
-            'Shortfall_MW': Shortfall_MW,
+            'Shortfall_Ratio': Shortfall_Ratio,
             'Response_0min_Min_MW': Response_0min_Min_MW,
             'Response_10minOrEnd_Max_MW': Response_10minOrEnd_Max_MW,
-            'Response_After10minToEnd_MW': Response_After10minToEnd_MW})
+            'Response_After10minToEnd_MW': Response_After10minToEnd_MW,
+            'Avg_Ramp_Rate': Avg_Ramp_Rate,
+            'Best_Ramp_Rate': Best_Ramp_Rate})
 
     def event_value(self, Event_Start_Time, Event_End_Time, Previous_Event_End_Time,
                     Requested_MW, Responded_MW_at_10minOrEnd, 
@@ -413,7 +418,7 @@ class ReserveService():
             Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars
         else:
             Shortfall_MW = Requested_MW - min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min)
-        Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars - (SRMCP_DollarsperMWh_SinceLastEvent * Shortfall_MW * Period_from_Last_Event_Hours / 24. / days_apart_each_assignment * hours_assigned_on_each_bw_day)
+            Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars - (SRMCP_DollarsperMWh_SinceLastEvent * Shortfall_MW * Period_from_Last_Event_Hours / 24. / days_apart_each_assignment * hours_assigned_on_each_bw_day)
         return dict({
             'SRMCP_DollarsperMWh_DuringEvent': SRMCP_DollarsperMWh_DuringEvent,
             'SRMCP_DollarsperMWh_SinceLastEvent': SRMCP_DollarsperMWh_SinceLastEvent,
