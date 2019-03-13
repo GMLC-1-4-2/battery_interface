@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import datetime
 from services.exceptions.datetime_validation_exception import DatetimeValidationException
@@ -14,7 +15,7 @@ class HistoricalSignalHelper(object):
         a long time and we don't want to do it for getting every single value.
         """
 
-        excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name, index = 0)
+        excel_data = pd.read_excel(input_data_file_path, sheet_name = sheet_name, index_col = 0)
         # TODO: (minor) remove the block below if not used later.
         # # For now, drop the last row.
         # # Convert the index to multiple indices with hour, minute, and second.
@@ -25,9 +26,8 @@ class HistoricalSignalHelper(object):
         # excel_data = excel_data.drop(excel_data.index[len(excel_data.index) - 1])
         excel_data.columns = pd.to_datetime(excel_data.columns)
         excel_data.index = pd.to_datetime(excel_data.index).time
-        # If the fleet is a load (e.g., battery or EV), not a generator (e.g., PV), then the signals
-        # should be negative
-        self._signals = excel_data
+        # Replace zeroes in the signal data with NaN
+        self._signals = excel_data.replace(0, np.nan)
 
     def signals_in_range(self, start_time, end_time):
         self._validate_date_range(start_time, end_time)
