@@ -62,7 +62,7 @@ class HistoricalSignalHelper(object):
         # Prepare the data to be stacked by trasposing it:
         transposed_signals = self._signals.T
         # Stack the data:
-        stacked_signals = transposed_signals.stack().reset_index()
+        stacked_signals = transposed_signals.stack(dropna=False).reset_index()
         # Rename the columns with arbitrary name to meaningful name:
         stacked_signals.rename(columns = { stacked_signals.columns[0]: 'date',
                                             stacked_signals.columns[1]: 'time' }, inplace = True)
