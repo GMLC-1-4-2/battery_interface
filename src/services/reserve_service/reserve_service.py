@@ -57,17 +57,16 @@ class ReserveService():
 
             # Generate lists containing tuples of (timestamp, power) for request and response
             request_list_1m = [(r.ts_req, r.P_req / 1000) for r in request_list_1m_tot]
+            request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
+
             if 'battery' in fleet_name.lower():
                 # Include battery SoC in response list for plotting purposes
-                response_list_1m = [(r.ts, r.P_service / 1000, r.soc) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000, r.P_togrid, r.soc) for r in response_list_1m_tot]
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'P_togrid', 'SoC'])
             else:
-                response_list_1m = [(r.ts, r.P_service / 1000) for r in response_list_1m_tot]
-            # Convert the lists of tuples into dataframes
-            request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
-            if 'battery' in fleet_name.lower():
-                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'SoC'])
-            else:
-                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response'])
+                response_list_1m = [(r.ts, r.P_service / 1000, r.P_togrid) for r in response_list_1m_tot]
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'P_togrid'])
+                
             # This merges/aligns the requests and responses dataframes based on their time stamp 
             # into a single dataframe
             df_1m = pd.merge(
@@ -76,6 +75,9 @@ class ReserveService():
                 how='left',
                 left_on='Date_Time',
                 right_on='Date_Time')
+
+            df_1m['P_togrid'] = df_1m['P_togrid'] / 100
+            df_1m['P_base'] = df_1m['P_togrid'] - df_1m['Response']
 
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
