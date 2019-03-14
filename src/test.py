@@ -152,9 +152,10 @@ def integration_test(service_name, fleet_name, **kwargs):
             plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
             plt.ylabel('SoC (%)')
             plt.xlabel('Time')
-        if not(all(pd.isnull(annual_signals['P_togrid']))):
             plt.subplot(313)
+        if not(all(pd.isnull(annual_signals['P_togrid']))):
             plt.plot(annual_signals.Date_Time, annual_signals.P_togrid, label='P_togrid')
+        if not(all(pd.isnull(annual_signals['P_base']))):
             plt.plot(annual_signals.Date_Time, annual_signals.P_base, label='P_base')
             plt.ylabel('Power (MW)')
             plt.legend(loc='best')

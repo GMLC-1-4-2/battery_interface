@@ -96,12 +96,13 @@ class ReserveService():
                 plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
+            plt.subplot(313)
             if not(all(pd.isnull(df_1m['P_togrid']))):
-                plt.subplot(313)
                 plt.plot(df_1m.Date_Time, df_1m.P_togrid, label='P_togrid')
+            if not(all(pd.isnull(df_1m['P_base']))):
                 plt.plot(df_1m.Date_Time, df_1m.P_base, label='P_base')
-                plt.ylabel('Power (MW)')
-                plt.legend(loc='best')
+            plt.ylabel('Power (MW)')
+            plt.legend(loc='best')
             plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
@@ -237,12 +238,13 @@ class ReserveService():
                     plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
                     plt.ylabel('SoC (%)')
                     plt.xlabel('Time')
+                plt.subplot(313)
                 if not(all(pd.isnull(plot_df['P_togrid']))):
-                    plt.subplot(313)
                     plt.plot(plot_df.Date_Time, plot_df.P_togrid, label='P_togrid')
+                if not(all(pd.isnull(plot_df['P_base']))):
                     plt.plot(plot_df.Date_Time, plot_df.P_base, label='P_base')
-                    plt.ylabel('Power (MW)')
-                    plt.legend(loc='best')
+                plt.ylabel('Power (MW)')
+                plt.legend(loc='best')
                 if not(four_scenario_testing):
                     plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
                 plt.close()
