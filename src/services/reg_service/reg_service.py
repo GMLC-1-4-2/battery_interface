@@ -168,23 +168,22 @@ class RegService():
                         fleet_name + '.png'
         plt.figure(1)
         plt.figure(figsize=(15,8))
-        plt.subplot(311)
-        plt.plot(ts_request, P_request, label='P request')
-        plt.plot(ts_request, P_response, label='P response')
-        plt.legend(loc='best')
-        plt.ylabel('Power (MW)')
-        if 'battery' in fleet_name.lower():
-            plt.subplot(312)
-            plt.plot(ts_request, SOC)
-            plt.ylabel('SOC (%)')
-            plt.xlabel('Date and Time')
-        plt.subplot(313)
+        plt.subplot(211)
+        if (not(all(pd.isnull(results_df['P_request'])))):
+            plt.plot(ts_request, P_request, label='P_request')
+        if (not(all(pd.isnull(results_df['P_response'])))):
+            plt.plot(ts_request, P_response, label='P_response')
         if (not(all(pd.isnull(results_df['P_togrid'])))):
             plt.plot(ts_request, P_togrid, label='P_togrid')
         if (not(all(pd.isnull(results_df['P_base'])))):
             plt.plot(ts_request, results_df.P_base, label='P_base')
-        plt.ylabel('Power (MW)')
         plt.legend(loc='best')
+        plt.ylabel('Power (MW)')
+        if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(results_df['SOC'])))):
+            plt.subplot(212)
+            plt.plot(ts_request, SOC)
+            plt.ylabel('SOC (%)')
+            plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
         plt.close()      
 
