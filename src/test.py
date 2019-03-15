@@ -109,7 +109,7 @@ def integration_test(service_name, fleet_name, **kwargs):
                                             'Period_from_Last_Event_Hours',
                                             'Period_from_Last_Event_Days'])
         if 'battery' in fleet_name.lower():
-            annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response', 'SOC'])
+            annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response', 'SoC'])
         else:
             annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response'])
 
