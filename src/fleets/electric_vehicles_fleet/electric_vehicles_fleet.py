@@ -276,9 +276,13 @@ class ElectricVehiclesFleet(FleetInterface):
         
         if SOC_update > 1:
             p_subfleet = 0
+            p_dc = 0
             SOC_update = initSOC
 
-        return p_subfleet*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000, SOC_update
+        return (p_subfleet*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000,
+                SOC_update,
+                p_dc*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000)
+    
     
     def simulate(self, P_req, Q_req, initSOC, t, dt, ts, start_time):
         """ 
@@ -318,6 +322,9 @@ class ElectricVehiclesFleet(FleetInterface):
             
             # power of demanded by each sub fleet
             power_subfleet = np.zeros([self.N_SubFleets,])
+            power_dc_subfleet = np.zeros([self.N_SubFleets,])
+            power_dc_discharge = 0
+            power_ac_discharge = 0
             for subfleet in range(self.N_SubFleets):
                 
                 # Discharge while driving
@@ -328,6 +335,11 @@ class ElectricVehiclesFleet(FleetInterface):
                     avg_speed = self.average_speed_of_trip_miles_per_second(subfleet, trip_id)
                     SOC_step[subfleet] = initSOC[subfleet] - discharge_rate*avg_speed*dt
                     power_subfleet[subfleet] = 0
+                    # Power DC of each sub fleet to calculate charging efficiency
+                    power_dc_subfleet[subfleet] = 0
+                    dc = self.df_VehicleModels['Wh_mi'][self.SubFleetId[subfleet]]*avg_speed*(3600/dt)*1000
+                    power_dc_discharge += dc
+                    power_ac_discharge += dc/1.0
                                       
                 # Certain amount of the vehicles of each sub fleet are charged at work: real data -> uncontrolled charging
                 elif self.state_of_the_subfleet(t,subfleet) == 'work':
@@ -343,10 +355,13 @@ class ElectricVehiclesFleet(FleetInterface):
                     # State of charge at the next time step and power of the subfleet
                     SOC_step[subfleet] = initSOC[subfleet] + charge_rate*self.ChargedAtWork_per*dt
                     power_subfleet[subfleet] = power_ac*self.ChargedAtWork_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]])/1000
+                    # Power DC of each sub fleet to calculate charging efficiency
+                    power_dc_subfleet[subfleet] = power_dc*self.ChargedAtWork_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]])/1000
                     # Check if the subfleet is fully charged
                     if SOC_step[subfleet] > 1:
                         SOC_step[subfleet] = initSOC[subfleet]
                         power_subfleet[subfleet] = 0
+                        power_dc_subfleet[subfleet] = 0
                     
                 # Certain amount of the vehicles of each sub fleet are charged at other places: grocery stores, restaurants, etc -> uncontrolled charging
                 elif self.state_of_the_subfleet(t,subfleet) == 'other':
@@ -362,25 +377,29 @@ class ElectricVehiclesFleet(FleetInterface):
                     # State of charge at the next time step and power of the subfleet
                     SOC_step[subfleet] = initSOC[subfleet] + charge_rate*self.ChargedAtOther_per*dt
                     power_subfleet[subfleet] = power_ac*self.ChargedAtOther_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]])/1000
+                    power_dc_subfleet[subfleet] = power_dc*self.ChargedAtOther_per*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]])/1000
                     # Check if the subfleet is fully charged
                     if SOC_step[subfleet] > 1:
                         SOC_step[subfleet] = initSOC[subfleet]
                         power_subfleet[subfleet] = 0
+                        power_dc_subfleet[subfleet] = 0
                     
                 # Hypothesis: the sub fleets are only charged at home during night or right away not in these "stops"
                 elif self.state_of_the_subfleet(t,subfleet) == 'home':
                     power_subfleet[subfleet] = 0
+                    power_dc_subfleet[subfleet] = 0
                     
                 # Charging at home after all-day trips with different charging strategies
                 elif self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
                     if self.monitor_strategy[subfleet] == 'midnight':     # subfleets that start charging at midnight -> uncontrolled case
                         # time to start charging: usually at 12 AM (20*3600), but earlier may be required for some cases depending on the case
                         start_charging = 20*3600
-                        SOC_step[subfleet], power_subfleet[subfleet] = self.start_charging_midnight_strategy(start_charging, t, subfleet, initSOC[subfleet], dt)
+                        SOC_step[subfleet], power_subfleet[subfleet], power_dc_subfleet[subfleet] = self.start_charging_midnight_strategy(start_charging, t, subfleet, initSOC[subfleet], dt)
                         # Check if the subfleet is fully charged
                         if SOC_step[subfleet] > 1:
                             SOC_step[subfleet] = initSOC[subfleet]
                             power_subfleet[subfleet] = 0
+                            power_dc_subfleet[subfleet] = 0
                     
                     elif self.monitor_strategy[subfleet] == 'tcin':      # subfleets that start charging at a certain time to be fully charged before the tcin
                         # time to be fully charged at the next day or the current day depending on the actual time
@@ -388,11 +407,12 @@ class ElectricVehiclesFleet(FleetInterface):
                             tcin = self.ScheduleStartTime.iloc[subfleet][1]
                         else:
                             tcin = self.ScheduleStartTime.iloc[subfleet][1] + 24*3600
-                        SOC_step[subfleet], power_subfleet[subfleet],_ = self.start_charging_to_meet_tcin(tcin, t, subfleet, initSOC[subfleet], dt)
+                        SOC_step[subfleet], power_subfleet[subfleet],_,power_dc_subfleet[subfleet] = self.start_charging_to_meet_tcin(tcin, t, subfleet, initSOC[subfleet], dt)
                         # Check if the subfleet is fully charged
                         if SOC_step[subfleet] > 1:
                             SOC_step[subfleet] = initSOC[subfleet]
                             power_subfleet[subfleet] = 0
+                            power_dc_subfleet[subfleet] = 0
             
             # Calculate the total power uncontrolled            
             power_uncontrolled = np.sum(power_subfleet, axis = 0)
@@ -419,32 +439,35 @@ class ElectricVehiclesFleet(FleetInterface):
                             tcin = self.ScheduleStartTime.iloc[idx][1]
                         else:
                             tcin = self.ScheduleStartTime.iloc[idx][1] + 24*3600
-                        _,_,check_tcin = self.start_charging_to_meet_tcin(tcin, t, idx, initSOC[idx], dt)
+                        _,_,check_tcin,_ = self.start_charging_to_meet_tcin(tcin, t, idx, initSOC[idx], dt)
                         # If the time is less than the time when the car must be start charging to meet tcin then:
                         if t < check_tcin:
                             if power_uncontrolled >= p_total: 
                                 power_demanded = power_uncontrolled  # All the right away chargers turned off
                             else:
-                                SOC_step[idx], power_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)
+                                SOC_step[idx], power_subfleet[idx], power_dc_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)
                                 # Check if the subfleet is fully charged
                                 if SOC_step[idx] > 1:
                                     SOC_step[idx] = initSOC[idx]
                                     power_subfleet[idx] = 0
+                                    power_dc_subfleet[idx] = 0
                                 # Check if the controlled power is greater than our constraint
                                 elif (power_controlled + power_subfleet[idx]) < power_controlled_thres:
                                     power_controlled += power_subfleet[idx]
                                 else:
                                     # Surpasses the maximum power and returns the previous state
                                     power_subfleet[idx] = 0
+                                    power_dc_subfleet[idx] = 0
                                     SOC_step[idx] = initSOC[idx]
                         # However, if the time is greater, we have to start charging right away regardless the service demanded (constraint of the device)
                         elif t >= check_tcin:
-                            SOC_step[idx], power_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)
+                            SOC_step[idx], power_subfleet[idx], power_dc_subfleet[idx] = self.start_charging_right_away_strategy(idx, SOC_sorted['SOCinit'][idx], dt)
                             power_controlled += power_subfleet[idx]   
                             # Check if the subfleet is fully charged
                             if SOC_step[idx] > 1:
                                 SOC_step[idx] = initSOC[idx]
                                 power_subfleet[idx] = 0
+                                power_dc_subfleet[idx] = 0
             
             """
             Modify the power and SOC of the different subfeets according 
@@ -462,21 +485,24 @@ class ElectricVehiclesFleet(FleetInterface):
                                                                        self.db_UF_subfleet[subfleet],
                                                                        self.db_OF_subfleet[subfleet],
                                                                        start_time)
-                        power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
-                                                                                                              subfleet,
-                                                                                                              power_subfleet[subfleet],
-                                                                                                              dt)
+                        (power_subfleet[subfleet],
+                         SOC_step[subfleet],
+                         power_dc_subfleet[subfleet]) = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
+                                                                                               subfleet,
+                                                                                               power_subfleet[subfleet],
+                                                                                               dt)
                     else:
                         break
 
             # Demand of power
             power_demanded = np.sum(power_subfleet, axis = 0)
+            power_dc_demanded = np.sum(power_dc_subfleet, axis = 0)
             
             # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
             for subfleet in range(self.N_SubFleets):
                 if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
                     if self.monitor_strategy[subfleet] == 'right away':
-                        SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
+                        SOC_check, power_subfleet[subfleet],_ = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
                         if SOC_check > 1:
                             power_subfleet[subfleet] = 0
 
@@ -534,10 +560,15 @@ class ElectricVehiclesFleet(FleetInterface):
             response.P_dot_down = 0
             response.Q_dot_up   = 0
             response.Q_dot_down = 0
-            
-
-            response.Eff_charge    = 0  
-            response.Eff_discharge = 0
+                   
+            if power_demanded == 0:
+                response.Eff_charge = 0
+            else:
+                response.Eff_charge = (power_dc_demanded*dt)/(power_demanded*dt)*100       
+            if power_ac_discharge == 0:
+                response.Eff_discharge = 0
+            else:
+                response.Eff_discharge = (power_dc_discharge*dt)/(power_ac_discharge*dt)*100
     
             response.dT_hold_limit = None
             response.T_restore     = None
@@ -578,7 +609,8 @@ class ElectricVehiclesFleet(FleetInterface):
             dt = int(req.sim_step.total_seconds())
             p_req = req.P_req
             q_req = req.Q_req
-            res = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts)
+            start_time = req.start_time
+            res = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts, start_time)
             responses.append(res)     
         # restart the state of charge
         self.SOC = SOC_aux
@@ -630,7 +662,7 @@ class ElectricVehiclesFleet(FleetInterface):
             return power_ac - (a0 + a1*power_ac + a2*power_ac**2)
         else:
             return power_ac_max - (a0 + a1*power_ac_max + a2*power_ac_max**2)
-    
+        
     def current_charging(self,v_oc,R,power_dc):
         """ Method to calculate the current to charge the battery as a function of the V_OC, P_DC, internal resistance of the battery """
         return (v_oc - np.sqrt(v_oc**2 - 4*R*power_dc))/(2.*R)   
@@ -697,9 +729,11 @@ class ElectricVehiclesFleet(FleetInterface):
             charge_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet_number]]
             SOC_step = SOC + charge_rate*dt
             
-            return SOC_step, power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000
+            return (SOC_step,
+                    power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000,
+                    power_dc*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000)
         else:
-            return SOC, 0
+            return SOC, 0, 0
         
     def start_charging_to_meet_tcin(self, tcin, t_secs, subfleet_number, SOC, dt):
         """ Method to calculate the start-charging-to-be-fully-charged strategy """
@@ -729,9 +763,12 @@ class ElectricVehiclesFleet(FleetInterface):
         
         if t_secs >= time_start_charging:
             SOC_step = SOC + charge_rate*dt
-            return SOC_step, power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000, time_start_charging
+            return (SOC_step,
+                    power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000,
+                    time_start_charging,
+                    power_dc*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000)
         else:
-            return SOC, 0, time_start_charging
+            return SOC, 0, time_start_charging, 0
         
     def start_charging_right_away_strategy(self, subfleet_number, SOC, dt):
         """ 
@@ -754,7 +791,10 @@ class ElectricVehiclesFleet(FleetInterface):
         charge_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet_number]]
         SOC_step = SOC + charge_rate*dt
         
-        return SOC_step, power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000
+        return (SOC_step,
+                power_ac*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000,
+                power_dc*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000)
+    
 
     def run_baseline_simulation(self):
         """ 
