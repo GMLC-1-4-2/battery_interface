@@ -16,7 +16,7 @@ from fleet_factory import create_fleet
 from service_factory import create_service
 
 
-def integration_test(service_name, fleet_name, **kwargs):
+def integration_test(service_name, fleet_name, service_type='Traditional', **kwargs):
     # Create test service
     service = create_service(service_name)
     if service is None:
@@ -51,37 +51,38 @@ def integration_test(service_name, fleet_name, **kwargs):
             # 'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:59"],
             # 'December': ["2017-12-01 00:00:00", "2017-12-31 23:59:00"]
         })
-        for service_type in ['Dynamic']:
-            all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
-                                            'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
-                                            'Reg_Clearing_Price_Credit'])
-            for month in monthtimes.keys():
-                print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
-                fleet_response = service.request_loop(service_type=service_type,
-                                                      start_time=parser.parse(monthtimes[month][0]),
-                                                      end_time=parser.parse(monthtimes[month][1]),
-                                                      clearing_price_filename='historical-ancillary-service-data-2017.xls',
-                                                      fleet_name=fleet_name)
-                month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
-                all_results = pd.concat([all_results, month_results])
-                print('     Finished ' + str(month) + ' ' + service_type)
-            # Fix formatting of all_results dataframe to remove tuples
-            all_results[['Perf_score', 'Delay_score', 'Corr_score', 'Prec_score']] = all_results['performance_score'].apply(
-                pd.Series)
-            all_results[['MCP', 'REG_CCP', 'REG_PCP']] = all_results['Regulation_Market_Clearing_Price(RMCP)'].apply(
-                pd.Series)
-            all_results[['Reg_Clr_Pr_Credit', 'Reg_RMCCP_Credit', 'Reg_RMPCP_Credit']] = all_results[
-                'Reg_Clearing_Price_Credit'].apply(pd.Series)
-            all_results.drop(
-                columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
-                inplace=True)
-            print('Writing result .csv')
-            file_dir = join(dirname(abspath(__file__)), 'services', 'reg_service', 'results', '')
-            all_results.to_csv(file_dir + datetime.now().strftime(
-                '%Y%m%d') + '_annual_hourlyresults_' + service_type + '_' + fleet_name + '.csv')
+
+        all_results = pd.DataFrame(columns=['performance_score', 'hourly_integrated_MW',
+                                        'mileage_ratio', 'Regulation_Market_Clearing_Price(RMCP)',
+                                        'Reg_Clearing_Price_Credit'])
+        for month in monthtimes.keys():
+            print('Starting ' + str(month) + ' ' + service_type + ' at ' + datetime.now().strftime('%H:%M:%S'))
+            fleet_response = service.request_loop(service_type=service_type,
+                                                    start_time=parser.parse(monthtimes[month][0]),
+                                                    end_time=parser.parse(monthtimes[month][1]),
+                                                    clearing_price_filename='historical-ancillary-service-data-2017.xls',
+                                                    fleet_name=fleet_name)
+            month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
+            all_results = pd.concat([all_results, month_results])
+            print('     Finished ' + str(month) + ' ' + service_type)
+        # Fix formatting of all_results dataframe to remove tuples
+        all_results[['Perf_score', 'Delay_score', 'Corr_score', 'Prec_score']] = all_results['performance_score'].apply(
+            pd.Series)
+        all_results[['MCP', 'REG_CCP', 'REG_PCP']] = all_results['Regulation_Market_Clearing_Price(RMCP)'].apply(
+            pd.Series)
+        all_results[['Reg_Clr_Pr_Credit', 'Reg_RMCCP_Credit', 'Reg_RMPCP_Credit']] = all_results[
+            'Reg_Clearing_Price_Credit'].apply(pd.Series)
+        all_results.drop(
+            columns=['performance_score', 'Regulation_Market_Clearing_Price(RMCP)', 'Reg_Clearing_Price_Credit'],
+            inplace=True)
+        print('Writing result .csv')
+        file_dir = join(dirname(abspath(__file__)), 'services', 'reg_service', 'results', '')
+        all_results.to_csv(file_dir + datetime.now().strftime(
+            '%Y%m%d') + '_annual_hourlyresults_' + service_type + '_' + fleet_name + '.csv')
+
     elif service_name == 'Reserve':
         monthtimes = dict({
-            'January': ["2017-01-01 00:00:00", "2017-01-31 23:59:59"],
+            'January': ["2017-01-08 00:00:00", "2017-01-08 23:59:59"],
             # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
             # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
             # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
@@ -151,13 +152,14 @@ def integration_test(service_name, fleet_name, **kwargs):
             plt.plot(annual_signals.Date_Time, annual_signals.P_togrid, label='P_togrid')
         if not(all(pd.isnull(annual_signals['P_base']))):
             plt.plot(annual_signals.Date_Time, annual_signals.P_base, label='P_base')
-            plt.ylabel('Power (MW)')
-            plt.legend(loc='best')
-        if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(annual_signals['SoC'])))):
-            plt.subplot(212)
-            plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
-            plt.ylabel('SoC (%)')
-            plt.xlabel('Time')
+        plt.ylabel('Power (MW)')
+        plt.legend(loc='best')
+        if 'battery' in fleet_name.lower():
+            if not(all(pd.isnull(annual_signals['SoC']))):
+                plt.subplot(212)
+                plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Time')
         plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
         plt.close()
         print('Saving .csv of annual signals and SOC (if necessary)')
@@ -178,13 +180,16 @@ if __name__ == '__main__':
     # Full test
     # services = ['Regulation', 'Reserve', 'ArtificialInertia']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'HVAC', 'Refridge' ]
+    # service_types = ['Traditional', Dynamic'] # This is only useful for regulation service
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Dev test
     services = ['Regulation']
     fleets = ['BatteryInverter']
+    service_types = ['Traditional']
     kwargs = {}
 
     for service in services:
         for fleet in fleets:
-            integration_test(service, fleet, **kwargs)
+            for service_type in service_types:
+                integration_test(service, fleet, service_type, **kwargs)
