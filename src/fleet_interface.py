@@ -75,9 +75,6 @@ class FleetInterface:
         """
         return self.service_weight*self.fleet_rating
 
-    def assigned_service_kW(self):
-        return 1.0
-
     def print_performance_info(self):
         """
         This function is to dump the performance metrics either to screen or file or both
