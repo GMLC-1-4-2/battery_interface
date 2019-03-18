@@ -57,17 +57,16 @@ class ReserveService():
 
             # Generate lists containing tuples of (timestamp, power) for request and response
             request_list_1m = [(r.ts_req, r.P_req / 1000) for r in request_list_1m_tot]
+            request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
+
             if 'battery' in fleet_name.lower():
                 # Include battery SoC in response list for plotting purposes
-                response_list_1m = [(r.ts, r.P_service / 1000, r.soc) for r in response_list_1m_tot]
+                response_list_1m = [(r.ts, r.P_service / 1000, r.P_togrid, r.soc) for r in response_list_1m_tot]
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'P_togrid', 'SoC'])
             else:
-                response_list_1m = [(r.ts, r.P_service / 1000) for r in response_list_1m_tot]
-            # Convert the lists of tuples into dataframes
-            request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
-            if 'battery' in fleet_name.lower():
-                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'SoC'])
-            else:
-                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response'])
+                response_list_1m = [(r.ts, r.P_service / 1000, r.P_togrid) for r in response_list_1m_tot]
+                response_df_1m = pd.DataFrame(response_list_1m, columns=['Date_Time', 'Response', 'P_togrid'])
+                
             # This merges/aligns the requests and responses dataframes based on their time stamp 
             # into a single dataframe
             df_1m = pd.merge(
@@ -77,24 +76,33 @@ class ReserveService():
                 left_on='Date_Time',
                 right_on='Date_Time')
 
+            df_1m['P_togrid'] = df_1m['P_togrid'] / 100
+            df_1m['P_base'] = df_1m['P_togrid'] - df_1m['Response']
+
             # Plot entire analysis period results and save plot to file
             # We want the plot to cover the entire df_1m dataframe
-            plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+            plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'reserve_service')
             ensure_ddir(plot_dir)
             plot_filename = datetime.now().strftime('%Y%m%d') + '_all_' + start_time.strftime('%B') + '_events_' + fleet_name + '.png'
             plt.figure(1)
-            plt.figure(figsize=(15,8))
+            plt.figure(figsize=(15, 8))
             plt.subplot(211)
-            plt.plot(df_1m.Date_Time, df_1m.Request, label='P Request')
-            plt.plot(df_1m.Date_Time, df_1m.Response, label='P Response')
+            if not(all(pd.isnull(df_1m['Request']))):
+                plt.plot(df_1m.Date_Time, df_1m.Request, label='P_Request')
+            if not(all(pd.isnull(df_1m['Response']))):
+                plt.plot(df_1m.Date_Time, df_1m.Response, label='P_Response')
+            if not(all(pd.isnull(df_1m['P_togrid']))):
+                plt.plot(df_1m.Date_Time, df_1m.P_togrid, label='P_togrid')
+            if not(all(pd.isnull(df_1m['P_base']))):
+                plt.plot(df_1m.Date_Time, df_1m.P_base, label='P_base')
             plt.ylabel('Power (MW)')
             plt.legend(loc='best')
-            if 'battery' in fleet_name.lower():
+            if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(df_1m['SoC'])))):
                 plt.subplot(212)
                 plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
-            plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+            plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
             df_1m = pd.read_excel(
@@ -107,10 +115,12 @@ class ReserveService():
         # Create empty data frame to store results in
         results_df = pd.DataFrame(columns=['Event_Start_Time', 'Event_End_Time',
             'Response_to_Request_Ratio', 'Response_MeetReqOrMax_Index_number',
-            'Event_Duration_mins', 'Response_After10minToEnd_To_First10min_Ratio',
-            'Requested_MW', 'Responded_MW_at_10minOrEnd', 'Shortfall_MW',
+            'Event_Duration_mins', 'Response_After10minToEndOr30min_To_First10min_Ratio',
+            'Requested_MW', 'Responded_MW_at_10minOrEnd', 
+            'Responded_MW_After10minToEndOr30min', 'Shortfall_Ratio',
             'Response_0min_Min_MW', 'Response_10minOrEnd_Max_MW',
-            'Response_After10minToEnd_MW', 'SRMCP_DollarsperMWh_DuringEvent',
+            'Response_After10minToEnd_MW', 'Avg_Ramp_Rate', 'Best_Ramp_Rate',
+            'SRMCP_DollarsperMWh_DuringEvent',
             'SRMCP_DollarsperMWh_SinceLastEvent',
             'Service_Value_NotInclShortfall_dollars',
             'Service_Value_InclShortfall_dollars',
@@ -169,14 +179,16 @@ class ReserveService():
 
                 # Call the perf_metrics() method to obtain key event metrics
                 performance_results = self.perf_metrics(event, shorter_than_11_min)
+
                 # Call the event_value() method to calculate the event's value
                 value_results = self.event_value(
-                    performance_results['Event_Start_Time'],
-                    performance_results['Event_End_Time'],
-                    previous_event_end,
-                    performance_results['Event_Duration_mins'],
-                    performance_results['Requested_MW'],
-                    performance_results['Shortfall_MW'])
+                    Event_Start_Time=performance_results['Event_Start_Time'],
+                    Event_End_Time=performance_results['Event_End_Time'],
+                    Previous_Event_End_Time=previous_event_end,
+                    Requested_MW=performance_results['Requested_MW'],
+                    Responded_MW_at_10minOrEnd=performance_results['Responded_MW_at_10minOrEnd'],
+                    Responded_MW_After10minToEndOr30min=performance_results['Responded_MW_After10minToEndOr30min'],
+                    Shortfall_Ratio=performance_results['Shortfall_Ratio'])
 
                 # Create temporary dataframe to contain the results
                 event_results_df = pd.DataFrame({
@@ -185,13 +197,16 @@ class ReserveService():
                     'Response_to_Request_Ratio': performance_results['Response_to_Request_Ratio'],
                     'Response_MeetReqOrMax_Index_number': performance_results['Response_MeetReqOrMax_Index_number'],
                     'Event_Duration_mins': performance_results['Event_Duration_mins'],
-                    'Response_After10minToEnd_To_First10min_Ratio': performance_results['Response_After10minToEnd_To_First10min_Ratio'],
+                    'Response_After10minToEndOr30min_To_First10min_Ratio': performance_results['Response_After10minToEndOr30min_To_First10min_Ratio'],
                     'Requested_MW': performance_results['Requested_MW'],
                     'Responded_MW_at_10minOrEnd': performance_results['Responded_MW_at_10minOrEnd'],
-                    'Shortfall_MW': performance_results['Shortfall_MW'],
+                    'Responded_MW_After10minToEndOr30min': performance_results['Responded_MW_After10minToEndOr30min'],
+                    'Shortfall_Ratio': performance_results['Shortfall_Ratio'],
                     'Response_0min_Min_MW': performance_results['Response_0min_Min_MW'],
                     'Response_10minOrEnd_Max_MW': performance_results['Response_10minOrEnd_Max_MW'],
                     'Response_After10minToEnd_MW': performance_results['Response_After10minToEnd_MW'],
+                    'Avg_Ramp_Rate': performance_results['Avg_Ramp_Rate'],
+                    'Best_Ramp_Rate': performance_results['Best_Ramp_Rate'],
                     'SRMCP_DollarsperMWh_DuringEvent': value_results['SRMCP_DollarsperMWh_DuringEvent'],
                     'SRMCP_DollarsperMWh_SinceLastEvent': value_results['SRMCP_DollarsperMWh_SinceLastEvent'],
                     'Service_Value_NotInclShortfall_dollars': value_results['Service_Value_NotInclShortfall_dollars'],
@@ -208,22 +223,28 @@ class ReserveService():
                 plot_start = previous_event_end
                 plot_end = performance_results['Event_End_Time'] + timedelta(minutes=10)
                 plot_df = df_1m.loc[(df_1m.Date_Time >= plot_start) & (df_1m.Date_Time <= plot_end), :]
-                plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+                plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'reserve_service')
                 plot_filename = datetime.now().strftime('%Y%m%d') + '_event_starting_' + performance_results['Event_Start_Time'].strftime('%Y%m%d-%H-%M') + '_' + fleet_name + '.png'
                 plt.figure(1)
-                plt.figure(figsize=(15,8))
+                plt.figure(figsize=(15, 8))
                 plt.subplot(211)
-                plt.plot(plot_df.Date_Time, plot_df.Request, label='P Request')
-                plt.plot(plot_df.Date_Time, plot_df.Response, label='P Response')
+                if not(all(pd.isnull(plot_df['Request']))):
+                    plt.plot(plot_df.Date_Time, plot_df.Request, label='P_Request')
+                if not(all(pd.isnull(plot_df['Response']))):
+                    plt.plot(plot_df.Date_Time, plot_df.Response, label='P_Response')
+                if not(all(pd.isnull(plot_df['P_togrid']))):
+                    plt.plot(plot_df.Date_Time, plot_df.P_togrid, label='P_togrid')
+                if not(all(pd.isnull(plot_df['P_base']))):
+                    plt.plot(plot_df.Date_Time, plot_df.P_base, label='P_base')
                 plt.ylabel('Power (MW)')
                 plt.legend(loc='best')
-                if 'battery' in fleet_name.lower():
+                if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(plot_df['SoC'])))):
                     plt.subplot(212)
                     plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
                     plt.ylabel('SoC (%)')
                     plt.xlabel('Time')
                 if not(four_scenario_testing):
-                    plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
+                    plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
                 plt.close()
 
                 # Reset previous_end_end to be the end of this event before moving on to the next event
@@ -302,17 +323,16 @@ class ReserveService():
             # This is the average response from 11 minutes on
             event_response_after11min_df = event.loc[11:, :]
             Response_After10minToEnd_MW = event_response_after11min_df.Response.mean()
-            # Calculate metric of response after 11 minutes
-            Response_After10minToEnd_To_First10min_Ratio = Response_After10minToEnd_MW / Response_10minOrEnd_Max_MW
-
-            # Calculate event response to request ratio and shortfall
-            if Response_After10minToEnd_To_First10min_Ratio < 0.95:
-                Response_to_Request_Ratio = (Response_After10minToEnd_MW - Response_0min_Min_MW) / Requested_MW
-                Shortfall_MW = max(max(0, Requested_MW - Responded_MW_at_10minOrEnd),
-                                   Requested_MW - (Response_After10minToEnd_MW - Response_0min_Min_MW))
+            # Calculate ratio of response after 10 minutes to response at 10 minutes
+            if Event_Duration_mins > 30:
+                Responded_MW_After10minToEndOr30min = event.loc[11:30, :].Response.min() - Response_0min_Min_MW
+                Response_After10minToEndOr30min_To_First10min_Ratio = event.loc[11:30, :].Response.min() / Response_10minOrEnd_Max_MW 
             else:
-                Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
-                Shortfall_MW = max(0, Requested_MW - Responded_MW_at_10minOrEnd)            
+                Responded_MW_After10minToEndOr30min = event.loc[11:, :].Response.min() - Response_0min_Min_MW
+                Response_After10minToEndOr30min_To_First10min_Ratio = event.loc[11:, :].Response.min() / Response_10minOrEnd_Max_MW   
+
+            # Calculate shortfall ratio
+            Shortfall_Ratio = min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min) / Requested_MW        
 
         else:
             # Calculate the event response over the last 3 minutes of the event (including the additional
@@ -322,50 +342,62 @@ class ReserveService():
 
             # The event is shorter than 11 minutes, so return NaN for these two metrics
             Response_After10minToEnd_MW = np.nan
-            Response_After10minToEnd_To_First10min_Ratio = np.nan
+            Response_After10minToEndOr30min_To_First10min_Ratio = np.nan
 
             # Calculate the response ratio for the event
             # Calculate responded MW at 10 min mark or end of event
             Responded_MW_at_10minOrEnd = Response_10minOrEnd_Max_MW - Response_0min_Min_MW
+            Responded_MW_After10minToEndOr30min = np.nan
 
-            Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
-            
-            # Calculate shortfall
-            Shortfall_MW = max(0, Requested_MW - Responded_MW_at_10minOrEnd)
-        
-        # Calculate time to committed response or max response 
-        # @JJ: For the time to committed or max response, should we be ignoring
-        # the -1 minute and the additional minute we added at the end (for shorter events)?
-        try:
-            # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
-            # If no such index exists, skip down to the "except" call where the time to the max response will be
-            # returned instead
-            Response_MeetReqOrMax_Index_number = event.loc[(event.Date_Time >= Event_Start_Time) & (event.Response >= Requested_MW + Response_0min_Min_MW), :].index[0]
-        except: # If the response never matches the commitment, return infinity as an indicator
-            Response_Max_MW = event.loc[event.Date_Time >= Event_Start_Time, 'Response'].max()
-            Response_MeetReqOrMax_Index_number = event.loc[event.Response == Response_Max_MW, :].index[0]
+            # Calculate shortfall ratio
+            Shortfall_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
 
         
-        
+
+        # Calculate response:request ratio
+        Response_to_Request_Ratio = Responded_MW_at_10minOrEnd / Requested_MW
+
+        # Calculate average ramp rate
+        Avg_Ramp_Rate = Responded_MW_at_10minOrEnd / min(10, Event_Duration_mins)
+
+        # Calculate best ramp rate
+        if Response_to_Request_Ratio >= 1:
+            try:
+                # This will try to grab the event dataframe's index of the first time where the response matches (or exceeds) the request.
+                # If no such index exists, skip down to the "except" call where the time to the max response will be
+                # returned instead
+                Response_MeetReqOrMax_Index_number = event.loc[(event.Date_Time >= Event_Start_Time) & (event.Response >= Requested_MW + Response_0min_Min_MW), :].index[0]
+            except: 
+                Response_Max_MW = event.loc[event.Date_Time >= Event_Start_Time, 'Response'].max()
+                Response_MeetReqOrMax_Index_number = event.loc[event.Response == Response_Max_MW, :].index[0]
+            Best_Ramp_Rate = Requested_MW / Response_MeetReqOrMax_Index_number
+        else:
+            Response_MeetReqOrMax_Index_number = min(10, Event_Duration_mins)
+            Best_Ramp_Rate = Avg_Ramp_Rate
+
         return dict({
             'Event_Start_Time': Event_Start_Time,
             'Event_End_Time': Event_End_Time,
             'Response_to_Request_Ratio': Response_to_Request_Ratio,
             'Response_MeetReqOrMax_Index_number': Response_MeetReqOrMax_Index_number,
             'Event_Duration_mins': Event_Duration_mins,
-            'Response_After10minToEnd_To_First10min_Ratio': Response_After10minToEnd_To_First10min_Ratio,
+            'Response_After10minToEndOr30min_To_First10min_Ratio': Response_After10minToEndOr30min_To_First10min_Ratio,
             'Requested_MW': Requested_MW,
             'Responded_MW_at_10minOrEnd': Responded_MW_at_10minOrEnd,
-            'Shortfall_MW': Shortfall_MW,
+            'Responded_MW_After10minToEndOr30min': Responded_MW_After10minToEndOr30min,
+            'Shortfall_Ratio': Shortfall_Ratio,
             'Response_0min_Min_MW': Response_0min_Min_MW,
             'Response_10minOrEnd_Max_MW': Response_10minOrEnd_Max_MW,
-            'Response_After10minToEnd_MW': Response_After10minToEnd_MW})
+            'Response_After10minToEnd_MW': Response_After10minToEnd_MW,
+            'Avg_Ramp_Rate': Avg_Ramp_Rate,
+            'Best_Ramp_Rate': Best_Ramp_Rate})
 
     def event_value(self, Event_Start_Time, Event_End_Time, Previous_Event_End_Time,
-                    Event_Duration_mins, Requested_MW, Shortfall_MW,
+                    Requested_MW, Responded_MW_at_10minOrEnd, 
+                    Responded_MW_After10minToEndOr30min, Shortfall_Ratio,
                     hours_assigned_per_event_day=5, days_apart_each_assignment=5,
                     hours_assigned_on_each_bw_day=3):
-        ''' Method to calculate an event's value, whic his based on the requested MW for the event, the event duration,
+        ''' Method to calculate an event's value, which is based on the requested MW for the event, the event duration,
         the event's shortfall (in MW), the time between the current event's end and the previous event's end, and
         the hourly price.
         '''
@@ -392,8 +424,18 @@ class ReserveService():
         Period_from_Last_Event_Days = Period_from_Last_Event_Hours / 24.
 
         # Calculate value of event
-        Service_Value_NotInclShortfall_dollars = SRMCP_DollarsperMWh_DuringEvent * (Requested_MW - Shortfall_MW) * hours_assigned_per_event_day
-        Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars - (SRMCP_DollarsperMWh_SinceLastEvent * Shortfall_MW * Period_from_Last_Event_Hours / 24. / days_apart_each_assignment * hours_assigned_on_each_bw_day)
+        # Note in these calculations that Responded_MW_After10minToEndOr30min can be NaN.
+        # Therefore, when we call the min() function for these equations, the first value
+        # in the min() call must be Responded_MW_at_10minOrEnd, which will never be NaN
+        # (otherwise, NaN could be returned for events shorter than 10 minutes).
+        Service_Value_NotInclShortfall_dollars = (SRMCP_DollarsperMWh_DuringEvent *
+                min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min) *
+                hours_assigned_per_event_day)
+        if Shortfall_Ratio >= 1:
+            Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars
+        else:
+            Shortfall_MW = Requested_MW - min(Responded_MW_at_10minOrEnd, Responded_MW_After10minToEndOr30min)
+            Service_Value_InclShortfall_dollars = Service_Value_NotInclShortfall_dollars - (SRMCP_DollarsperMWh_SinceLastEvent * Shortfall_MW * Period_from_Last_Event_Hours / 24. / days_apart_each_assignment * hours_assigned_on_each_bw_day)
         return dict({
             'SRMCP_DollarsperMWh_DuringEvent': SRMCP_DollarsperMWh_DuringEvent,
             'SRMCP_DollarsperMWh_SinceLastEvent': SRMCP_DollarsperMWh_SinceLastEvent,
