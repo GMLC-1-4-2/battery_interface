@@ -61,7 +61,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                                                     start_time=parser.parse(monthtimes[month][0]),
                                                     end_time=parser.parse(monthtimes[month][1]),
                                                     clearing_price_filename='historical-ancillary-service-data-2017.xls',
-                                                    fleet_name=fleet_name)
+                                                    fleet_name=assigned_fleet_name)
             month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
             all_results = pd.concat([all_results, month_results])
             print('     Finished ' + str(month) + ' ' + service_type)
@@ -109,7 +109,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                                             'Service_Value_InclShortfall_dollars',
                                             'Period_from_Last_Event_Hours',
                                             'Period_from_Last_Event_Days'])
-        if 'battery' in fleet_name.lower():
+        if 'battery' in assigned_fleet_name.lower():
             annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response', 'SoC'])
         else:
             annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response'])
@@ -137,10 +137,10 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         print('Writing event results .csv')
         file_dir = join(dirname(abspath(__file__)), 'integration_test', 'reserve_service')
         all_results.to_csv(join(file_dir,
-                                datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + fleet_name + '.csv'))
+                                datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + assigned_fleet_name + '.csv'))
         print('Plotting annual signals and SOC (if necessary)')
         plot_dir = file_dir
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + fleet_name + '.png'
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + assigned_fleet_name + '.png'
         plt.figure(1)
         plt.figure(figsize=(15, 8))
         plt.subplot(211)
@@ -154,7 +154,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             plt.plot(annual_signals.Date_Time, annual_signals.P_base, label='P_base')
         plt.ylabel('Power (MW)')
         plt.legend(loc='best')
-        if 'battery' in fleet_name.lower():
+        if 'battery' in assigned_fleet_name.lower():
             if not(all(pd.isnull(annual_signals['SoC']))):
                 plt.subplot(212)
                 plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
@@ -165,7 +165,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         print('Saving .csv of annual signals and SOC (if necessary)')
         annual_signals.to_csv(
             join(file_dir,
-                 datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + fleet_name + '.csv'))
+                 datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
         fleet_responses = service.request_loop()
