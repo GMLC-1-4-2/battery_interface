@@ -41,11 +41,15 @@ def main(ts, grid):
     
     eff_charging = np.zeros([len(t), ])
     eff_discharging = np.zeros([len(t), ])
+    energy = np.zeros([len(t), ])
+    capacity = np.zeros([len(t), ])
     for i in range(len(t)):  
         eff_charging[i] = FORECAST[i].Eff_charge
-        eff_discharging[i] = FORECAST[i].Eff_discharge        
-    
-    return eff_charging, eff_discharging
+        eff_discharging[i] = FORECAST[i].Eff_discharge    
+        energy[i] = FORECAST[i].E 
+        capacity[i] = FORECAST[i].C 
+        
+    return eff_charging, eff_discharging, energy, capacity
     
 
 if __name__ == "__main__":
@@ -55,7 +59,7 @@ if __name__ == "__main__":
     ts = datetime(2018, 9, 20, 00, 0, 00, 000000)    
     grid = GridInfo('Grid_Info_DATA_2.csv')
     
-    e_in, e_out = main(ts, grid)
+    e_in, e_out, e, c = main(ts, grid)
     
     # Compute the roundtrip efficiency matrix
     rt = np.multiply.outer(e_in*0.01, e_out*0.01)*100
