@@ -512,6 +512,7 @@ class ElectricVehiclesFleet(FleetInterface):
             
             # Calculate the energy stored in each individual subfleet
             total_energy = 0
+            total_capacity = 0
             energy_per_subfleet = np.zeros([self.N_SubFleets,])
             for subfleet in range(self.N_SubFleets):
                 R = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[subfleet]],
@@ -531,8 +532,11 @@ class ElectricVehiclesFleet(FleetInterface):
                                          self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet]], 
                                          self.df_VehicleModels['Number_of_cells'][self.SubFleetId[subfleet]],SOC_step[subfleet],R,ibat)
                 capacity = self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet]]
+                # Energy per sub fleet and total energy
                 energy_per_subfleet[subfleet] = self.energy_stored_per_subfleet(SOC_step[subfleet], capacity, v, self.VehiclesSubFleet)
                 total_energy += energy_per_subfleet[subfleet]
+                # Total Capacity
+                total_capacity += self.energy_stored_per_subfleet(1, capacity, v, self.VehiclesSubFleet)
             
             # response outputs 
             response = FleetResponse()
@@ -544,7 +548,7 @@ class ElectricVehiclesFleet(FleetInterface):
             response.Q_service = 0
             
             response.E = total_energy
-            response.C = None
+            response.C = total_capacity
             
             response.P_togrid_min = - max_power_demanded
             response.P_togrid_max = - power_uncontrolled
