@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 03/05/2019
+Last update: 03/18/2019
 Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
@@ -77,10 +77,10 @@ class ElectricVehiclesFleet(FleetInterface):
         np.random.seed(self.seed)
         
         # Read data from NHTS survey      
-        self.df_Miles     = pd.read_table(join(base_path,'data/TRPMILES_filt.txt'), delim_whitespace=True, header=None)
-        self.df_StartTime = pd.read_table(join(base_path,'data/STRTTIME_filt.txt'), delim_whitespace=True, header=None)
-        self.df_EndTime   = pd.read_table(join(base_path,'data/ENDTIME_filt.txt') , delim_whitespace=True, header=None)
-        self.df_WhyTo     = pd.read_table(join(base_path,'data/WHYTO_filt.txt' )  , delim_whitespace=True, header=None)
+        self.df_Miles     = pd.read_csv(join(base_path,'data/TRPMILES_filt.txt'), sep = '\t', header=None)
+        self.df_StartTime = pd.read_csv(join(base_path,'data/STRTTIME_filt.txt'), sep = '\t', header=None)
+        self.df_EndTime   = pd.read_csv(join(base_path,'data/ENDTIME_filt.txt'), sep = '\t', header=None)
+        self.df_WhyTo     = pd.read_csv(join(base_path,'data/WHYTO_filt.txt' ), sep = '\t', header=None)
         
         # Percentage of cars that are charged at work/other places: Statistical studies from real data
         self.ChargedAtWork_per  = LC.get_charged_at_work_per()
