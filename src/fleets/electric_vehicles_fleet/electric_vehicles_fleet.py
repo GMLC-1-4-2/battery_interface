@@ -203,6 +203,8 @@ class ElectricVehiclesFleet(FleetInterface):
         self.soh = np.repeat(metrics[2], self.N_SubFleets)
         # Energy efficiency
         self.energy_efficiency = metrics[3]
+        # P_togrid/P_baseline
+        self.ratio_P_togrid_P_base = 1.
         
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the discharge and charge of the subfleets """
@@ -587,12 +589,15 @@ class ElectricVehiclesFleet(FleetInterface):
             if self.time > 24*3600:
                 self.time = self.time - 24*3600
                 
+            # Impact Metrics    
             # Update the state of health of the batteries of each subfleet
             for subfleet in range(self.N_SubFleets):
                 self.soh[subfleet] = (self.soh[subfleet] - 
                                 100*(dt/3600)*abs(power_subfleet[subfleet]) / 
                                 ((1+1/self.energy_efficiency)*self.cycle_life*energy_per_subfleet[subfleet]))
-         
+            
+            self.ratio_P_togrid_P_base = response.P_togrid/(-self.p_baseline)
+            
             # Check the outputs
             return response
     
@@ -1193,19 +1198,18 @@ class ElectricVehiclesFleet(FleetInterface):
         impact_metrics_DATA = [["Impact Metrics File"],
                                 ["state-of-health", "initial value", "final value", "degradation cost"]]
         for subfleet in range(self.N_SubFleets):
-            impact_metrics_DATA.append(["battery-"+str(subfleet),
+            impact_metrics_DATA.append(["subfleet-"+str(subfleet),
                                         str(self.soh_init[subfleet]),
                                         str(self.soh[subfleet]),
                                         str((self.soh_init[subfleet]-self.soh[subfleet])*self.eol_cost/100)])
 
         total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
         impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
+        impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(impact_metrics_DATA)     
-
-        pass
     
     def change_config(self, fleet_config):
         """
@@ -1223,8 +1227,6 @@ class ElectricVehiclesFleet(FleetInterface):
         self.fw_function.k_OF  = self.FW_Param[3]
         self.autonomous_threshold = fleet_config.autonomous_threshold
         self.Vset = fleet_config.v_thresholds
-        
-        pass
     
     def assigned_service_kW(self):
         """ 

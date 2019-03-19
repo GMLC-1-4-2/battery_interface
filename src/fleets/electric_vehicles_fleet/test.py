@@ -78,8 +78,8 @@ for i in range(len(t)):
     eff_charging.append(FORECAST[i].Eff_charge)
     eff_discharging.append(FORECAST[i].Eff_discharge)
     
-#fleet_test.output_impact_metrics()  
-#print("The impact metrics file has been produced: state of health of the batteries")
+fleet_test.output_impact_metrics()  
+print("The impact metrics file has been produced: state of health of the batteries")
 print(pd.read_csv('impact_metrics.csv'))
 
 plots = Plots()
@@ -87,7 +87,6 @@ plots = Plots()
 plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
 plots.power_to_grid(t, power_response, power_baseline, power_request, ts, dt, seconds_of_simulation)
 plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
-plots.efficiency(t, eff_charging, eff_discharging, ts, dt, seconds_of_simulation)
 
 ###############################################################################
 # Test 2: test process_request method
