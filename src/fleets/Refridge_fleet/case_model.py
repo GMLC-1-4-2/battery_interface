@@ -4,7 +4,7 @@ Created on June 2018
 For GMLC 1.4.2, generate the desired case thermal model 
 High level 2R2C model
 
-Last update: 08/06/2018
+Last update: 02/14/2019
 Version: 1.0
 
 States 
@@ -59,6 +59,8 @@ import numpy as np
 import pandas as pd
 
 #########################################################################
+
+from FR_Response import FRResponse
 
 
 class c():
@@ -167,27 +169,30 @@ class CaseModel():
             return(-0.04418*Tout + 3.5892)   #Tout in C      1.8 ~ 2.9   
             
             
-        def execute(self, Tair, Tfood, Tamb, Tind, R_case, R_food, C_food, control_signal, service_calls_accepted, Element_on, timestep, forecast_Tind, IsForecast):
-            (Tair, Tfood, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.FRIDGE(Tair, Tfood, Tamb, Tind, R_case, R_food, C_food, control_signal, 
-                 Element_on, service_calls_accepted, self.max_service_calls, timestep, forecast_Tind, IsForecast)
+        def execute(self, Tair, Tfood, Tamb, Tind, R_case, R_food, C_food, control_signal, timestep, forecast_Tind, IsForecast):
+            (response) = self.FRIDGE(Tair, Tfood, Tamb, Tind, R_case, R_food, C_food, control_signal, 
+                 timestep, forecast_Tind, IsForecast)
             
-            return Tair, Tfood, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed, 
+            return response #Tair, Tfood, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed, 
     
         def FRIDGE(self, Tair_last, Tfood_last, Tamb_ts, Tind_ts, R_case, R_food, C_food, control_signal_ts, 
-                 Element_on_ts, service_calls_accepted_ts, max_service_calls, timestep, forecast_Tind, is_forecast):
+                 timestep, forecast_Tind, is_forecast):
         
         
 #############################################################################
         #        Baseline operation - Base Loads
 #############################################################################
 #            BM = BuildingModel
-            ts = timestep
+#            ts = timestep
+            ts = 10
                 
           #estimate on what the maximum power usage could be
             E_cool= 1.000*Capacity(Tamb_ts)/COP(Tamb_ts)     # power consumpstion in W
             Eused_baseline_ts = 0
             PusedMax_ts = Capacity(Tamb_ts)/COP(Tamb_ts)   # max instant power (EIR or COP is changing)
  
+            Element_on_ts = 0
+            
             # Record control states          
             if Tfood_last > self.T_food_set + self.Tdeadband or Tair_last > self.T_air_set + self.Tdeadband:
                 Eused_baseline_ts = E_cool*1.000 #W used
@@ -202,23 +207,28 @@ class CaseModel():
 
 #            print(Element_on_ts)                
 ###########################################################################          
-            # Modify operation based on control signal #
+        #modify operation based on control signal 
+        #TODO: temporary code for integration testing while I figure out where to track max service calls
+            max_service_calls = 100000000000
+            service_calls_accepted_ts = 0
+            
+            
             # Reduce loads
-            if control_signal_ts  < 0 and Tfood_last < self.T_food_max and Tair_last < self.T_air_max and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            if control_signal_ts  > 0 and Tfood_last < self.T_food_max and Tair_last < self.T_air_max and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 service_calls_accepted_ts += 1
       
-            elif control_signal_ts  < 0 and Tfood_last >= self.T_food_max or Tair_last >= self.T_air_max:
+            elif control_signal_ts  > 0 and Tfood_last >= self.T_food_max or Tair_last >= self.T_air_max:
                 # don't change anything
                 Eused_ts = Eused_baseline_ts
                 
             # Increase loads    
-            elif control_signal_ts  > 0 and Tfood_last <= self.T_food_min or Tair_last <= self.T_air_min:
+            elif control_signal_ts  < 0 and Tfood_last <= self.T_food_min or Tair_last <= self.T_air_min:
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
              
-            elif control_signal_ts  > 0 and Tfood_last >= self.T_food_min  and Element_on_ts == 0: #and Tair_last >= self.T_air_min Element_on_ts = 0 requirement eliminates free rider situation
+            elif control_signal_ts  < 0 and Tfood_last >= self.T_food_min  and Element_on_ts == 0: #and Tair_last >= self.T_air_min Element_on_ts = 0 requirement eliminates free rider situation
                 #make sure it stays on
                 Eused_ts = E_cool*1.000 #W used
                 Element_on_ts = 1
@@ -299,10 +309,33 @@ class CaseModel():
 
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool
+            
+            PusedMin_ts = 0
+            
+            
+            response = FRResponse()
+        
+            response.Tair = Tair_ts
+            response.Tfood = Tfood_ts
+#            response.Tset = Tset_ts 
+            response.Eused = Eused_ts 
+            response.PusedMax = PusedMax_ts
+            response.PusedMin = PusedMin_ts
+            response.ElementOn = Element_on_ts
+            response.Eservice = float(Eservice_ts)
+            # response.Estored = Estored
+            response.SOC = SOC
+            response.AvailableCapacityAdd = Available_Capacity_Add
+            response.AvailableCapacityShed = Available_Capacity_Shed
+            response.ServiceCallsAccepted = service_calls_accepted_ts
+            response.IsAvailableAdd = isAvailable_add_ts
+            response.IsAvailableShed = isAvailable_shed_ts
+            
+            return response    
 
 
             
-            return Tair_ts, Tfood_ts,  Eused_ts, PusedMax_ts, Element_on_ts, Eservice_ts, SOC, Available_Capacity_Add, Available_Capacity_Shed, service_calls_accepted_ts, isAvailable_add_ts, isAvailable_shed_ts
+#            return Tair_ts, Tfood_ts,  Eused_ts, PusedMax_ts, Element_on_ts, Eservice_ts, SOC, Available_Capacity_Add, Available_Capacity_Shed, service_calls_accepted_ts, isAvailable_add_ts, isAvailable_shed_ts
             # No direct calculation of Eloss_ts, 
             # , CountC, CountD, E_cool
 #if __name__ == '__main__':

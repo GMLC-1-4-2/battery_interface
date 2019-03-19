@@ -12,6 +12,7 @@ from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet, static_plots
 from fleet_request import FleetRequest
 from datetime import datetime, timedelta
 from scipy.io import loadmat
+from matplotlib.pyplot import show, grid, subplots
 base_path = dirname(abspath(__file__))
 
 
@@ -66,15 +67,15 @@ def fleet_test2(fleet):
 
     # Power direction wrt the Grid.
     # Ey is negative power to grid
-    p_req = p_data['PP']
+    p_req = -p_data['PP']
 
     # base load of 20% of initial power requirement
     #bload = p_req[0]*0.2
     #p_curve = [bload if v < 0 else abs(v)-bload for _, v in enumerate(p_req)]
 
     # Power curve to have both negative and positive
-    bload = p_req[0] * 0.2
-    p_curve = [bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
+    #bload = p_req[0] * 0.2
+    p_curve = p_req#[bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
 
     # Create fleet request
     ts = datetime.utcnow()
@@ -83,14 +84,14 @@ def fleet_test2(fleet):
     fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=v, q=0.) for i, v in enumerate(p_curve)]
 
     # Process the request
-    P_togrid, Q_togrid, soc, ne, nf, V, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
+    P_togrid, Q_togrid, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
     for fr in fleet_request:
         fleet_response = fleet.process_request(fr)
         P_togrid.append(fleet_response.P_togrid)
         Q_togrid.append(fleet_response.Q_togrid)
         soc.append(fleet_response.E)
         ne.append(fleet_response.ne)
-        nf.append(fleet_response.nf)
+        Eff_charge.append(fleet_response.Eff_charge)
         V.append(fleet_response.V)
         Ir.append(fleet_response.Ir)
         ts.append(fleet_response.ts)
@@ -100,16 +101,17 @@ def fleet_test2(fleet):
     # Simulation results
     stat = "fully charged at %s sec." % str(sum(status))
 
-    # Plot the results
+    # Generate the impact metrics file
+    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')))
 
+    # Plot the results
     kwargs = {'P_request': (p_curve, 'kW'), 'P_response': (P_togrid, 'kW'),
               'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
-              'Faraday Efficiency': (nf, '%'), 'Energy efficiency of a cell': (ne, '%'),
+              'Charging Efficiency': (Eff_charge, '%'), 'Energy efficiency of a cell': (ne, '%'),
               'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
               'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
 
-    from matplotlib.pyplot import show, grid, subplots
     fig1, y1 = subplots(figsize=(20, 12))
     p1, = y1.plot(ts, p_curve, label='P_request')
     y1.axhline(y=0, color='r', linestyle='-')

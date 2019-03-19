@@ -10,6 +10,7 @@ from _load import *
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
+from csv import writer
 simplefilter('ignore', RankWarning)
 colorama.init()
 
@@ -19,11 +20,11 @@ class ElectrolyzerFleet(FleetInterface):
     Electrolyzer Fleet Class
     """
 
-    def __init__(self, grid_info, mdl_config="config.ini", mdl_type="Electrolyzer", p_req=None, **kwargs):
+    def __init__(self, grid_info, mdl_config="config.ini", mdl_type="Electrolyzer", p_req_load=None, **kwargs):
         """
         :param GridInfo: GridInfo object derived from the GridInfo Class
         :param mdl_type: Model parameters to be loaded from config.ini
-        :param p_req: Use instantaneous power request. Default is None.
+        :param p_req_load: Use instantaneous power request. Default is None.
         :param kwargs:
         """
 
@@ -31,15 +32,16 @@ class ElectrolyzerFleet(FleetInterface):
         # Not being used in the present scenario to provide grid services
         self.grid = grid_info
 
-        if not p_req:
+        if not p_req_load:
             self.load_curve = True
         else:
             self.load_curve = False
 
+
         # Load the config file that has model parameters
-        base_path = dirname(abspath(__file__))
+        self.base_path = dirname(abspath(__file__))
         self.config = configparser.ConfigParser()
-        self.config.read(join(base_path, mdl_config))
+        self.config.read(join(self.base_path, mdl_config))
 
         # Read the model parameters from config file with defaults as fallback
         self.ey_model_name = self.config.get(mdl_type, "Name", fallback="Default Electrolyzer Fleet")
@@ -55,12 +57,11 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_ne0 = float(self.config.get(mdl_type, "ne0", fallback=2))
         self.ey_charge_lvl_min = float(self.config.get(mdl_type, "charge_lvl_min", fallback=20))
         self.ey_charge_lvl_max = float(self.config.get(mdl_type, "charge_lvl_max", fallback=95))
-        self.ey_soc_lvl_init = float(self.config.get(mdl_type, "soc_lvl_init", fallback=19))
         self.ey_DG_25 = float(self.config.get(mdl_type, "DG_25", fallback=237000.0))
         self.ey_DG_80 = float(self.config.get(mdl_type, "DG_80", fallback=228480.0))
         self.ey_DH = float(self.config.get(mdl_type, "DH", fallback=286000.0))
         self.ey_R = float(self.config.get(mdl_type, "R", fallback=8.31445))
-        self.ey_Ne = float(self.config.get(mdl_type, "Ne", fallback=54))
+        self.ey_Ne = float(self.config.get(mdl_type, "Ne", fallback=50))
         self.ey_V_tank = float(self.config.get(mdl_type, "V_tank", fallback=0.3))
         self.ey_Nt = float(self.config.get(mdl_type, "Nt", fallback=3))
         self.ey_r1 = float(self.config.get(mdl_type, "r1", fallback=7.331e-5))
@@ -86,10 +87,19 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_cpH2 = float(self.config.get(mdl_type, "cpH2", fallback=14.31))
         self.ey_x01 = float(self.config.get(mdl_type, "x0_1", fallback=1.6))
         self.ey_x02 = float(self.config.get(mdl_type, "x0_2", fallback=80))
+        self.ey_Pmin_fleet = float(self.config.get(mdl_type, "Pmin_fleet", fallback=30))
+        self.ey_Pmax_fleet = float(self.config.get(mdl_type, "Pmax_fleet", fallback=240))
+        self.ey_At = float(self.config.get(mdl_type, "At", fallback=47))
+        self.ey_len = float(self.config.get(mdl_type, "len", fallback=2.54))
+        self.ey_Phi_0 = float(self.config.get(mdl_type, "Phi_0", fallback=5.9e-5))
+        self.ey_E_phi = float(self.config.get(mdl_type, "E_phi", fallback=42.7))
+        self.ey_b = float(self.config.get(mdl_type, "b", fallback=1.55e-5))
+        self.ey_LHV_H2 = float(self.config.get(mdl_type, "LHV_H2", fallback=120000))
+
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
         if self.load_curve:
-            self.ey_pdat = join(base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
+            self.ey_pdat = join(self.base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
         if self.config.sections()[0] != mdl_type:
             cprint("Error reading config.ini file for model:"+"\t"*3+"%s [FAIL]!!" % mdl_type, 'red',)
             print("Model found in config.ini file:"+"\t"*5+"%s!!\n"
@@ -97,39 +107,45 @@ class ElectrolyzerFleet(FleetInterface):
         else:
             cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
 
-        # Compute state parameters for the Electrolyzer model
-        # min. state of charge in the hydrogen tank
-        self.min_charge = self.ey_charge_lvl_min*1e-2*self.ey_Pe_out
-        # max. state of charge in the hydrogen tank
-        self.max_charge = self.ey_charge_lvl_max*1e-2*self.ey_Pe_out
-        # SOC initial
-        self.soc_i = self.ey_soc_lvl_init*1e-2*self.ey_Pe_out
-        self.soc = 0
-        # moles[0][0] = n_i
-        self.moles = self.soc_i*self.ey_V_tank/self.ey_R/(self.ey_T+273.15)
+        # Compute initial state parameters for the Electrolyzer model
+        self.nn = 0
+        self.ey_I = 0
+        self.V_graph = 0
+        self.Id = 0
         self.DG = self.ey_DG_25-(self.ey_T-25)/55*(self.ey_DG_25-self.ey_DG_80)
         self.V_rev = self.DG/self.ey_ne0/self.ey_F
         self.V_init = round(self.V_rev, 2)
         # Thermo-neutral voltage
         self.Vtn = self.ey_DH/self.ey_ne0/self.ey_F
-
-        # Compute V_graph and Id for plots
-        """
-        if self.calc_Vgraph_Id:
-            self.nn = int((self.ey_I_final - self.ey_I_initial) / self.ey_I_step)
-            self.ey_I = [i for i in range(0, self.ey_I_final + 1, self.ey_I_step)]
-            self.V_graph = [self.V_rev+(self.ey_r1+self.ey_r2*self.ey_T)*self.ey_I[i]/self.ey_A +
-                            (self.ey_s1+self.ey_s2*self.ey_T+self.ey_s3*self.ey_T**2) *
-                            log10((self.ey_t1+self.ey_t2/self.ey_T+self.ey_t3/self.ey_T**2) *
-                                  self.ey_I[i]/self.ey_A+1) for i in range(int(self.nn) + 1)]
-            self.Id = [i/2500 for i in self.ey_I]
-        """
+        # min. state of charge in the hydrogen tank
+        self.min_charge = self.ey_charge_lvl_min*1e-2*self.ey_Pe_out
+        # max. state of charge in the hydrogen tank
+        self.max_charge = self.ey_charge_lvl_max*1e-2*self.ey_Pe_out
+        # SOC initial
+        #self.soc_i = self.ey_soc_lvl_init*1e-2*self.ey_Pe_out
+        #self.soc = 0
+        # moles[0][0] = n_i
+        # Initial state of charge (pressure) in the tank
+        self.P_tank = self.min_charge
+        self.soc = self.P_tank
+        # Initial number of H2 moles in the tank
+        self.ni = self.P_tank*self.ey_V_tank/self.ey_R/(self.ey_T+273.15)
+        # initial moles w/o ageing
+        self.moles = self.ni*self.ey_Nt
+        # initial moles w/ ageing
+        self.moles_age = self.moles
+        # Leakage
+        self.lka_h2 = 0
+        self.ey_At *= self.ey_Nt
+        self.ey_len /= 1e3
         if self.load_curve:
             # Fit the power curve input data
             self.p, self.timespan = fit_pdat(self.ey_pdat)
 
             # Compute the optimum number of Electrolyzers
-            self.ey_Ne = ne_calc(join(base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
+            self.ey_Ne = ne_calc(join(self.base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
+        # Output metrics dataframe
+        self.metrics = [['ts', 'P_tank', 'moles', 'moles_age', 'eta_ch', 'P_tot', 'soc']]
         self.inc = 0
 
     def process_request(self, fleet_request):
@@ -139,59 +155,98 @@ class ElectrolyzerFleet(FleetInterface):
     def run_ey_fleet(self, ts, sim_step, Preq):
         resp = FleetResponse()
 
-        if self.soc_i >= self.max_charge:
-            is_avail, resp.ey_fleet, P_tot, self.soc, ne, nf, V, Ir = 0, 0, 0.0, self.max_charge, 0.0, 0.0, 0.0, 0.0
+        if self.P_tank >= self.max_charge:
+            is_avail, resp.ey_fleet, P_tot, self.soc, ne, nf, V, Ir, eta_ch = 0, 0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0
+            self.lka_h2 = self.lka_h2/2*1
         else:
             if self.load_curve:
                 # Power profile (kW)
                 Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
                 # (W) to power one stack of electrolyzer
                 Pr = 1e3*Pl/self.ey_Ne
-            else:
-                if self.inc == 0:
-                    self.ey_Ne = round(abs(Preq)/self.ey_E_size, 1)
-                    cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
-                Pr = 1e3*abs(Preq)/self.ey_Ne
+            #else:
+            #    if self.inc == 0:
+            #        self.ey_Ne = round(abs(Preq)/self.ey_E_size, 1)
+            #        cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
+            #    Pr = 1e3*abs(Preq)/self.ey_Ne
             resp.ey_fleet = int(self.ey_Ne)
 
+            # Only respond to negative power request
             if Preq > 0:
-                is_avail = 0
                 Pr = abs(self.ey_Pe_base)*1e3/self.ey_Ne
+                is_avail = 0
             else:
+                # Check if Preq is within operational range in kW
+                # Fleet size remains constant
+                if abs(Preq) <= self.ey_Pmin_fleet:
+                    Preq = self.ey_Pmin_fleet
+                elif abs(Preq) > self.ey_Pmax_fleet:
+                    Preq = self.ey_Pmax_fleet
+                else:
+                    pass
+                Pr = abs(Preq)*1e3/self.ey_Ne   # Watts
                 is_avail = 1
+            # Compute voltage and current for 1 Electrolyzer stack
             V, Ir = fsolve(vi_calc, [self.ey_x01, self.ey_x02],
                                      args=(Pr, self.ey_Nc, self.V_rev, self.ey_T,
                                            self.ey_r1, self.ey_r2, self.ey_s1, self.ey_s2,
                                            self.ey_s3, self.ey_t1, self.ey_t2, self.ey_t3,
                                            self.ey_A))
+            # Total power for the Ne number of Electrolyzers or fleet
             P = self.ey_Ne*self.ey_Nc*V*Ir
+
+            # Ageing
+            V_age = V+((self.inc+1)*3.88888888888887e-08)
+            Ir_age = Pr/(V_age*self.ey_Nc)
 
             # Compute Faraday Efficiency
             nf = self.ey_a1*exp((self.ey_a2+self.ey_a3*self.ey_T+self.ey_a4*self.ey_T**2) /
-                                     (Ir/self.ey_A)+(self.ey_a5+self.ey_a6*self.ey_T+self.ey_a7*self.ey_T**2) /
-                                     (Ir/self.ey_A)**2)
+                                (Ir/self.ey_A)+(self.ey_a5+self.ey_a6*self.ey_T+self.ey_a7*self.ey_T**2) /
+                                (Ir/self.ey_A)**2)
+            nf_age = self.ey_a1*exp((self.ey_a2 + self.ey_a3*self.ey_T+self.ey_a4*self.ey_T**2) /
+                                    (Ir_age/self.ey_A)+(self.ey_a5+self.ey_a6*self.ey_T+self.ey_a7*self.ey_T**2) /
+                                    (Ir_age/self.ey_A)**2)
 
             # Energy (or voltaje) efficiency of a cell
             ne = self.Vtn/V
+            ne_age = self.Vtn/V_age
+
             # Flow of H2 produced
             Qh2_V = 80.69*self.ey_Nc*Ir*nf/2/self.ey_F       # (Nm^3/h)
             Qh2_m = self.ey_Ne*self.ey_Nc*Ir*nf/2/self.ey_F  # (mol/s)
-            m_dotH2 = Qh2_m*1e-3
-            #resp.nf = nf*1e2
+            Qh2_m_age = self.ey_Ne*self.ey_Nc*Ir_age*nf_age/2/self.ey_F  # (mol/s)
+            m_dotH2 = Qh2_m*2*1e-3                           # 1mol = 2grams (kg/s)
+            m_dotH2_age = Qh2_m_age*2*1e-3                   # 1mol = 2grams (kg/s)
 
             # Compressor model
-            P_tank = self.moles*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank
-            Tout = (self.ey_T+273.15)*(P_tank/self.ey_Pe)**((self.ey_gamma-1)/self.ey_gamma)
-            W_c = (m_dotH2/self.ey_eta_c)*self.ey_cpH2*(Tout-(self.ey_T+273.15))  # (W)
+            self.P_tank = self.moles/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank
+            Tout = (self.ey_T+273.15)*(self.P_tank/self.ey_Pe)**((self.ey_gamma-1)/self.ey_gamma)
+            W_c = (m_dotH2/self.ey_eta_c)*self.ey_cpH2*(Tout-(self.ey_T+273.15))  # (kW)
 
             # Total power demanded from the grid in Watts
             P_tot = W_c*1e3+P
 
             # Storage Tank
-            # Number of moles in time i in the tank
-            self.moles = self.moles+Qh2_m*1/self.ey_Nt
-            #resp.moles = self.moles
-            self.soc_i = P_tank
+            # Number of moles in time i in the system of tanks
+            self.moles += Qh2_m*1
+
+            # Compute hydrogen leakage from tank
+            Phi = self.ey_Phi_0*exp(-self.ey_E_phi/(self.ey_R*1e-3)/(self.ey_T+273.15))     # (mol s^-1 m^-1 MPa^-0.5)
+            # fugacity
+            f = self.P_tank*1e-6*exp(self.P_tank*1e-6*self.ey_b/(self.ey_R*1e-3)/(self.ey_T+273.15))
+            J = Phi/self.ey_len*2*f**0.5        # (g m^-2 s^-1)
+            lk_H2 = J*self.ey_At                # (g/s)
+            # total hydrogen lost in time t (g)
+            self.lka_h2 += J*self.ey_At*1
+            self.moles_age += Qh2_m_age*1-self.lka_h2/2*1
+
+            # Charging efficiency
+            eta_ch = self.ey_LHV_H2*m_dotH2*1e3/P_tot          # (W/W)
+
+            self.soc = self.P_tank/self.max_charge
+
+        self.metrics.append([str(ts), str(self.P_tank), str(self.moles), str(self.moles_age),
+                             str(eta_ch*1e2), str(P_tot), str(self.soc*1e2)])
         self.inc += 1
 
         # Response
@@ -203,48 +258,56 @@ class ElectrolyzerFleet(FleetInterface):
         # Send Preq only for Preq>0 for fuelcell
 
         # Responses
-        # CHECK PV LINES 925 TO 950
-        """
-        resp.P_togrid = P_tot*1e-3     # (kW)
-        resp.Q_togrid = 0.0
-        resp.soc = (self.soc_i/self.max_charge)*1e2
-        resp.status = is_avail
-        resp.ne = ne*1e2
-        resp.nf = nf*1e2
-        resp.V = V
-        resp.Ir = Ir
-        """
         resp.ts = ts
         resp.sim_step = sim_step
         resp.C = None
         resp.dT_hold_limit = None
-        resp.E = (self.soc_i/self.max_charge)*1e2  # SoC in %
-        resp.Eff_charge = 0
-        resp.Eff_discharge = 0
+        resp.E = self.soc*1e2  # SoC in %
+        resp.Eff_charge = eta_ch*1e2
+        resp.Eff_discharge = None
         resp.P_dot_down = 0
         resp.P_dot_up = 0
         resp.P_service = -P_tot*1e-3 + self.ey_Pe_base
         resp.P_service_max = 0
         resp.P_service_min = 0
         resp.P_togrid = -P_tot*1e-3     # (kW)
-        #print(resp.P_togrid)
-        resp.P_togrid_max = 0
-        resp.P_togrid_min = 0
-        resp.Q_dot_down = 0
-        resp.Q_dot_up = 0
-        resp.Q_service = 0
-        resp.Q_service_max = 0
-        resp.Q_service_min = 0
+        resp.P_togrid_max = self.ey_Pmax_fleet
+        resp.P_togrid_min = self.ey_Pmin_fleet
+        resp.Q_dot_down = None
+        resp.Q_dot_up = None
+        resp.Q_service = None
+        resp.Q_service_max = None
+        resp.Q_service_min = None
         resp.Q_togrid = 0
-        resp.Q_togrid_max = 0
-        resp.Q_togrid_min = 0
+        resp.Q_togrid_max = None
+        resp.Q_togrid_min = None
         resp.T_restore = 0
         resp.status = is_avail
         resp.V = V
         resp.Ir = Ir
         resp.ne = ne*1e2
         resp.nf = nf*1e2
+
+        # Print Soc every 5 secs.
+        if self.inc % 5000 == 0:
+            print("Soc:%4.2f%%" % resp.E)
+
         return resp
+
+    def calc_VIchar(self):
+
+        self.nn = int((self.ey_I_final - self.ey_I_initial) / self.ey_I_step)
+        self.ey_I = [i for i in range(0, self.ey_I_final + 1, self.ey_I_step)]
+        self.V_graph = [self.V_rev + (self.ey_r1 + self.ey_r2 * self.ey_T) * self.ey_I[i] / self.ey_A +
+                        (self.ey_s1 + self.ey_s2 * self.ey_T + self.ey_s3 * self.ey_T ** 2) *
+                        log10((self.ey_t1 + self.ey_t2 / self.ey_T + self.ey_t3 / self.ey_T ** 2) *
+                              self.ey_I[i] / self.ey_A + 1) for i in range(int(self.nn) + 1)]
+        self.Id = [i / 2500 for i in self.ey_I]
+
+    def output_metrics(self, filename):
+        with open(str(filename)+'.csv', 'w', newline='') as out:
+            write = writer(out)
+            write.writerows(self.metrics)
 
 
 def ne_calc(filename, e_size, ne=None):
