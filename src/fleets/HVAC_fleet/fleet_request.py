@@ -16,29 +16,28 @@ class FleetRequest:
     HVAC default discretization step is 10 mins
     """
 
-    def __init__(self, ts = datetime.utcnow(), sim_step = timedelta(hours = 1/6), p = 0, q= 0, steps = 1, forecast = 0):
+    def __init__(self, ts=datetime.utcnow(),
+                 sim_step=timedelta(hours=1),
+                 start_time=None,
+                 p=None, q=None, steps=1):
         """
         Constructor
         """
-
         # Timestamp in simulation loop: datetime
-        self.StartTime = ts
+        self.ts_req = ts
+        
+        # Timestamp in simulation loop: datetime
+        self.start_time = start_time
 
         # Simulation time step: timedelta object
-        self.Timestep = sim_step
+        self.sim_step = sim_step
 
         # Real power request
-        self.P_request = p
+        self.P_req = p
 
         # Reactive power request
-        self.Q_request = q
-        
-#        #Number of steps in simulation
-        self.Steps = steps
-        
+        self.Q_req = q
+
         # NREL WaterHeater only: Number of steps in simulation.
         # This value is always = 1 for the sake of not changing WaterHeater code
-#        self.steps = 1
-        
-        #Requesting a forecast Y/N
-        self.Forecast = forecast
+        self.steps = 1

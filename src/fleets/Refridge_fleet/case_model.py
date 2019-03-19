@@ -262,9 +262,12 @@ class CaseModel():
             dTair = 1.0/AC.C_Air * ((Tind_ts - Tair_last)/R_case + (Tfood_last-Tair_last)/R_food - self.C1 * Element_on_ts*Capacity(Tamb_ts) + 1 * self.Qheat + (Tind_ts-Tair_last)*AC.m_dot_Cair * self.infil)   #*Mdot_ts
             
             dTfood = 1.0/C_food * ((Tair_last - Tfood_last)/R_food)   #*(1-self.Sp3)
+
+            dTcase = 1.0/Ccase * ts * ((Tair_last - Tcase_last)/R_case + C1 * Qac)
           
             Tair_ts = Tair_last + dTair 
             Tfood_ts = Tfood_last + dTfood
+            Tcase_ts = Tcase_last + dTcase
 
             
 #            dT_power_input = Eused_ts*timestep*60/(3.79*self.Capacity*4810) #timestep is in minutes so mult by 60 to get seconds
@@ -304,8 +307,6 @@ class CaseModel():
             isAvailable_add_ts = 1 if Tfood_forecast >= self.T_food_min and Element_on_ts == 0 > 0 else 0 #haven't exceeded max number of calls, plus it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
             # and Tair_forecast <= self.T_air_max 
             isAvailable_shed_ts = 1 if Tfood_forecast <= self.T_food_max and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
-
-
 
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool

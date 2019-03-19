@@ -64,17 +64,30 @@ class RFFleet():   #FleetInterface
         self.minCapacityAdd = 150 #W-hr, minimum add capacity to be eligible for add service
         self.minCapacityShed = 150 #W-hr, minimum shed capacity to be eligible for shed service
 
-        # Varying parameters for different Envelopes
-        # R value of the exterior wall
+        # Varying parameters for different Diaplay cases
+        # R value of infiltration
+        self.R_infilMasterList = [0.008341, 0.008341, 0.008341, 0.008341, 0.008341, 0.006673,  0.006673,
+                  0.006673, 0.010009, 0.010009]   # K/W 50% Normal, 30% Low-product (*0.8), 20% High-product (*1.2)
+        # R value of case
+        self.R_caseMasterList = [0.044077, 0.044077, 0.044077, 0.044077, 0.044077, 0.035262,
+                    0.035262, 0.035262,  0.052892, 0.052892] # K/W 50% Normal, 30% Low-efficiency (*0.8), 20% High-efficiency (*1.2)
+        # R value of food
+        self.R_foodMasterList = [0.004614, 0.004614, 0.004614, 0.004614, 0.004614,
+                   0.003691, 0.003691, 0.003691, 0.005538, 0.005538]  # K/W 50% Normal, 30% Low-efficiency (*0.8), 20% High-efficiency (*1.2)
+        
+        # C value of air
+        self.C_airMasterList = [111053, 111053, 111053, 111053, 111053, 88842,  88842,
+                  88842, 133263, 133263]   # J/K 50% Normal, 30% Low-product, 20% High-product
 
-        self.C_foodMasterList = [4633342, 4633342, 4633342, 4633342, 4633342, 3938340,  3938340,
-                  3938340, 5328343, 5328343]   # J/K 50% Normal, 30% Low-product, 20% High-product
-        # R value of the attic
-        self.R_caseMasterList = [0.09721, 0.09721, 0.09721, 0.09721, 0.082629, 0.082629,
-                    0.082629, 0.10693,  0.10693, 0.10693] # K/W 40% Normal, 30% Low-efficiency, 30% High-efficiency
-        # C value of thermal mass
-        self.R_foodMasterList = [0.001354, 0.001354, 0.001354, 0.001354, 0.001354,
-                   0.001354, 0.001177, 0.001177, 0.001177, 0.001177]  # K/W 30% Normal, 60% Low-efficiency, 10% High-efficiency
+        # C value of food
+        self.C_foodMasterList = [2844769, 2844769, 2844769, 2844769, 2844769, 2275815,  2275815,
+                  2275815, 3413722, 3413722]   # J/K 50% Normal, 30% Low-product, 20% High-product
+        
+        # C value of case
+        self.C_caseMasterList = [10200510, 10200510, 10200510, 10200510, 10200510, 8160408,  8160408,
+                  8160408, 12240162, 12240162]   # J/K 50% Normal, 30% Low-product (*0.8), 20% High-product (*1.2)
+
+
         #  Typical US nationwide climate locations
         self.ClimateMasterList = ['Miami', 'Phoenix', 'Atlanta', 'Atlanta', 'Las Vegas', 'Denver',
                              'Denver', 'Atlanta', 'Miami', 'Minneapolis'] # 20% Miami
@@ -106,7 +119,10 @@ class RFFleet():   #FleetInterface
 
         R_case = [random.choice(self.R_caseMasterList) for n in range(self.numRF)]
         R_food = [random.choice(self.R_foodMasterList) for n in range(self.numRF)]
+        R_infil = [random.choice(self.R_infilMasterList) for n in range(self.numRF)]
         C_food = [random.choice(self.C_foodMasterList) for n in range(self.numRF)]
+        C_air = [random.choice(self.C_airMasterList) for n in range(self.numRF)]
+        C_case = [random.choice(self.C_caseMasterList) for n in range(self.numRF)]
         Location = [random.choice(self.ClimateMasterList) for n in range(self.numRF)]
 
         MaxServiceCalls = [random.choice(self.MaxServiceCallMasterList) for n in range(self.numRF)]
@@ -179,7 +195,7 @@ class RFFleet():   #FleetInterface
         ##############################################################################################################
 
     #    Initializing the refridgeration models
-        RFs = [CaseModel(Tamb[0], Tind[0], ServiceRequest.P_req, R_case[number], R_food[number], C_food[number], 0, MaxServiceCalls[number], self.ts) for number in range(self.numRF)]
+        RFs = [CaseModel(Tamb[0], Tind[0], ServiceRequest.P_req, R_case[number], R_food[number], R_food[number], C_food[number], C_air[number], C_case[number], 0, MaxServiceCalls[number], self.ts) for number in range(self.numRF)]
 
         FleetResponse.P_service = 0
         FleetResponse.P_service_max = 0

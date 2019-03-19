@@ -58,8 +58,18 @@ class FleetInterface:
         """
         pass
 
-    def assigned_regulation_MW(self):
-        return 1.0
+    def output_impact_metrics(self): 
+        """
+        This function exports the impact metrics of each sub fleet
+        """
+        pass        
+
+    def assigned_service_kW(self):
+        """ 
+        This function allows weight and fleet rating to be passed to the service model. 
+        Scale the service to the size of the fleet
+        """
+        return self.service_weight*self.fleet_rating
 
     def assigned_service_kW(self):
         return 1.0

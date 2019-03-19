@@ -39,6 +39,9 @@ import pandas as pd
 
 Tin_assumed=17.2222222
 
+shortcycle = 5*60.0 # seconds minimum time that AC unit has to stay off before turning back on
+minrun = 1*60.0 # seconds minimum runtime for unit
+
 class AC:
         C1=1.557359706
         C2=-.074448169
@@ -71,7 +74,9 @@ class BuildingModel():
         def __init__(self, Tamb = 25.0, Tsol_w = [25.0],QIHL_i = [0], Qsolar_i = [0], 
                      Tsol_r = [25.0], QIHL_mass = [0], Qsolar_mass = 0,  
                      control_signal = 'none', Rwall = 0.00852, Rattic = 0.034141, 
-                     Cmass = 29999128.0, service_calls_accepted = 0, max_service_calls = 20, time_step = 10, forecast_IHL = 0):
+                     Cmass = 29999128.0, service_calls_accepted = 0, max_service_calls = 20, time_step = 10, 
+                     forecast_IHL = 0, Element_on = 0, lockon = 0, lockoff = 0, cycle_off_base = 0, 
+                     cycle_on_base = 0, cycle_off_grid = 0, cycle_on_grid = 0):
             # Building Thermal Characteristic Information
             
             
@@ -101,7 +106,7 @@ class BuildingModel():
             self.alpha_absorption_roof = [.54] #[0.9]
             self.H_convection_wall = [11.0]
             self.alpha_absorption_wall = [0.2] #[0.3]
-            self.dt = [time_step*60.0]   # 10 mins discretization
+            self.dt = [time_step*60.0]   # in seconds discretization
 
             self.Twall = [23.33]
             self.Tin = [23.0]
@@ -115,127 +120,108 @@ class BuildingModel():
             
             self.Tdeadband = 2.5
             self.Tmin = 22 # deg F
-            self.Tmax = 27 # deg F
+            self.Tmax = 27 # deg F            
             
- #############################################################################
-# Validated 2-story single family house model CC1
-# state-space model to check the controllability and simplify the design of MPC (in the future)           
-            BM = BuildingModel
-            # State-space model
-            # states X = [Tin  Twall  Tmass Tattic]'
-            A = [[-1.0/self.Cin*(2.0/Rwall+1.0/Rattic+1.0/self.Rmass),   2.0/Rwall/self.Cin,  1.0/self.Rmass/self.Cin,  1.0/Rattic/self.Cin],
-                [2.0/Rwall/self.Cwall, -4.0/Rwall/self.Cwall, 0,  0],
-                [1.0/self.Rmass/Cmass, 0, -1.0/self.Rmass/Cmass,  0],
-                [1.0/Rattic/self.Cattic, 0,  0, -1.0/self.Rroof/self.Cattic-1.0/Rattic/self.Cattic]
-                ]
-        
-            # Control u = [Qac_i,  Qac_mass]
-            # Disturbance V = [ Tsol_w,  QIHL_i,  Qsolar_i;    Tsol_r,   QIHL_mass,   Qsolar_mass]
-        
-            B = [[-self.C2/self.Cin,  0, 0, self.C1/self.Cin, self.C3/self.Cin, 0, 0, 0],
-                [0, 0, 2.0/Rwall/self.Cwall, 0, 0, 0, 0, 0],
-                [0, -self.C2/Cmass, 0, 0, 0, 0, self.C1/Cmass, self.C3/Cmass],
-                [0, 0,  0,  0, 0, 1.0/self.Rroof/self.Cattic, 0, 0]]
-        
-            # ###Discretization### #
-            Interval = time_step   # Interval Default ts=5.0 #minutes  
-            
-            C = np.eye(4)
-            D = np.zeros((4,8))
-            sysc = control.ss(A,B,C,D)
-            sysd = control.sample_system(sysc,60*Interval,'zoh')   # discretize by 5 mins 
-            [a, b, c, d] = control.ssdata(sysd)
-        
-            Ad = a
-            Bd = b[:,0:2]
-            Gd = b[:,2:b.shape[1]]
-        
-            # C, D matrices for control design
-            # y = cx, output indoor temperature        
-            C = [1,  0,  0,  0]
-            D = [0, 0, 0, 0, 0, 0, 0, 0]        
-        
-            # Check Controllability
-        
-#            rk = np.linalg.matrix_rank(control.ctrb(A,B))
-#            if rk == len(A):
-#                print('\nThe plant is controllable\n')
-#            else:
-#                print('\nUncontrollable,I can do nothing!')
-#                assert(False)
-        
-            # Outside disturbance to the building
-            # recorded hot LasVegas summer day weather info
-            
+            #############################################################################
+            # Validated 2-story single family house model CC1
+            # state-space model to check the controllability and simplify the design of MPC (in the future)           
+                       
   #############################################################################
-        def Capacity(AC,Tout,Tin=Tin_assumed):
-            return((AC.C1+AC.C2*Tin+AC.C3*Tin*Tin+AC.C4*Tout+AC.C5*Tout*Tout+AC.C6*Tout*Tin)*AC.Qrated)
+        # def Capacity(AC,Tout,Tin=Tin_assumed):
+        #     return((AC.C1+AC.C2*Tin+AC.C3*Tin*Tin+AC.C4*Tout+AC.C5*Tout*Tout+AC.C6*Tout*Tin)*AC.Qrated)
             
-        def EIR(AC,Tout,Tin=Tin_assumed):
-            return((AC.C7+AC.C8*Tin+AC.C9*Tin*Tin+AC.C10*Tout+AC.C11*Tout*Tout+AC.C12*Tout*Tin)*AC.EIRrated)
+        # def EIR(AC,Tout,Tin=Tin_assumed):
+        #     return((AC.C7+AC.C8*Tin+AC.C9*Tin*Tin+AC.C10*Tout+AC.C11*Tout*Tout+AC.C12*Tout*Tin)*AC.EIRrated)
             
             
-        def execute(self, Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, timestep, forecast_IHL, IsForecast):
+        def execute(self, Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, timestep, forecast_IHL, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
             # (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
             #      service_calls_accepted, Element_on, self.max_service_calls, timestep, forecast_IHL, IsForecast)
             (response) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
-                 timestep, forecast_IHL, IsForecast)
+                 timestep, forecast_IHL, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid)
             
             return response
     
         def HVAC(self, Tlast, Twall_last, Tmass_last, Tattic_last, Tset, Tamb_ts, Tsol_w_ts, 
                  QIHL_i_ts, Qsolar_i_ts, Tsol_r_ts, QIHL_mass_ts, Qsolar_mass_ts, Rwall, Rattic, Cmass, control_signal_ts, 
-                 timestep, forecast_IHL, is_forecast):
-        
-        
-#############################################################################
-        #        Baseline operation - Base Loads
-#############################################################################
+                 timestep, forecast_IHL, Element_on_ts, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
+   
+
+            #############################################################################
+                    #        Baseline operation - Base Loads
+            #############################################################################
             BM = BuildingModel
-#            ts = timestep
-            ts = 10
+            ts = timestep
+            # ts = 10
+
+            shortcycle_ts = int(round(shortcycle/ts,0))  #number of time steps during short cycle timer
+            minrun_ts = int(round(minrun/ts,0))
                 
-          #estimate on what the maximum power usage could be
+          # estimate on what the maximum power usage could be
             E_cool= 1e-3*Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)     # power consumpstion in kW
             Eused_baseline_ts = 0
-            PusedMax_ts = Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)   # max instant power (EIR or COP is changing)
-         
-            Element_on_ts = 0
-        
-#            Tin = Tlast + dTin
-#            Twall_lasat = 
-     
-            # Record control states
-          
-            if Tlast > Tset + self.Tdeadband:
-                Eused_baseline_ts = E_cool*1.000 #W used
+            # PusedMax_ts = 1e-3*Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)   # max instant power (EIR or COP is changing)         
+            # Element_on_ts = 0        
+
+            # Record control states          
+            # switch on
+            if Tlast > Tset + self.Tdeadband and Element_on_ts == 0 and max(lockon,lockoff) >= 5*60.0:
                 Element_on_ts = 1
-            elif Element_on_ts == 1 and Tlast > Tset - self.Tdeadband:
-                Eused_baseline_ts = E_cool*1.000 #W used
-                Element_on_ts = 1
-            else:
-                Eused_baseline_ts = 0
+                Eused_baseline_ts = E_cool*1.000 # kW used
+                cycle_on_base += 1 #count cycles turning from off to on
+                lockon = 1*ts # start recording on period
+
+            # switch off
+            elif Element_on_ts == 1 and Tlast <= Tset - self.Tdeadband and max(lockon,lockoff) >= 2*60.0:
+                Eused_baseline_ts = 0 # kW used
                 Element_on_ts = 0
-    
-      ###########################################################################          
-            # Modify operation based on control signal #
-            # Reduce loads
+                cycle_off_base += 1  # count cycles  turning from ON to OFF
+                lockoff = 1*ts # start recording off period
+
+            Eused_baseline_ts = Element_on_ts * E_cool
+            if Element_on_ts:
+                lockon += 1*ts
+            else:
+                lockoff += 1*ts # cumulating recording off period        
+       
             
+            # # Record baseline states
+            # # Evolution of 4 states, ts in seconds                
+                        
+            # dTin_baseline = ts/self.Cin*((Twall_last-Tlast)*2.0/Rwall+(Tattic_last-Tlast)/Rattic+
+            #          (Tmass_last-Tlast)/self.Rmass + QIHL_i_ts * self.C1 + Qsolar_i_ts*self.C3 -
+            #          Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*self.Sp3
             
-       ###########################################################################          
-        #modify operation based on control signal 
-        # Assumed to work in Summer Cooling Only!
-        #TODO: temporary code for integration testing while I figure out where to track max service calls
-            max_service_calls = 100000000000
+            # dTmass_baseline = ts/Cmass*((Tlast-Tmass_last)/self.Rmass + QIHL_mass_ts*self.C1+
+            #            Qsolar_mass_ts*self.C3 - Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*(1-self.Sp3)
+            
+            # dTwall_baseline = ts/self.Cwall*((Tsol_w_ts - Twall_last)*2.0/Rwall+(Tlast -Twall_last)*2.0/Rwall)
+            
+            # dTattic_baseline = ts/self.Cattic*((Tsol_r_ts-Tattic_last)/self.Rroof + (Tlast - Tattic_last)/Rattic)
+                
+            # # Store for output metric data
+            # Tin__bts = Tlast + dTin_baseline   # Store the baseline indoor temperature            
+
+            ###########################################################################          
+                    # Modify operation based on control signal #
+                    # Reduce loads
+                    
+                    
+            ###########################################################################          
+                #modify operation based on control signal 
+                # Assumed to work in Summer Cooling Only!
+            #TODO: temporary code for integration testing while I figure out where to track max service calls
             service_calls_accepted_ts = 0
             
             # Reduce loads 
-            if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_ts == 1 and max(lockon,lockoff) >= 2*60.0: #Element_on_ts = 1 requirement eliminates free rider situation
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 service_calls_accepted_ts += 1
-                
-      
+                cycle_off_grid += 1
+                lockoff = 1*ts # start recording on period
+
+
             elif control_signal_ts  > 0 and Tlast >= Tset + self.Tdeadband:
                 # don't change anything
                 Eused_ts = Eused_baseline_ts
@@ -244,15 +230,15 @@ class BuildingModel():
             elif control_signal_ts  < 0 and Tlast <= Tset - self.Tdeadband:
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
-                
-                  
-            elif control_signal_ts  < 0 and Tlast >= Tset - self.Tdeadband and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
+      
+            elif control_signal_ts  < 0 and Tlast >= Tset - self.Tdeadband and Element_on_ts == 0 and max(lockon,lockoff) >= 5*60.0: #Element_on_ts = 0 requirement eliminates free rider situation
                 #make sure it stays on
                 Eused_ts = E_cool*1.000 #W used
                 Element_on_ts = 1
                 service_calls_accepted_ts += 1
-                
-          
+                cycle_on_grid += 1
+                lockon = 1*ts # start recording on period
+   
             else:#no changes
                 Eused_ts = Eused_baseline_ts
             
@@ -266,24 +252,23 @@ class BuildingModel():
 #            else: # assumes HVAC can't meet the entire request so it just does as much as it can
 #                Eservice_ts = Eused_ts-Eused_baseline_ts
     
-            Eservice_ts = Eused_ts-Eused_baseline_ts
-            
+            Eservice_ts = Eused_ts-Eused_baseline_ts          
             
             #could change this at some point based on signals
-            Tset_ts = Tset       
+            Tset_ts = Tset    
             
-                                # Evolution of 4 states                
-                # Evolution of 4 states                
-            dTin=ts*60.0/self.Cin*((Twall_last-Tlast)*2.0/Rwall+(Tattic_last-Tlast)/Rattic+
+            # Evolution of 4 states                
+                        
+            dTin = ts/self.Cin*((Twall_last-Tlast)*2.0/Rwall+(Tattic_last-Tlast)/Rattic+
                      (Tmass_last-Tlast)/self.Rmass + QIHL_i_ts * self.C1 + Qsolar_i_ts*self.C3 -
                      Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*self.Sp3
             
-            dTmass = ts*60.0/Cmass*((Tlast-Tmass_last)/self.Rmass + QIHL_mass_ts*self.C1+
+            dTmass = ts/Cmass*((Tlast-Tmass_last)/self.Rmass + QIHL_mass_ts*self.C1+
                        Qsolar_mass_ts*self.C3 - Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*(1-self.Sp3)
             
-            dTwall=ts*60.0/self.Cwall*((Tsol_w_ts - Twall_last)*2.0/Rwall+(Tlast -Twall_last)*2.0/Rwall)
+            dTwall = ts/self.Cwall*((Tsol_w_ts - Twall_last)*2.0/Rwall+(Tlast -Twall_last)*2.0/Rwall)
             
-            dTattic=ts*60.0/self.Cattic*((Tsol_r_ts-Tattic_last)/self.Rroof + (Tlast - Tattic_last)/Rattic)
+            dTattic = ts/self.Cattic*((Tsol_r_ts-Tattic_last)/self.Rroof + (Tlast - Tattic_last)/Rattic)
                 
             Tin_ts = Tlast + dTin 
             Twall_ts = Twall_last + dTwall
@@ -307,19 +292,18 @@ class BuildingModel():
             Tin_Cf = Tin_ts
             Twall_Cf = Twall_ts
             Tmass_Cf = Tmass_ts
-            Tattic_Cf = Tattic_ts
+            Tattic_Cf = Tattic_ts            
             
-            
-            dTinCf=ts*60.0/self.Cin*((Twall_Cf-Tin_Cf)*2.0/Rwall+(Tattic_Cf-Tin_Cf)/Rattic+
+            dTinCf=ts/self.Cin*((Twall_Cf-Tin_Cf)*2.0/Rwall+(Tattic_Cf-Tin_Cf)/Rattic+
                          (Tmass_Cf-Tin_Cf)/self.Rmass + QIHL_i_fcst * self.C1*self.Sp1 + Qsolar_i_ts*0.56*25.76*self.C3*self.Sp2-
                          Capacity(AC,Tamb_ts)*self.C2*self.Sp3)
                 
-            dTmassCf=ts*60.0/Cmass*((Tin_Cf-Tmass_Cf)/self.Rmass + QIHL_i_fcst*self.C1*(1-self.Sp1)+
+            dTmassCf=ts/Cmass*((Tin_Cf-Tmass_Cf)/self.Rmass + QIHL_i_fcst*self.C1*(1-self.Sp1)+
                        Qsolar_mass_ts*0.56*25.76*self.C3*(1-self.Sp2)-Capacity(AC,Tamb_ts)*self.C2*(1-self.Sp3))
             
-            dTwallCf=ts*60.0/self.Cwall*((Tsol_w_ts - Twall_Cf)*2.0/Rwall+(Tin_Cf -Twall_Cf)*2.0/Rwall)
+            dTwallCf=ts/self.Cwall*((Tsol_w_ts - Twall_Cf)*2.0/Rwall+(Tin_Cf -Twall_Cf)*2.0/Rwall)
             
-            dTatticCf=ts*60.0/self.Cattic*((Tsol_r_ts-Tattic_Cf)/self.Rroof + (Tin_Cf - Tattic_Cf)/Rattic)
+            dTatticCf=ts/self.Cattic*((Tsol_r_ts-Tattic_Cf)/self.Rroof + (Tin_Cf - Tattic_Cf)/Rattic)
             
             Tin_Cff = Tin_Cf + dTinCf
 #            Tmass_Cff = Tmass_Cf+dTmassCf
@@ -329,7 +313,6 @@ class BuildingModel():
             Tin_forecast = Tin_Cff            
             isAvailable_add_ts = 1 if Tin_forecast > (Tset - self.Tdeadband) and Element_on_ts == 0 > 0 else 0 #haven't exceeded max number of calls, plus it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
             isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband) and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
-
 
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool
@@ -409,29 +392,40 @@ class BuildingModel():
 #            Available_Capacity_Shed = CountD * E_cool/6.0  # count how long can the unit be ON
             
 #            Available_Capacity_Add = (1-SOC)*1.005*732*1000*(self.Tmax - self.Tmin)*isAvailable_ts/(timestep*60) #/timestep converts from Joules to Watts, 1.005 = kJ/kg*k, 732 kg air
-#            Available_Capacity_Shed = SOC*1.005*732*1000*(self.Tmax - self.Tmin)*isAvailable_ts/(timestep*60) #/timestep*60 converts from Joules to Watts,
-            
+#            Available_Capacity_Shed = SOC*1.005*732*1000*(self.Tmax - self.Tmin)*isAvailable_ts/(timestep*60) #/timestep*60 converts from Joules to Watts,            
             
             response = ACResponse()
         
+            # Report baseline response
             response.Tin = Tin_ts
             response.Twall = Twall_ts
             response.Tmass = Tmass_ts
             response.Tattic = Tattic_ts
             response.Tset = Tset_ts 
             response.Eused = Eused_ts 
-            response.PusedMax = PusedMax_ts
-            response.PusedMin = PusedMin_ts
+
+            response.lockoff = lockoff 
+            response.lockon = lockon 
+
+            response.cycle_off_grid = cycle_off_grid 
+            response.cycle_on_grid = cycle_on_grid 
+
+            response.cycle_off_base = cycle_off_base 
+            response.cycle_on_base = cycle_on_base
+            
             response.ElementOn = Element_on_ts
             response.Eservice = float(Eservice_ts)
             # response.Estored = Estored
             response.SOC = SOC
+
             response.AvailableCapacityAdd = Available_Capacity_Add
             response.AvailableCapacityShed = Available_Capacity_Shed
             response.ServiceCallsAccepted = service_calls_accepted_ts
             response.IsAvailableAdd = isAvailable_add_ts
-            response.IsAvailableShed = isAvailable_shed_ts
-            
+            response.IsAvailableShed = isAvailable_shed_ts          
+
+
+            # Report grid services response
             return response    
             
 
