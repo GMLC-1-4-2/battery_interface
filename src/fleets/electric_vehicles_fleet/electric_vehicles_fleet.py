@@ -205,6 +205,8 @@ class ElectricVehiclesFleet(FleetInterface):
         self.energy_efficiency = metrics[3]
         # P_togrid/P_baseline
         self.ratio_P_togrid_P_base = 1.
+        # Energy impacts of providing the grid service
+        self.energy_impacts = 0.
         
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the discharge and charge of the subfleets """
@@ -597,6 +599,7 @@ class ElectricVehiclesFleet(FleetInterface):
                                 ((1+1/self.energy_efficiency)*self.cycle_life*energy_per_subfleet[subfleet]))
             
             self.ratio_P_togrid_P_base = response.P_togrid/(-self.p_baseline)
+            self.energy_impacts += abs(response.P_service)*(dt/3600)
             
             # Check the outputs
             return response
@@ -1196,7 +1199,7 @@ class ElectricVehiclesFleet(FleetInterface):
         This function exports the impact metrics of each sub fleet
         """
         impact_metrics_DATA = [["Impact Metrics File"],
-                                ["state-of-health", "initial value", "final value", "degradation cost"]]
+                                ["state-of-health", "initial value", "final value", "degradation cost ($)"]]
         for subfleet in range(self.N_SubFleets):
             impact_metrics_DATA.append(["subfleet-"+str(subfleet),
                                         str(self.soh_init[subfleet]),
@@ -1204,8 +1207,9 @@ class ElectricVehiclesFleet(FleetInterface):
                                         str((self.soh_init[subfleet]-self.soh[subfleet])*self.eol_cost/100)])
 
         total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
-        impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
+        impact_metrics_DATA.append(["Total degradation cost ($):", str(total_cost)])
         impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
+        impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)
