@@ -550,6 +550,8 @@ class ElectricVehiclesFleet(FleetInterface):
             response.Q_togrid  = 0
             response.P_service = - power_demanded + self.p_baseline
             response.Q_service = 0
+            response.P_base    = - self.p_baseline
+            response.Q_base    = 0
             
             response.E = total_energy
             response.C = total_capacity
