@@ -11,10 +11,7 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 from fleet_request import FleetRequest
 from grid_info import GridInfo
 
-
 from fleets.electric_vehicles_fleet.electric_vehicles_fleet import ElectricVehiclesFleet
-
-
 
 def main(ts, grid):
     
@@ -43,13 +40,23 @@ def main(ts, grid):
     eff_discharging = np.zeros([len(t), ])
     energy = np.zeros([len(t), ])
     capacity = np.zeros([len(t), ])
+    min_power_service = np.zeros([len(t), ])
+    max_power_service = np.zeros([len(t), ])
+    min_power_togrid = np.zeros([len(t), ])
+    max_power_togrid = np.zeros([len(t), ])
     for i in range(len(t)):  
         eff_charging[i] = FORECAST[i].Eff_charge
         eff_discharging[i] = FORECAST[i].Eff_discharge    
         energy[i] = FORECAST[i].E 
         capacity[i] = FORECAST[i].C 
+        min_power_service[i] = FORECAST[i].P_service_min 
+        max_power_service[i] = FORECAST[i].P_service_max
+        min_power_togrid[i] = FORECAST[i].P_togrid_min 
+        max_power_togrid[i] = FORECAST[i].P_togrid_max
         
-    return eff_charging, eff_discharging, energy, capacity
+    return (eff_charging, eff_discharging, energy, capacity,
+            min_power_service, max_power_service,
+            max_power_togrid, min_power_togrid)
     
 
 if __name__ == "__main__":
@@ -59,7 +66,7 @@ if __name__ == "__main__":
     ts = datetime(2018, 9, 20, 00, 0, 00, 000000)    
     grid = GridInfo('Grid_Info_DATA_2.csv')
     
-    e_in, e_out, e, c = main(ts, grid)
+    e_in, e_out, e, c, p_serv_min, p_serv_max, p_min, p_max = main(ts, grid)
     
     # Compute the roundtrip efficiency matrix
     rt = np.multiply.outer(e_in*0.01, e_out*0.01)*100

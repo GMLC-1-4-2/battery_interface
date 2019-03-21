@@ -327,10 +327,8 @@ class ElectricVehiclesFleet(FleetInterface):
             # power of demanded by each sub fleet
             power_subfleet = np.zeros([self.N_SubFleets,])
             power_dc_subfleet = np.zeros([self.N_SubFleets,])
-            power_dc_discharge = 0
-            power_ac_discharge = 0
             for subfleet in range(self.N_SubFleets):
-                
+
                 # Discharge while driving
                 if self.state_of_the_subfleet(t,subfleet) == 'driving':  
                     # Discharge rate for each sub fleet
@@ -341,9 +339,6 @@ class ElectricVehiclesFleet(FleetInterface):
                     power_subfleet[subfleet] = 0
                     # Power DC of each sub fleet to calculate charging efficiency
                     power_dc_subfleet[subfleet] = 0
-                    dc = self.df_VehicleModels['Wh_mi'][self.SubFleetId[subfleet]]*avg_speed*(3600/dt)*1000
-                    power_dc_discharge += dc
-                    power_ac_discharge += dc/1.0
                                       
                 # Certain amount of the vehicles of each sub fleet are charged at work: real data -> uncontrolled charging
                 elif self.state_of_the_subfleet(t,subfleet) == 'work':
@@ -548,7 +543,7 @@ class ElectricVehiclesFleet(FleetInterface):
             response.ts = ts
             response.P_togrid  = - power_demanded
             response.Q_togrid  = 0
-            response.P_service = - power_demanded + self.p_baseline
+            response.P_service = - (power_demanded - self.p_baseline)
             response.Q_service = 0
             response.P_base    = - self.p_baseline
             response.Q_base    = 0
@@ -557,12 +552,12 @@ class ElectricVehiclesFleet(FleetInterface):
             response.C = total_capacity
             
             response.P_togrid_min = - max_power_demanded
-            response.P_togrid_max = - power_uncontrolled
+            response.P_togrid_max = - self.p_baseline
             response.Q_togrid_max = 0
             response.Q_togrid_min = 0
             
-            response.P_service_min = - max_power_demanded + self.p_baseline
-            response.P_service_max = - power_uncontrolled + self.p_baseline
+            response.P_service_min = 0
+            response.P_service_max = - (max_power_demanded - self.p_baseline)
             response.Q_service_max = 0
             response.Q_service_min = 0
             
@@ -574,12 +569,9 @@ class ElectricVehiclesFleet(FleetInterface):
             if power_demanded == 0:
                 response.Eff_charge = 0
             else:
-                response.Eff_charge = (power_dc_demanded*dt)/(power_demanded*dt)*100       
-            if power_ac_discharge == 0:
-                response.Eff_discharge = 0
-            else:
-                response.Eff_discharge = (power_dc_discharge*dt)/(power_ac_discharge*dt)*100
-    
+                response.Eff_charge = (power_dc_demanded*dt)/(power_demanded*dt)*100                      
+            response.Eff_discharge = 1
+
             response.dT_hold_limit = None
             response.T_restore     = None
     
