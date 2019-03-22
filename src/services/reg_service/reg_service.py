@@ -136,24 +136,29 @@ class RegService():
         P_request = [r.P_req for r in request_list_2s_tot]
         ts_request = [r.ts_req for r in request_list_2s_tot]
         P_response = [r.P_service for r in response_list_2s_tot]
+        P_togrid = [r.P_togrid for r in response_list_2s_tot]
             
         # Save the responses to a csv
         results_df = pd.DataFrame({
             'DateTime': ts_request,
             'P_request': P_request,
-            'P_response': P_response
+            'P_response': P_response,
+            'P_togrid': P_togrid
             })
+        # Calculate P_base
+        results_df['P_base'] = results_df['P_togrid'] - results_df['P_response']
+        # Add SoC if battery fleet
         if 'battery' in fleet_name.lower():
             SOC = [r.soc for r in response_list_2s_tot]
             results_df['SOC'] = SOC
-        results_df_dir = join(dirname(abspath(__file__)), 'results')
+        results_df_dir = join(dirname(abspath(__file__)), 'results', '')
         ensure_ddir(results_df_dir)
         results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
-        plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
+        plot_dir = join(dirname(abspath(__file__)), 'results', 'plots', '')
         ensure_ddir(plot_dir)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
                         ts_request[0].strftime('%B') +\
@@ -164,11 +169,17 @@ class RegService():
         plt.figure(1)
         plt.figure(figsize=(15,8))
         plt.subplot(211)
-        plt.plot(ts_request, P_request, label='P request')
-        plt.plot(ts_request, P_response, label='P response')
+        if (not(all(pd.isnull(results_df['P_request'])))):
+            plt.plot(ts_request, P_request, label='P_request')
+        if (not(all(pd.isnull(results_df['P_response'])))):
+            plt.plot(ts_request, P_response, label='P_response')
+        if (not(all(pd.isnull(results_df['P_togrid'])))):
+            plt.plot(ts_request, P_togrid, label='P_togrid')
+        if (not(all(pd.isnull(results_df['P_base'])))):
+            plt.plot(ts_request, results_df.P_base, label='P_base')
         plt.legend(loc='best')
         plt.ylabel('Power (MW)')
-        if 'battery' in fleet_name.lower():
+        if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(results_df['SOC'])))):
             plt.subplot(212)
             plt.plot(ts_request, SOC)
             plt.ylabel('SOC (%)')
