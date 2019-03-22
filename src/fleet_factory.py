@@ -29,20 +29,21 @@ def create_fleet(name, grid_type=1, **kwargs):
         # beginning of the service request
         ts = kwargs['start_time'] # Read it from kwargs dictionary
 
-        fleet_test = ElectricVehiclesFleet(grid, ts)
-        fleet_test.is_autonomous = False
-        fleet_test.is_P_priority = True
-
+        ev_fleet = ElectricVehiclesFleet(grid, ts)
+        ev_fleet.is_autonomous = False
+        ev_fleet.is_P_priority = True
+        ev_fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
-           fleet_test.is_autonomous = True
-        fleet_test.VV11_Enabled = False
-        fleet_test.FW21_Enabled = True
+           ev_fleet.is_autonomous = True
+        ev_fleet.VV11_Enabled = False
+        ev_fleet.FW21_Enabled = True
 
-        return fleet_test
+        return ev_fleet
 
     elif name == 'PV':
         from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
         fleet = PVInverterFleet(GridInfo=grid)
+        fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
            fleet.is_autonomous = True
         fleet.VV11_Enabled = False
