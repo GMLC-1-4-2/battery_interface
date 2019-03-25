@@ -46,61 +46,55 @@ class DistributionVoltageService:
         self.Vupper = float(self.config.get(config_header, 'Vupper', fallback=1.05))
         self.Vlower = float(self.config.get(config_header, 'Vlower', fallback=0.95))
         self.operation_flag = self.config.get(config_header, 'operation_flag', fallback='0')
+        self.starttime = self.config.get(config_header, 'starttime')
+        self.endtime = self.config.get(config_header, 'endtime')
 
-        # Establish a default simulation timestep (will always be 1-hour as far as I know)...
-        self.sim_step = timedelta(hours=1)
+        self.sim_step = timedelta(seconds=30)
 
-
-
-
-    def normal_operation(self,P_forecast,Q_forecast,P0,Q0,sensitivity_P,sensitivity_Q):
-        # normal operation
+    def request_loop(self, sensitivity_P, sensitivity_Q):
+        # Sensitivity_P, Sensitivity_Q are values depending on feeder characteristics
+        # We can use dummy value to conduct test
+        sensitivity_P = 0.001
+        sensitivity_Q = 0.005
+        cur_time = self.starttime
+        end_time = self.endtime
+        delt = self.sim_step
         volt = self.drive_cycle["voltage"]
-        Pmax = P_forecast[0]
-        Pmin = P_forecast[1]
-        Qmax = Q_forecast[0]
-        Qmin = Q_forecast[1]
-        if volt >= self.Vlower and volt <= self.Vupper:
-            dP = 0
-            dQ = 0
-        else:
-            if volt > self.Vupper:
-                dV = self.Vupper - volt
-            elif volt < self.Vlower:
-                dV = self.Vlower - volt
-            if Qmax > 0: # if the fleet can provide Q, use Q as priority
-                dQ = dV/sensitivity_Q
-                if Q0+dQ<=Qmax and Q0+dQ>=Qmin:
-                    dP = 0 # no need to change P
-                else:
-                    if Q0+dQ > Qmax:
-                        dQ = Qmax - Q0
-                    elif Q0+dQ < Qmin:
-                        dQ = Qmin-Q0
-                    dP = (dV-sensitivity_Q*dQ)/sensitivity_P
+        time  = self.drive_cycle["time"]
+        Vupper = self.Vupper
+        Vlower = self.Vlower
+        responses = []
+        requests = []
+        while cur_time < end_time:
+            # normal operation
+            index  = list(time.values).index(cur_time)
+            cur_voltage = volt.values[index]
+            if cur_voltage >= self.Vlower and cur_voltage <= self.Vupper:
+                Prequest = 0
+                Qrequest = 0
             else:
-                # if the fleet can only provide P
-                dP = dV/sensitivity_P
+                if cur_voltage > Vupper:
+                    dV = Vupper - cur_voltage
+                    Qrequest  = -dV/sensitivity_Q # need Q absorption
+                    Prequest = -dV/sensitivity_P # need P curtailment
+                elif cur_voltage < Vlower:
+                    dV = Vlower - cur_voltage
+                    Qrequest = dV/sensitivity_Q # need Q injection
+                    Prequest = dV/sensitivity_P # need P injection
 
-            if dP:
-                if dP+P0 > Pmax:
-                    dP = Pmax - P0
-                elif dP+P0 < Pmin:
-                    dP = Pmin - P0
+            fleet_request = FleetRequest(cur_time, delt, Prequest, Qrequest)
+            fleet_response = self.fleet_device.process_request(fleet_request)
+            responses.append(fleet_response)
+            requests.append(fleet_request)
+            cur_time += delt
 
-        Prequest = P0 + dP
-        Qrequest = Q0 + dQ
-
-        return [Prequest,Qrequest]
-
-
-
+        return [requests, responses]
 
     def autonomous_operation(self):
         # autonomous operation
         return self.drive_cycle
 
-    def generic_metrics_calculation(self,Prequest_pre,Qrequest_pre,P0,Q0,price_P,price_Q):
+    def calculation(self,Prequest,Qrequest,P0,Q0,price_P,price_Q):
         # calculate generic metrics
         service_efficacy = (P0/Prequest_pre*100 + Q0/Qrequest_pre)/2 # in %
         value_provided = P0*price_P + Q0*price_Q
@@ -108,14 +102,8 @@ class DistributionVoltageService:
 
         return [service_efficacy,value_provided,value_efficacy]
 
-
     def voltage_regulation_metrics(self,voltage_measure):
         # calculate voltage metrics
         # this metric calcualtion requires grid model simulation, can be added later
 
         return 1
-
-
-
-service = DistributionVoltageService('PV')
-service.run_fleet_forecast_test()
