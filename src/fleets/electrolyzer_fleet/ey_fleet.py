@@ -12,6 +12,7 @@ from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 from csv import writer
 simplefilter('ignore', RankWarning)
+filterwarnings("ignore", category=RuntimeWarning)
 colorama.init()
 
 
@@ -32,7 +33,7 @@ class ElectrolyzerFleet(FleetInterface):
         # Not being used in the present scenario to provide grid services
         self.grid = grid_info
 
-        if not p_req_load:
+        if p_req_load:
             self.load_curve = True
         else:
             self.load_curve = False
@@ -88,7 +89,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_x01 = float(self.config.get(mdl_type, "x0_1", fallback=1.6))
         self.ey_x02 = float(self.config.get(mdl_type, "x0_2", fallback=80))
         self.ey_Pmin_fleet = float(self.config.get(mdl_type, "Pmin_fleet", fallback=30))
-        self.ey_Pmax_fleet = float(self.config.get(mdl_type, "Pmax_fleet", fallback=240))
+        self.ey_Pmax_fleet = float(self.config.get(mdl_type, "Pmax_fleet", fallback=130))
         self.ey_At = float(self.config.get(mdl_type, "At", fallback=47))
         self.ey_len = float(self.config.get(mdl_type, "len", fallback=2.54))
         self.ey_Phi_0 = float(self.config.get(mdl_type, "Phi_0", fallback=5.9e-5))
@@ -112,6 +113,8 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_I = 0
         self.V_graph = 0
         self.Id = 0
+        # Set the operating range for the Electrolyzer fleet - 30kW <= Pe <= 130kW
+        self.P_opt = lambda p_req, p_min, p_max: max(p_min, min(p_max, p_req))
         self.DG = self.ey_DG_25-(self.ey_T-25)/55*(self.ey_DG_25-self.ey_DG_80)
         self.V_rev = self.DG/self.ey_ne0/self.ey_F
         self.V_init = round(self.V_rev, 2)
@@ -121,13 +124,11 @@ class ElectrolyzerFleet(FleetInterface):
         self.min_charge = self.ey_charge_lvl_min*1e-2*self.ey_Pe_out
         # max. state of charge in the hydrogen tank
         self.max_charge = self.ey_charge_lvl_max*1e-2*self.ey_Pe_out
-        # SOC initial
-        #self.soc_i = self.ey_soc_lvl_init*1e-2*self.ey_Pe_out
-        #self.soc = 0
-        # moles[0][0] = n_i
         # Initial state of charge (pressure) in the tank
         self.P_tank = self.min_charge
+        # SOC initial
         self.soc = self.P_tank
+        self.soc_age = self.P_tank
         # Initial number of H2 moles in the tank
         self.ni = self.P_tank*self.ey_V_tank/self.ey_R/(self.ey_T+273.15)
         # initial moles w/o ageing
@@ -145,47 +146,49 @@ class ElectrolyzerFleet(FleetInterface):
             # Compute the optimum number of Electrolyzers
             self.ey_Ne = ne_calc(join(self.base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
         # Output metrics dataframe
-        self.metrics = [['ts', 'P_tank', 'moles', 'moles_age', 'eta_ch', 'P_tot', 'soc']]
+        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age', 'Lka_H2', 'nch']]
         self.inc = 0
 
     def process_request(self, fleet_request):
         resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
         return resp
 
+    def forecast(self, requests):
+        soc_state, soc_state_age = self.soc, self.soc_age
+        resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req) for req in requests]
+        self.soc, self.soc_age = soc_state, soc_state_age
+        return resp
+
     def run_ey_fleet(self, ts, sim_step, Preq):
+        """
+        :param ts: Request created for current time-step: datetime
+        :param sim_step: Request for simulation time-step: timedelta object
+        :param Preq: Request for current real power request
+        :return resp: Fleet response object
+        """
         resp = FleetResponse()
 
         if self.P_tank >= self.max_charge:
-            is_avail, resp.ey_fleet, P_tot, self.soc, ne, nf, V, Ir, eta_ch = 0, 0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0
+            is_avail, resp.ey_fleet, P_tot, ne, ne_age, nf, V, V_age, Ir, eta_ch = \
+                0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
             self.lka_h2 = self.lka_h2/2*1
         else:
-            if self.load_curve:
+            if self.load_curve and Preq is None:
                 # Power profile (kW)
                 Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
                 # (W) to power one stack of electrolyzer
                 Pr = 1e3*Pl/self.ey_Ne
-            #else:
-            #    if self.inc == 0:
-            #        self.ey_Ne = round(abs(Preq)/self.ey_E_size, 1)
-            #        cprint("No. of Electrolyzers used is:"+"\t"*5+"%d" % self.ey_Ne, 'green')
-            #    Pr = 1e3*abs(Preq)/self.ey_Ne
-            resp.ey_fleet = int(self.ey_Ne)
-
             # Only respond to negative power request
-            if Preq > 0:
+            elif Preq > 0:
                 Pr = abs(self.ey_Pe_base)*1e3/self.ey_Ne
                 is_avail = 0
             else:
                 # Check if Preq is within operational range in kW
                 # Fleet size remains constant
-                if abs(Preq) <= self.ey_Pmin_fleet:
-                    Preq = self.ey_Pmin_fleet
-                elif abs(Preq) > self.ey_Pmax_fleet:
-                    Preq = self.ey_Pmax_fleet
-                else:
-                    pass
+                Preq = self.P_opt(abs(Preq), self.ey_Pmin_fleet, self.ey_Pmax_fleet)
                 Pr = abs(Preq)*1e3/self.ey_Ne   # Watts
                 is_avail = 1
+            resp.ey_fleet = int(self.ey_Ne)
             # Compute voltage and current for 1 Electrolyzer stack
             V, Ir = fsolve(vi_calc, [self.ey_x01, self.ey_x02],
                                      args=(Pr, self.ey_Nc, self.V_rev, self.ey_T,
@@ -225,7 +228,6 @@ class ElectrolyzerFleet(FleetInterface):
 
             # Total power demanded from the grid in Watts
             P_tot = W_c*1e3+P
-
             # Storage Tank
             # Number of moles in time i in the system of tanks
             self.moles += Qh2_m*1
@@ -244,9 +246,7 @@ class ElectrolyzerFleet(FleetInterface):
             eta_ch = self.ey_LHV_H2*m_dotH2*1e3/P_tot          # (W/W)
 
             self.soc = self.P_tank/self.max_charge
-
-        self.metrics.append([str(ts), str(self.P_tank), str(self.moles), str(self.moles_age),
-                             str(eta_ch*1e2), str(P_tot), str(self.soc*1e2)])
+            self.soc_age = self.moles_age/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank/self.max_charge
         self.inc += 1
 
         # Response
@@ -287,6 +287,11 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Ir = Ir
         resp.ne = ne*1e2
         resp.nf = nf*1e2
+
+        # Impact metrics
+        self.metrics.append([str(ts), str(V), str(V_age), str(ne),
+                             str(ne_age), str(resp.E), str(self.soc_age*1e2),
+                             str(self.lka_h2), str(resp.Eff_charge)])
 
         # Print Soc every 5 secs.
         if self.inc % 5000 == 0:

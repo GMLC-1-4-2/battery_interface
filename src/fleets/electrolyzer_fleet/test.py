@@ -67,15 +67,15 @@ def fleet_test2(fleet):
 
     # Power direction wrt the Grid.
     # Ey is negative power to grid
-    p_req = -p_data['PP']
+    p_req = p_data['PP']
 
     # base load of 20% of initial power requirement
     #bload = p_req[0]*0.2
     #p_curve = [bload if v < 0 else abs(v)-bload for _, v in enumerate(p_req)]
 
     # Power curve to have both negative and positive
-    #bload = p_req[0] * 0.2
-    p_curve = p_req#[bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
+    bload = p_req[0] * 0.2
+    p_curve = [bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
 
     # Create fleet request
     ts = datetime.utcnow()
@@ -97,6 +97,13 @@ def fleet_test2(fleet):
         ts.append(fleet_response.ts)
         status.append(fleet_response.status)
         fleetsize.append(fleet_response.ey_fleet)
+
+    # Forecast
+    forecast_fleet = fleet.forecast(fleet_request)
+    p_response, energy_stored = [], []
+    for i in range(len(forecast_fleet)):
+        p_response.append(forecast_fleet[i].P_togrid)
+        energy_stored.append(forecast_fleet[i].E)
 
     # Simulation results
     stat = "fully charged at %s sec." % str(sum(status))

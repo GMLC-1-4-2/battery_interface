@@ -2,7 +2,7 @@
 # !/usr/bin/env python3
 import sys
 from os.path import dirname, abspath, join
-from warnings import simplefilter
+from warnings import simplefilter, filterwarnings
 try:
     import colorama
 except ImportError:
