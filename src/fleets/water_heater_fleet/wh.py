@@ -19,20 +19,22 @@ class WaterHeater():
         self.Capacity = Capacity # gallons
         self.max_service_calls = int(max_service_calls)
 
-    def execute(self, Ttank, Tset, Tamb, RHamb, Tmains, hot_draw, control_signal, Type, timestep, forecast_draw, IsForecast):
-        (response) = self.WH(Ttank, Tset, Tamb, Tmains, hot_draw, control_signal, Type, timestep, forecast_draw, IsForecast)
+    def execute(self, Ttank, Tset, Tamb, RHamb, Tmains, hot_draw, mixed_draw, control_signal, Type, timestep, forecast_draw):
+        (response) = self.WH(Ttank, Tset, Tamb, Tmains, hot_draw, mixed_draw, control_signal, Type, timestep, forecast_draw)
         
         return response #Ttank, Tset, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, Eservice, is_available_add, is_available_shed, ElementOn, Eused, PusedMax
         
-    def WH(self, Tlast, Tset, Tamb_ts, Tmains_ts, hot_draw_ts, control_signal_ts, Type, timestep, forecast_draw, is_forecast):
+    def WH(self, Tlast, Tset, Tamb_ts, Tmains_ts, hot_draw_ts, mixed_draw_ts, control_signal_ts, Type, timestep, forecast_draw):
 #############################################################################
 
         response = () #initialize
         #        Baseline operation
-        Eloss_ts = self.UA*(Tlast-float(Tamb_ts[0])) 
-        dT_from_hot_draw = (hot_draw_ts[0])/self.Capacity*(Tlast - float(Tmains_ts[0]))# hot_draw is in gal for the timestep
+        hot_draw_ts = hot_draw_ts + mixed_draw_ts * (Tlast - 110.) / (Tlast - Tmains_ts)
+        Eloss_ts = self.UA*(Tlast-Tamb_ts) 
+        dT_from_hot_draw = (hot_draw_ts)/self.Capacity*(Tlast - Tmains_ts)# hot_draw is in gal for the timestep
         dT_loss = Eloss_ts*(timestep.seconds)/(3.79*self.Capacity*4810) #3.79 kg/gal of water, 4810 is J/kgK heat capacity of water, timestep units are minutes
-        Edel_ts = hot_draw_ts[0] * 4180 * 3.79 * (Tlast-float(Tmains_ts[0]))
+        
+        Edel_ts = hot_draw_ts * 4180 * 3.79 * (Tlast-Tmains_ts)
         Element_on_ts = 0
         
         if Tlast < Tset - self.Tdeadband:
@@ -54,6 +56,7 @@ class WaterHeater():
         else:
             Eused_baseline_ts = 0
             Element_on_ts = 0
+            Ttank_ts = Tlast - dT_loss - dT_from_hot_draw
         
   ###########################################################################          
         #modify operation based on control signal 

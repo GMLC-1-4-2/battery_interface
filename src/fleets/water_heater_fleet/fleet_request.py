@@ -8,28 +8,22 @@ from datetime import datetime, timedelta
 
 class FleetRequest:
     """
-    This class describes input fields required by fleets
+    This class describes input fields required by fleets 
     """
-
-    def __init__(self, ts = datetime.utcnow(), sim_step = timedelta(hours = 1), p= 0, q= 0, steps = 1, forecast = 0):
+# why is the above comment exactly the same as that one in fleet_config.py ??
+	
+    def __init__(self, ts=datetime.utcnow(), sim_step=timedelta(hours=1), p=None, q=None):
         """
         Constructor
         """
-
         # Timestamp in simulation loop: datetime
-        self.StartTime = ts
+        self.ts_req = ts
 
         # Simulation time step: timedelta object
-        self.Timestep = sim_step
+        self.sim_step = sim_step
 
         # Real power request
-        self.P_request = p
+        self.P_req = p
 
         # Reactive power request
-        self.Q_request = q
-        
-        #Number of steps in simulation
-        self.Steps = steps
-        
-        #Requesting a forecast Y/N
-        self.Forecast = forecast
+        self.Q_req = q

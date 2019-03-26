@@ -17,15 +17,15 @@ from WH_fleet_control import WaterHeaterFleet
 
 def main():
     
-    #Test case: Run a forecast for the day of July 26th
+    #Test case: Run a forecast for the day of July 1st
     #Configure the simulation to be run. Need to set the number of timesteps, start time, and the length of the timestep (in minutes)
-    Steps = 24 #num steps in simulation, if greater than 1 assuming a forecast is being requested
-    Timestep = 60 #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
+    Steps = 24 * 60 * 7 #num steps in simulation 
+    Timestep = 1 #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
     allowable_timesteps = [0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]
     if Timestep not in allowable_timesteps:
         print("Timestep must be a divisor of 60")
         return
-    starttime = 206*24 # 0-8759, hour of the year to start simulation
+    starttime = 181*24 # 0-8759, hour of the year to start simulation
     if Steps > 1:
         forecast = 1
     else:
@@ -52,10 +52,14 @@ def main():
 #    where regulation is called, the entire code switches into regulation mode for that single timestep (which is much longer than a regulation timestep)
 #    when the calculations are complete, it returns conditions to be used for subsequent capacity timesteps
     P_request = []
-    FleetResponse = [0]
+    FleetResponse = []
+    
+    # initializing fleet
+    fleet = WaterHeaterFleet()
     
     for step in range(Steps):
-        capacity_needed = 1e6
+        capacity_needed = 1e5
+        '''
 #        capacity_needed = 1e6 + 2e5*random.random()#Watts needed, >0 is capacity add, <0 is capacity shed
 #        Fleet_size_represented = capacity_needed/4500 # approximately how many WH would be needed to be able to provide this capacity
 #        magnitude_load_add_shed = capacity_needed/Fleet_size_represented #def magnitude of request for load add/shed
@@ -69,65 +73,49 @@ def main():
             s = capacity_needed 
         else:
             s = 0
-
-        P_request.append(s)
+        '''
+        Time = StartTime + step * Timestep
+        
+        if Time.hour == 7 or Time.hour == 8 or Time.hour == 9:
+            s = capacity_needed
+        elif Time.hour > 9 and Time.hour < 17:
+            s = -capacity_needed
+        else:
+            s = 0
+            
+        #        Call fleet
+        P_request = s
+        #creating service request object
+        #ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request, Steps, forecast) # ts,dt,Power[T],0.0)
+        ServiceRequest = FleetRequest(Time, Timestep, P_request, Q_request) # ts,dt,Power,0.0)
+        
+        
+        
+        #calling fleet
+        FleetResponse.append(fleet.process_request(ServiceRequest))
 
 ############################################################################
-#        Call fleet
-    
-    #creating service request object
-    ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request, Steps, forecast) # ts,dt,Power[T],0.0)
 
-    # initializing fleet
-    fleet = WaterHeaterFleet()
+
     
-    #calling fleet
-    FleetResponse = fleet.process_request(ServiceRequest)
     
     #Gather data to plot and look at the results
     #for y in range FleetResponse[0].AvailableCapacityAdd:
         
     #for x in range(len(FleetResponse)):
     #    for y in range FleetResponse[0].AvailableCapacityAdd:
-    a=1
 ############################################################################
+'''
     #Plotting load add/shed responses
-    '''
-    for n in range(len(FleetResponse.IsAvailableAdd)):
-        plt.figure(n+1)
+    for n in range(len(FleetResponse)):
         plt.clf()
-        plt.plot(FleetResponse.IsAvailableAdd[n],'r*-',label = 'AvailAdd')
-        plt.plot(FleetResponse.IsAvailableShed[n],'bs-',label = 'AvailShed')
-        plt.ylabel('Availability')
-        plt.xlabel('step')
-        plt.title('Water Heater {} Availability'.format(n+1))
+        plt.plot(FleetResponse[n].P_service,'r*-',label = 'AvailAdd')
+        plt.ylabel('Service Provided')
+        plt.xlabel('Hour')
+        plt.title('Watere Heating Service Provided')
         plt.legend()
-        plt.ylim([-1,2])
-    plt.show()
-    
-    for n in range(len(FleetResponse.IsAvailableAdd)):
-        plt.figure(n+1)
-        plt.clf()
-        plt.plot(FleetResponse.Tset[n],'r*-',label = 'Tset')
-        plt.plot(FleetResponse.Ttank[n],'bs-',label = 'Ttank')
-        plt.ylabel('Temperature (F)')
-        plt.xlabel('step')
-        plt.title('Water Heater {} Setpoint and tank temperature'.format(n+1))
-        plt.legend()
-        plt.ylim([100,160])
-    plt.show()
-    
-    for n in range(len(FleetResponse.IsAvailableAdd)):
-        plt.figure(n+1)
-        plt.clf()
-        plt.plot(FleetResponse.IsAvailableAdd[n],'r*-',label = 'AvailAdd')
-        plt.plot(FleetResponse.IsAvailableShed[n],'bs-',label = 'AvailShed')
-        plt.ylabel('Availability')
-        plt.xlabel('step')
-        plt.title('Water Heater {} Availability'.format(n+1))
-        plt.legend()
-        plt.ylim([-1,2])
     plt.show()
     '''
+    
 if __name__ == '__main__':
     main()
