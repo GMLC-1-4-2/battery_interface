@@ -12,6 +12,9 @@ from fleets.fuel_cell_fleet.fuelcell_fleet import FuelCellFleet, static_plots
 from fleet_request import FleetRequest
 from datetime import datetime, timedelta
 from scipy.io import loadmat
+from matplotlib.pyplot import show, grid, subplots
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 base_path = dirname(abspath(__file__))
 
 
@@ -30,15 +33,17 @@ def fleet_test1(fleet):
     fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=None, q=None) for i in range(n)]
 
     # Process the request
-    p_resp, q_resp, soc, ne, Vr, Ir, status, fleetsize = [], [], [], [], [], [], [], []
+    P_togrid, Q_togrid, soc, ne, Eff_discharge, Vr, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
     for fr in fleet_request:
         fleet_response = fleet.process_request(fr)
-        p_resp.append(fleet_response.P_togrid)
-        q_resp.append(fleet_response.Q_togrid)
-        soc.append(fleet_response.soc)
+        P_togrid.append(fleet_response.P_togrid)
+        Q_togrid.append(fleet_response.Q_togrid)
+        soc.append(fleet_response.E)
         ne.append(fleet_response.ne)
-        Vr.append(fleet_response.v_real)
+        Eff_discharge.append(fleet_response.Eff_discharge)
+        Vr.append(fleet_response.V)
         Ir.append(fleet_response.Ir)
+        ts.append(fleet_response.ts)
         status.append(fleet_response.status)
         fleetsize.append(fleet_response.fc_fleet)
 
@@ -46,9 +51,9 @@ def fleet_test1(fleet):
     stat = "fully charged at %s sec." % str(sum(status))
 
     # Plot the results
-    kwargs = {'P_response': (p_resp, 'kW'),
-              'Q_request': (q_resp, 'kVAr'), 'SoC ('+stat+')': (soc, 'Pa'),
-              'Energy efficiency of a cell': (ne, '%'),
+    kwargs = {'P_response': (P_togrid, 'kW'),
+              'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
+              'Charging Efficiency': (Eff_discharge, '%'), 'Energy efficiency of a cell': (ne, '%'),
               'V_real': (Vr, 'Volts'), 'Ir': (Ir, 'Amps.'),
               'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
@@ -112,7 +117,6 @@ def fleet_test2(fleet):
               'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
 
-    from matplotlib.pyplot import show, grid, subplots
     fig1, y1 = subplots(figsize=(20, 12))
     p1, = y1.plot(ts, p_curve, label='P_request')
     y1.axhline(y=0, color='r', linestyle='-')

@@ -13,6 +13,8 @@ from fleet_request import FleetRequest
 from datetime import datetime, timedelta
 from scipy.io import loadmat
 from matplotlib.pyplot import show, grid, subplots
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 base_path = dirname(abspath(__file__))
 
 
@@ -33,16 +35,17 @@ def fleet_test1(fleet):
     fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=None, q=None) for i in range(n)]
 
     # Process the request
-    p_resp, q_resp, soc, ne, nf, V, Ir, status, fleetsize = [], [], [], [], [], [], [], [], []
+    P_togrid, Q_togrid, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
     for fr in fleet_request:
         fleet_response = fleet.process_request(fr)
-        p_resp.append(fleet_response.P_togrid)
-        q_resp.append(fleet_response.Q_togrid)
-        soc.append(fleet_response.soc)
+        P_togrid.append(fleet_response.P_togrid)
+        Q_togrid.append(fleet_response.Q_togrid)
+        soc.append(fleet_response.E)
         ne.append(fleet_response.ne)
-        nf.append(fleet_response.nf)
+        Eff_charge.append(fleet_response.Eff_charge)
         V.append(fleet_response.V)
         Ir.append(fleet_response.Ir)
+        ts.append(fleet_response.ts)
         status.append(fleet_response.status)
         fleetsize.append(fleet_response.ey_fleet)
 
@@ -50,9 +53,9 @@ def fleet_test1(fleet):
     stat = "fully charged at %s sec." % str(sum(status))
 
     # Plot the results
-    kwargs = {'P_response': (p_resp, 'kW'),
-              'Q_request': (q_resp, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
-              'Faraday Efficiency': (nf, '%'), 'Energy efficiency of a cell': (ne, '%'),
+    kwargs = {'P_response': (P_togrid, 'kW'),
+              'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
+              'Charging Efficiency': (Eff_charge, '%'), 'Energy efficiency of a cell': (ne, '%'),
               'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
               'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
@@ -69,10 +72,6 @@ def fleet_test2(fleet):
     # Ey is negative power to grid
     p_req = p_data['PP']
 
-    # base load of 20% of initial power requirement
-    #bload = p_req[0]*0.2
-    #p_curve = [bload if v < 0 else abs(v)-bload for _, v in enumerate(p_req)]
-
     # Power curve to have both negative and positive
     bload = p_req[0] * 0.2
     p_curve = [bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
@@ -80,7 +79,6 @@ def fleet_test2(fleet):
     # Create fleet request
     ts = datetime.utcnow()
     dt = timedelta(seconds=1)
-    #for i,_ in enumerate(p_req): print((ts+i*dt), dt)
     fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=v, q=0.) for i, v in enumerate(p_curve)]
 
     # Process the request
@@ -138,10 +136,10 @@ def fleet_test2(fleet):
 if __name__ == '__main__':
     # Run SCENARIO 1
     # Pre-load the power request data using config.ini file
-    #fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer")
+    #fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
     #fleet_test1(fleet)
 
     # Run SCENARIO 2
     # Use instantaneous power request with fleets specified in config.ini
-    fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+    fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer")
     fleet_test2(fleet)

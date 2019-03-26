@@ -89,6 +89,7 @@ class FuelCellFleet(FleetInterface):
         self.fc_E_phi = float(self.config.get(mdl_type, "E_phi", fallback=42.7))
         self.fc_b1 = float(self.config.get(mdl_type, "b1", fallback=1.55e-5))
         self.fc_LHV_H2 = float(self.config.get(mdl_type, "LHV_H2", fallback=120000))
+        self.fc_ser_wght = float(self.config.get(mdl_type, "service_weight", fallback=1.0))
 
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
@@ -102,6 +103,7 @@ class FuelCellFleet(FleetInterface):
             cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
 
         # Compute state parameters for the FuelCell model
+        self.fleet_rating = self.fc_Nfc*self.fc_size
         # Set the operating range for the Electrolyzer fleet - 6kW <= Pfc <= 240kW
         self.P_opt = lambda p_req, p_min, p_max: max(p_min, min(p_max, p_req))
         self.fc_T += 273.15
@@ -277,9 +279,14 @@ class FuelCellFleet(FleetInterface):
         return resp
 
     def output_metrics(self, filename):
-        with open(str(filename)+'.csv', 'w', newline='') as out:
+        base_path = dirname(abspath(__file__))
+        with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
             write = writer(out)
             write.writerows(self.metrics)
+            cprint("Impact metrics created"+"\t"*5+" [OKAY]\n", 'green')
+
+    def assigned_service_kW(self):
+        return self.fc_ser_wght*self.fleet_rating
 
 
 def fit_pdat(filename, time_interval=None):

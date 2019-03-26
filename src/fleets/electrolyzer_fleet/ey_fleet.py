@@ -10,6 +10,7 @@ from _load import *
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
+from frequency_droop import FrequencyDroop
 from csv import writer
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
@@ -30,7 +31,6 @@ class ElectrolyzerFleet(FleetInterface):
         """
 
         # Establish the grid locations that the electrolyzer fleet is connected in the grid
-        # Not being used in the present scenario to provide grid services
         self.grid = grid_info
 
         if p_req_load:
@@ -96,6 +96,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_E_phi = float(self.config.get(mdl_type, "E_phi", fallback=42.7))
         self.ey_b = float(self.config.get(mdl_type, "b", fallback=1.55e-5))
         self.ey_LHV_H2 = float(self.config.get(mdl_type, "LHV_H2", fallback=120000))
+        self.ey_ser_wght = float(self.config.get(mdl_type, "service_weight", fallback=1.0))
 
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
@@ -109,10 +110,13 @@ class ElectrolyzerFleet(FleetInterface):
             cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
 
         # Compute initial state parameters for the Electrolyzer model
+        #self.freq_reg = FrequencyDroop(self.ey_db_UF, self.ey_db_OF, self.ey_k_UF, self.ey_k_OF, self.ey_P_avl,
+        #                               self.ey_P_min, self.ey_P_pre)
         self.nn = 0
         self.ey_I = 0
         self.V_graph = 0
         self.Id = 0
+        self.fleet_rating = self.ey_Ne*self.ey_E_size
         # Set the operating range for the Electrolyzer fleet - 30kW <= Pe <= 130kW
         self.P_opt = lambda p_req, p_min, p_max: max(p_min, min(p_max, p_req))
         self.DG = self.ey_DG_25-(self.ey_T-25)/55*(self.ey_DG_25-self.ey_DG_80)
@@ -300,7 +304,6 @@ class ElectrolyzerFleet(FleetInterface):
         return resp
 
     def calc_VIchar(self):
-
         self.nn = int((self.ey_I_final - self.ey_I_initial) / self.ey_I_step)
         self.ey_I = [i for i in range(0, self.ey_I_final + 1, self.ey_I_step)]
         self.V_graph = [self.V_rev + (self.ey_r1 + self.ey_r2 * self.ey_T) * self.ey_I[i] / self.ey_A +
@@ -310,9 +313,17 @@ class ElectrolyzerFleet(FleetInterface):
         self.Id = [i / 2500 for i in self.ey_I]
 
     def output_metrics(self, filename):
-        with open(str(filename)+'.csv', 'w', newline='') as out:
+        base_path = dirname(abspath(__file__))
+        with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
             write = writer(out)
             write.writerows(self.metrics)
+            cprint("Impact metrics created"+"\t"*5+" [OKAY]\n", 'green')
+
+    def frequency_watt(self):
+        pass
+
+    def assigned_service_kW(self):
+        return self.ey_ser_wght*self.fleet_rating
 
 
 def ne_calc(filename, e_size, ne=None):
