@@ -56,7 +56,12 @@ class ReserveService():
             request_list_1m_tot, response_list_1m_tot = self.get_signal_lists(start_time, end_time)
 
             # Generate lists containing tuples of (timestamp, power) for request and response
-            request_list_1m = [(r.ts_req, r.P_req / 1000) for r in request_list_1m_tot]
+            request_list_1m = []
+            for r in request_list_1m_tot:
+                if r.P_req is not None:
+                    request_list_1m.append((r.ts_req, r.P_req / 1000))
+                else:
+                    request_list_1m.append((r.ts_req, r.P_req))
             request_df_1m = pd.DataFrame(request_list_1m, columns=['Date_Time', 'Request'])
 
             if 'battery' in fleet_name.lower():
@@ -76,7 +81,7 @@ class ReserveService():
                 left_on='Date_Time',
                 right_on='Date_Time')
 
-            df_1m['P_togrid'] = df_1m['P_togrid'] / 100
+            df_1m['P_togrid'] = df_1m['P_togrid'] / 1000
             df_1m['P_base'] = df_1m['P_togrid'] - df_1m['Response']
 
             # Plot entire analysis period results and save plot to file
@@ -97,11 +102,12 @@ class ReserveService():
                 plt.plot(df_1m.Date_Time, df_1m.P_base, label='P_base')
             plt.ylabel('Power (MW)')
             plt.legend(loc='best')
-            if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(df_1m['SoC'])))):
-                plt.subplot(212)
-                plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
-                plt.ylabel('SoC (%)')
-                plt.xlabel('Time')
+            if 'battery' in fleet_name.lower():
+                if not(all(pd.isnull(df_1m['SoC']))):
+                    plt.subplot(212)
+                    plt.plot(df_1m.Date_Time, df_1m.SoC, label='SoC')
+                    plt.ylabel('SoC (%)')
+                    plt.xlabel('Time')
             plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
             plt.close()
         else: # Do this if we're running the 4-scenario tests
@@ -238,11 +244,12 @@ class ReserveService():
                     plt.plot(plot_df.Date_Time, plot_df.P_base, label='P_base')
                 plt.ylabel('Power (MW)')
                 plt.legend(loc='best')
-                if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(plot_df['SoC'])))):
-                    plt.subplot(212)
-                    plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
-                    plt.ylabel('SoC (%)')
-                    plt.xlabel('Time')
+                if 'battery' in fleet_name.lower():
+                    if not(all(pd.isnull(plot_df['SoC']))):
+                        plt.subplot(212)
+                        plt.plot(plot_df.Date_Time, plot_df.SoC, label='SoC')
+                        plt.ylabel('SoC (%)')
+                        plt.xlabel('Time')
                 if not(four_scenario_testing):
                     plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
                 plt.close()
@@ -269,7 +276,10 @@ class ReserveService():
 
         # Call the "request" method to get 1-min responses in a list, requests are stored in a list as well.
         for timestamp, normalized_signal in signals.items():
-            request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
+            if normalized_signal is not None:
+                request, response = self.request(timestamp, sim_step, normalized_signal*self._fleet.assigned_service_kW())
+            else:
+                request, response = self.request(timestamp, sim_step, normalized_signal)
             requests.append(request)
             responses.append(response)
         #print(requests)
