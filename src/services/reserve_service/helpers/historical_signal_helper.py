@@ -27,7 +27,7 @@ class HistoricalSignalHelper(object):
         excel_data.columns = pd.to_datetime(excel_data.columns)
         excel_data.index = pd.to_datetime(excel_data.index).time
         # Replace zeroes in the signal data with NaN
-        self._signals = excel_data.replace(0, np.nan)
+        self._signals = excel_data.replace([0], [None])
 
     def signals_in_range(self, start_time, end_time):
         self._validate_date_range(start_time, end_time)
