@@ -177,8 +177,16 @@ class PVInverterFleet(FleetInterface):
             fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
 #        print('p req',p_req)
 #        print('p to grid',fleet_response.P_togrid)
-
+        self.write_csv(fleet_response,dt)
         return fleet_response
+
+    
+    def write_csv(self,fleet_response,dt):
+        import csv
+
+        with open('impact_metris.csv', mode='a',newline='') as impact_metris:
+            impact_metris_writer = csv.writer(impact_metris)
+            impact_metris_writer.writerow([fleet_response.ts, fleet_response.P_service*dt.total_seconds()/3600])
 
     
     def forecast(self, requests):
@@ -976,6 +984,7 @@ class PVInverterFleet(FleetInterface):
         response.Q_togrid_min=Fleet_PV_Q_grid_min[0]
         response.S_Rating=FleetA_NP_S_rating
         response.T_restore=Fleet_PV_t_restore
+        response.P_base=Fleet_PV_P_grid_max[0]
         return response
 
 
