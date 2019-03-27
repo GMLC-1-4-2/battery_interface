@@ -1,13 +1,14 @@
 from datetime import datetime
 from grid_info import GridInfo
 
-grid1 = GridInfo('Grid_Info_DATA_2.csv')
-#grid2 = GridInfo('Grid_Info_data_artificial_inertia.csv')
-
 
 def create_fleet(name, grid_type=1, **kwargs):
-    #grid = grid1 if grid_type == 1 else grid2
-    grid = grid1
+    if grid_type == 2:
+        from grid_info_artificial_inertia import GridInfo  #Use for artificial Inertia case
+        grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
+    else:
+        from grid_info import GridInfo
+        grid = GridInfo('Grid_Info_DATA_2.csv')
 
     if name == 'BatteryInverter':
         from fleets.battery_inverter_fleet.battery_inverter_fleet import BatteryInverterFleet
@@ -24,25 +25,49 @@ def create_fleet(name, grid_type=1, **kwargs):
         from fleets.electric_vehicles_fleet.electric_vehicles_fleet import ElectricVehiclesFleet
 
         # Time stamp to start the simulation
-        dt = 30 * 60  # time step (in seconds)
-        ts = datetime(2018, 9, 20, 5, 0, 00, 000000)
+        # Please, ensure that the timestamp is the same timestamp passed at the
+        # beginning of the service request
+        ts = kwargs['start_time'] # Read it from kwargs dictionary
 
         fleet_test = ElectricVehiclesFleet(grid, ts)
         fleet_test.is_autonomous = False
         fleet_test.is_P_priority = True
-        fleet_test.dt = dt
+
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet_test.is_autonomous = True
+        fleet_test.VV11_Enabled = False
+        fleet_test.FW21_Enabled = True
 
         return fleet_test
 
     elif name == 'PV':
         from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
         fleet = PVInverterFleet(GridInfo=grid)
-
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
+
     elif name == 'WaterHeater':
         from fleets.water_heater_fleet.WH_fleet_control import WaterHeaterFleet
         fleet = WaterHeaterFleet()
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
+
+    elif name == 'Electrolyzer':
+        from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet
+        fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+        return fleet
+
+    elif name == 'FuelCell':
+        from fleets.fuel_cell_fleet.fuelcell_fleet import FuelCellFleet
+        fleet = FuelCellFleet("", "config.ini", "FuelCell")
+        return fleet
+
 
     elif name == 'HVAC':
         return None

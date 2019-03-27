@@ -35,6 +35,8 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     service.fleet = fleet
     assigned_fleet_name = service.fleet.__class__.__name__
 
+    start_time = kwargs['start_time']
+
     # Run test
     if service_name == 'Regulation':
         monthtimes = dict({
@@ -168,7 +170,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
-        fleet_responses = service.request_loop()
+        fleet_responses = service.request_loop(start_time=start_time)
         avg = service.calculation(fleet_responses)
         print(avg)
 
@@ -179,17 +181,26 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 if __name__ == '__main__':
     # Full test
     # services = ['Regulation', 'Reserve', 'ArtificialInertia']
-    # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'HVAC', 'Refridge' ]
-    # service_types = ['Traditional', Dynamic'] # This is only useful for regulation service
-    # kwargs = {'autonomous': True}  # This is for later use
+    # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
 
-    # Dev test
+    # Test configuration
     services = ['Regulation']
     fleets = ['BatteryInverter']
-    service_types = ['Traditional']
     kwargs = {}
+    kwargs['start_time'] = start_time
+    service_types = []
 
     for service in services:
+        # Service-specific configuration
+        if service == 'ArtificialInertia':
+            kwargs['autonomous'] = 'autonomous'
+        if service == 'Regulation':
+            service_types = ['Traditional', 'Dynamic']
+        
+        # Integration test
         for fleet in fleets:
-            for service_type in service_types:
-                integration_test(service, fleet, service_type, **kwargs)
+            if len(service_types) == 0:
+                integration_test(service, fleet, **kwargs)
+            else:
+                for service_type in service_types:
+                    integration_test(service, fleet, service_type, **kwargs)

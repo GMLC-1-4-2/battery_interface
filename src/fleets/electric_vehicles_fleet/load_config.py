@@ -83,8 +83,11 @@ class LoadConfig(object):
         fw_enabled = list()
         
         fw_enabled.append(self.str_to_bool(self.config_file.get('FW', 'FW21_Enabled', fallback = True)))
-        fw_enabled.append(float(self.config_file.get('FW', 'db_UF', fallback = 0.036)))
-        fw_enabled.append(float(self.config_file.get('FW', 'db_OF', fallback = 0.036)))
+        # Discrete version of the response to frequency deviations (artificial inertia service)
+        fw_enabled.append(list(map(float, (self.config_file.get('FW', 'db_UF', fallback = None).split(',')))))
+        fw_enabled.append(list(map(float, (self.config_file.get('FW', 'db_OF', fallback = None).split(',')))))
+        
+        # TODO: These parameters must be removed in future realeases of the API
         fw_enabled.append(float(self.config_file.get('FW', 'k_UF', fallback = 0.05)))
         fw_enabled.append(float(self.config_file.get('FW', 'k_UF', fallback = 0.05)))
         fw_enabled.append(float(self.config_file.get('FW', 'P_avl', fallback = 1.0)))
@@ -104,6 +107,6 @@ class LoadConfig(object):
         return metrics
         
     def get_service_weight(self):
-        return float(self.config_file.get('Service Weighting Factor', 'ServiceWeight', fallback=50000))
+        return float(self.config_file.get('Service Weighting Factor', 'ServiceWeight', fallback=1.0))
         
         
