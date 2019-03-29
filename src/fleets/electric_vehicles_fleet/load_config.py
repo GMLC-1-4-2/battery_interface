@@ -107,6 +107,6 @@ class LoadConfig(object):
         return metrics
         
     def get_service_weight(self):
-        return float(self.config_file.get('Service Weighting Factor', 'ServiceWeight', fallback=1.0))
+        return float(self.config_file.get('Service Weighting Factor', 'ServiceWeight', fallback=0.5))
         
         

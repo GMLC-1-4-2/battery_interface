@@ -187,7 +187,8 @@ if __name__ == '__main__':
     services = ['ArtificialInertia']
     fleets = ['BatteryInverter']
     kwargs = {
-        'start_time': parser.parse('2017-08-01 00:00:00')
+        'start_time': parser.parse('2017-08-01 00:00:00'),
+        'service_weight': 0.75
     }
     service_types = []
 

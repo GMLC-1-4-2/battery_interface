@@ -2,7 +2,7 @@
 Description: script to test the discretized autonomous response of the EV fleet.
 This script can be used to tweak the range of the deadbands for this or other discretized devices
 
-Last update: 03/05/2019
+Last update: 03/18/2019
 Author: afernandezcanosa@anl.gov
 """
 from datetime import datetime, timedelta
@@ -44,12 +44,14 @@ def main(ts, grid):
     # power and frequency empty lists
     p = []
     f = []
+    e_in = []
     i = 0
     SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
     for req in requests:
         r = fleet_test.process_request(req)
         p.append(r.P_service)
         f.append(grid.get_frequency(req.ts_req, 0, req.start_time))
+        e_in.append(r.Eff_charge)  
         print('t = %s' %str(req.ts_req))
         print('service power is = %f MW at f = %f Hz' %(p[i]/1e3, f[i]))
 
@@ -57,9 +59,10 @@ def main(ts, grid):
         i+=1
         
     p = np.array(p)
-    f = np.array(f)        
+    f = np.array(f)  
+    e_in = np.array(e_in)      
         
-    return t-t[0], f, p/1000
+    return t-t[0], f, p/1000, e_in
         
 if __name__ == "__main__":
     
@@ -70,7 +73,7 @@ if __name__ == "__main__":
     # Parameters of the grid (ARTIFICIAL INERTIA)
     grid = GridInfo('Grid_Info_data_artificial_inertia.csv')
     
-    time, freq, power = main(ts, grid)
+    time, freq, power, e_in = main(ts, grid)
     
     fig, ax1 = plt.subplots()
     ax1.set_title('Discretized Frequency Response for EVs - %s' %str(ts))
