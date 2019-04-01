@@ -6,7 +6,17 @@ Description: This class implements the Electrolyzer FleetInterface to integrate 
 Electrolyzers
 """
 
-from _load import *
+import sys
+from os.path import dirname, abspath, join
+from datetime import datetime
+from warnings import simplefilter, filterwarnings
+import colorama
+from termcolor import cprint
+import configparser
+from numpy import polyfit, RankWarning, trapz, log10, exp
+from scipy.optimize import fsolve
+from pandas import read_csv
+from matplotlib.pyplot import figure, subplot2grid
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
@@ -30,14 +40,14 @@ class ElectrolyzerFleet(FleetInterface):
         :param kwargs:
         """
 
-        # Establish the grid locations that the electrolyzer fleet is connected in the grid
+        # Establish the location that the electrolyzer fleet is connected in the grid
         self.grid = grid_info
 
+        # Pre-load the prequest curve
         if p_req_load:
             self.load_curve = True
         else:
             self.load_curve = False
-
 
         # Load the config file that has model parameters
         self.base_path = dirname(abspath(__file__))
@@ -97,6 +107,13 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_b = float(self.config.get(mdl_type, "b", fallback=1.55e-5))
         self.ey_LHV_H2 = float(self.config.get(mdl_type, "LHV_H2", fallback=120000))
         self.ey_ser_wght = float(self.config.get(mdl_type, "service_weight", fallback=1.0))
+        self.is_P_priority = bool(self.config.get(mdl_type, "is_P_priority", fallback=True))
+        self.FW21_Enabled = bool(self.config.get(mdl_type, "FW21_Enabled", fallback=False))
+        self.is_autonomous = bool(self.config.get(mdl_type, "is_autonomous", fallback=False))
+        self.ey_db_UF = float(self.config.get(mdl_type, "db_UF", fallback=0.02))
+        self.ey_db_OF = float(self.config.get(mdl_type, "db_OF", fallback=0.02))
+        self.ey_k_UF = float(self.config.get(mdl_type, "k_UF", fallback=0.05))
+        self.ey_k_OF = float(self.config.get(mdl_type, "k_OF", fallback=0.05))
 
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
@@ -110,14 +127,19 @@ class ElectrolyzerFleet(FleetInterface):
             cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
 
         # Compute initial state parameters for the Electrolyzer model
-        #self.freq_reg = FrequencyDroop(self.ey_db_UF, self.ey_db_OF, self.ey_k_UF, self.ey_k_OF, self.ey_P_avl,
-        #                               self.ey_P_min, self.ey_P_pre)
+        if self.FW21_Enabled and self.is_autonomous:
+            self.P_min = self.ey_Pmin_fleet
+            self.P_pre = 0
+            self.P_avl = self.ey_Pmax_fleet
+            self.f = None
+            self.freq_reg = FrequencyDroop(self.ey_db_UF, self.ey_db_OF, self.ey_k_UF, self.ey_k_OF, self.P_avl,
+                                           self.P_min, self.P_pre)
         self.nn = 0
         self.ey_I = 0
         self.V_graph = 0
         self.Id = 0
         self.fleet_rating = self.ey_Ne*self.ey_E_size
-        # Set the operating range for the Electrolyzer fleet - 30kW <= Pe <= 130kW
+        # Set the operating range for the Electrolyzer fleet - 30kW <= P_opt <= 130kW
         self.P_opt = lambda p_req, p_min, p_max: max(p_min, min(p_max, p_req))
         self.DG = self.ey_DG_25-(self.ey_T-25)/55*(self.ey_DG_25-self.ey_DG_80)
         self.V_rev = self.DG/self.ey_ne0/self.ey_F
@@ -131,8 +153,8 @@ class ElectrolyzerFleet(FleetInterface):
         # Initial state of charge (pressure) in the tank
         self.P_tank = self.min_charge
         # SOC initial
-        self.soc = self.P_tank
-        self.soc_age = self.P_tank
+        self.soc = self.min_charge
+        self.soc_age = self.min_charge
         # Initial number of H2 moles in the tank
         self.ni = self.P_tank*self.ey_V_tank/self.ey_R/(self.ey_T+273.15)
         # initial moles w/o ageing
@@ -150,24 +172,25 @@ class ElectrolyzerFleet(FleetInterface):
             # Compute the optimum number of Electrolyzers
             self.ey_Ne = ne_calc(join(self.base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
         # Output metrics dataframe
-        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age', 'Lka_H2', 'nch']]
+        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age', 'Lka_H2', 'nch', 'P_togrid', 'P_service', 'f']]
         self.inc = 0
 
     def process_request(self, fleet_request):
-        resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
+        resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req, fleet_request.start_time)
         return resp
 
     def forecast(self, requests):
         soc_state, soc_state_age = self.soc, self.soc_age
-        resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req) for req in requests]
+        resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req, req.start_time) for req in requests]
         self.soc, self.soc_age = soc_state, soc_state_age
         return resp
 
-    def run_ey_fleet(self, ts, sim_step, Preq):
+    def run_ey_fleet(self, ts, sim_step, Preq, start_time=None):
         """
         :param ts: Request created for current time-step: datetime
         :param sim_step: Request for simulation time-step: timedelta object
         :param Preq: Request for current real power request
+        :param start_time: Request for current real power request
         :return resp: Fleet response object
         """
         resp = FleetResponse()
@@ -182,14 +205,19 @@ class ElectrolyzerFleet(FleetInterface):
                 Pl = sum([self.p[j]*(self.inc+1)**(21-j) for j in range(22)])
                 # (W) to power one stack of electrolyzer
                 Pr = 1e3*Pl/self.ey_Ne
+                is_avail = 1
             # Only respond to negative power request
-            elif Preq > 0:
+            elif Preq is None or Preq > 0:
                 Pr = abs(self.ey_Pe_base)*1e3/self.ey_Ne
-                is_avail = 0
+                is_avail = 0                
             else:
                 # Check if Preq is within operational range in kW
                 # Fleet size remains constant
                 Preq = self.P_opt(abs(Preq), self.ey_Pmin_fleet, self.ey_Pmax_fleet)
+                if self.FW21_Enabled and self.is_autonomous:
+                    # all in kW
+                    Preq, self.f = self.frequency_watt(p_pre=self.P_pre, p_avl=Preq, p_min=self.ey_Pmin_fleet,
+                                                       ts=ts, start_time=start_time)
                 Pr = abs(Preq)*1e3/self.ey_Ne   # Watts
                 is_avail = 1
             resp.ey_fleet = int(self.ey_Ne)
@@ -232,6 +260,7 @@ class ElectrolyzerFleet(FleetInterface):
 
             # Total power demanded from the grid in Watts
             P_tot = W_c*1e3+P
+            self.P_pre = P_tot*1e-3
             # Storage Tank
             # Number of moles in time i in the system of tanks
             self.moles += Qh2_m*1
@@ -249,8 +278,10 @@ class ElectrolyzerFleet(FleetInterface):
             # Charging efficiency
             eta_ch = self.ey_LHV_H2*m_dotH2*1e3/P_tot          # (W/W)
 
-            self.soc = self.P_tank/self.max_charge
-            self.soc_age = self.moles_age/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank/self.max_charge
+            self.soc = round(self.P_tank/self.max_charge, 3)
+            self.soc_age = round(self.moles_age/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank/self.max_charge, 3)
+            if self.soc > 1.0 or self.soc < 0.0:
+                sys.exit(cprint("Soc limit violation!!" + "\t" * 6 + " [!!]\n", 'red'))
         self.inc += 1
 
         # Response
@@ -271,7 +302,7 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Eff_discharge = None
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = -P_tot*1e-3 + self.ey_Pe_base
+        resp.P_service = -P_tot*1e-3 + self.ey_Pmin_fleet
         resp.P_service_max = 0
         resp.P_service_min = 0
         resp.P_togrid = -P_tot*1e-3     # (kW)
@@ -295,7 +326,7 @@ class ElectrolyzerFleet(FleetInterface):
         # Impact metrics
         self.metrics.append([str(ts), str(V), str(V_age), str(ne),
                              str(ne_age), str(resp.E), str(self.soc_age*1e2),
-                             str(self.lka_h2), str(resp.Eff_charge)])
+                             str(self.lka_h2), str(resp.Eff_charge), str(resp.P_togrid), str(resp.P_service), str(self.f)])
 
         # Print Soc every 5 secs.
         if self.inc % 5000 == 0:
@@ -319,8 +350,19 @@ class ElectrolyzerFleet(FleetInterface):
             write.writerows(self.metrics)
             cprint("Impact metrics created"+"\t"*5+" [OKAY]\n", 'green')
 
-    def frequency_watt(self):
-        pass
+    def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.0, ts=datetime.utcnow(), location=0, start_time=None):
+        f = self.grid.get_frequency(ts, location, start_time)
+        P_pre = p_pre/self.ey_Pmax_fleet
+        P_avl = p_avl/self.ey_Pmax_fleet
+        P_min = p_min/self.ey_Pmax_fleet
+        if f < 60 - self.ey_db_UF:
+            p_new = min(P_pre+((60-self.ey_db_UF)-f)/(60*self.ey_k_UF),P_avl)
+        elif f > 60 + self.ey_db_OF:
+            p_new = max(P_pre-(f-(60+self.ey_db_OF))/(60*self.ey_k_OF),P_min)
+        else:
+            p_new = P_avl
+        p_new *= self.ey_Pmax_fleet
+        return p_new, f
 
     def assigned_service_kW(self):
         return self.ey_ser_wght*self.fleet_rating

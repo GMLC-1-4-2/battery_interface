@@ -6,7 +6,16 @@ Description: This class implements the FuelCell FleetInterface to integrate with
 FuelCells
 """
 
-from _load import *
+import sys
+from os.path import dirname, abspath, join
+from warnings import simplefilter, filterwarnings
+import colorama
+from termcolor import cprint
+import configparser
+from numpy import polyfit, convolve, RankWarning, log, exp
+from pandas import read_csv
+from scipy.optimize import fsolve
+from matplotlib.pyplot import figure, subplot2grid, savefig
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
@@ -169,7 +178,7 @@ class FuelCellFleet(FleetInterface):
                 # (W) requested power for one cell
                 Pr = 1e3*Pl/self.fc_Nfc/self.fc_Nc
             # Only respond to positive power request when Preq is present
-            elif Preq <= 0:
+            elif Preq is None or Preq <= 0:
                 Pr = abs(self.fc_Pmin_fleet)*1e3/self.fc_Nfc/self.fc_Nc
             else:
                 # Check if Preq is within operational range in kW
