@@ -15,12 +15,17 @@ class TestDeviceAPI(unittest.TestCase):
     #This method instantiates the fleet and executes a simple request to get the device response for evaluation
         service_name = 'DistributionVoltageService'
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
-        fleet_name = 'BatteryInverter'
+        fleet_name = 'PV'
         kwargs = {}
-        kwargs['start_time'] = parser.parse('8/1/17 16:00')
+        #start_time = parser.parse('8/1/17 16:00')
+        start_time = datetime.utcnow()
+        kwargs['start_time'] = start_time
         cur_time = parser.parse('8/1/17 16:00')
-        delt = timedelta(seconds=30)
-        Prequest = 1000;
+        #delt = timedelta(seconds=30)
+        #delt = timedelta(seconds=60)
+        cur_time = datetime.utcnow()
+        delt = timedelta(hours=0.000277777778)
+        Prequest = 10;
         Qrequest = 0;
 
         if service_name == 'ArtificialInertia':
@@ -35,7 +40,7 @@ class TestDeviceAPI(unittest.TestCase):
         if fleet is None:
             raise 'Could not create fleet with name ' + fleet_name
 
-        fleet_request = FleetRequest(cur_time, delt, Prequest, Qrequest)
+        fleet_request = FleetRequest(cur_time, delt, start_time, Prequest, Qrequest)
         fleet_response = fleet.process_request(fleet_request)
         self.response = fleet_response
 
@@ -105,11 +110,11 @@ class TestDeviceAPI(unittest.TestCase):
     def test_Eff_discharge(self):
         self.assertIsNotNone(self.response.Eff_discharge, 'Eff_discharge is not provided!')
 
-    def test_dt_hold_limit(self):
-        self.assertIsNotNone(self.response.dt_hold_limit, 'dt_hold_limit is not provided!')
+    def test_dT_hold_limit(self):
+        self.assertIsNotNone(self.response.dT_hold_limit, 'dT_hold_limit is not provided!')
 
-    def test_ts_restore(self):
-        self.assertIsNotNone(self.response.ts_restore, 'ts_restore is not provided!')
+    def test_T_restore(self):
+        self.assertIsNotNone(self.response.T_restore, 'T_restore is not provided!')
 
     def test_Strike_price(self):
         self.assertIsNotNone(self.response.Strike_price, 'Strike_price is not provided!')
