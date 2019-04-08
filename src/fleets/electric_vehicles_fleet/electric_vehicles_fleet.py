@@ -541,6 +541,7 @@ class ElectricVehiclesFleet(FleetInterface):
             response = FleetResponse()
             
             response.ts = ts
+            response.sim_step  = timedelta(seconds=dt)
             response.P_togrid  = - power_demanded
             response.Q_togrid  = 0
             response.P_service = - (power_demanded - self.p_baseline)
