@@ -54,11 +54,27 @@ $ python test.py
 - Recall that you first fork the code from the project repository (let's call it A: https://github.com/GMLC-1-4-2/battery_interface). That creates ONE repository copy for yourself and the copy resides on Github cloud (let's call it B). Next, you clone B to your local computer, thus, creates another repository copy (let's call it C). 
 - As other people's pull request got merged in A, both your github (B) and your local copy (C) become obsolete. So before you start working or making a new pull request, you need to update both B and C. 
 - Follow steps below to update B and C:
-    - Add the remote, call it "upstream": git remote add upstream https://github.com/whoever/whatever.git
-    - Fetch all the branches of that remote into remote-tracking branches, such as upstream/master: git fetch upstream
-    - Make sure that you're on your master branch: git checkout master
-    - Rewrite your master branch so that any commits of yours that aren't already in upstream/master are replayed on top of that other branch (update C): git rebase upstream/master
-    - Force the push in order to push it to your own forked repository on GitHub (update B): git push -f origin master
+    - Add the remote, call it "upstream": 
+    ```sh
+    $ cd battery_interface
+    $ git remote add upstream https://github.com/GMLC-1-4-2/battery_interface.git
+    ```
+    - Fetch all the branches of that remote into remote-tracking branches, such as upstream/master: 
+    ```sh
+    git fetch upstream
+    ``` 
+    - Make sure that you're on your master branch: 
+    ```sh
+    git checkout master
+    ```
+    - Rewrite your master branch so that any commits of yours that aren't already in upstream/master are replayed on top of that other branch (update C): 
+    ```sh
+    git rebase upstream/master
+    ```
+    - Force the push in order to push it to your own forked repository on GitHub (update B): 
+    ```sh
+    git push -f origin master
+    ```
 (Ref: https://stackoverflow.com/a/7244456/858931)
 
 Notes: If you don't want to use command line (CLI), I suggest to use Sourcetree, which can basically do the same thing.
