@@ -75,6 +75,7 @@ $ python test.py
     ```sh
     git push -f origin master
     ```
+    - Go to your github page and create a new pull request as usual
 (Ref: https://stackoverflow.com/a/7244456/858931)
 
 Notes: If you don't want to use command line (CLI), I suggest to use Sourcetree, which can basically do the same thing.
