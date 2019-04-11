@@ -2,8 +2,7 @@
 # !/usr/bin/env python3
 import sys
 from os.path import dirname, abspath, join
-from math import log, log10, exp
-from warnings import simplefilter
+from warnings import simplefilter, filterwarnings
 try:
     import colorama
 except ImportError:
@@ -17,7 +16,7 @@ try:
 except ImportError:
     raise ImportError('configparser package missing!!')
 try:
-    from numpy import zeros, polyfit, convolve, RankWarning, trapz
+    from numpy import zeros, polyfit, convolve, RankWarning, trapz, log, log10, exp
 except ImportError:
     raise ImportError('numpy package missing!!')
 try:
