@@ -179,11 +179,12 @@ class RegService():
             plt.plot(ts_request, results_df.P_base, label='P_base')
         plt.legend(loc='best')
         plt.ylabel('Power (MW)')
-        if ('battery' in fleet_name.lower()) & (not(all(pd.isnull(results_df['SOC'])))):
-            plt.subplot(212)
-            plt.plot(ts_request, SOC)
-            plt.ylabel('SOC (%)')
-            plt.xlabel('Date and Time')
+        if 'battery' in fleet_name.lower():
+            if not(all(pd.isnull(results_df['SOC']))):
+                plt.subplot(212)
+                plt.plot(ts_request, SOC)
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
         plt.close()      
 
