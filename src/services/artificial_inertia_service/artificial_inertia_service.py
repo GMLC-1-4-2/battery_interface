@@ -69,28 +69,17 @@ class ArtificialInertiaService():
             p_togrid.append(response.P_togrid)
             t.append(response.ts)
 
-        # save data into .csv file
         integration_test_result_dir = join( dirname(dirname(dirname(abspath(__file__))) ), 'integration_test', 'artificial_inertia')
-        csv_file_name = datetime.now().strftime('%Y%m%d') + '_ArtificialInertia_' + fleetname + '.csv'
-
-        with open(join(integration_test_result_dir, csv_file_name), 'w', newline='') as csvfile:
-            csvwriter = csv.writer(csvfile, delimiter=',')
-            # csvwriter = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            csvwriter.writerow(['time', 'frequency', 'service power', 'power to grid'])
-            for tidx in range(len(t)):
-                csvwriter.writerow([t[tidx].strftime('%m/%d/%Y, %H:%M:%S'), str(f[tidx]), str(p_service[tidx]), str(p_togrid[tidx])])
-
-        csvfile.close()
 
         # plot extracted data
+        # time versus Pservice
         fig, ax1 = plt.subplots()
-        ax1.set_title('Frequency Response')
+        ax1.set_title('Pservice and Ptogrid Responses')
         l1, = ax1.plot(t, p_service, 'b-', label='service power')
         l2, = ax1.plot(t, p_togrid, 'k-', label='power to grid')
         ax1.set_ylabel('Power (kW)', color='b')
         ax1.tick_params('y', colors='b')
-        ax1.set_xlabel('Time (s)')
-
+        ax1.set_xlabel('Time')
 
         ax2 = ax1.twinx()
         l3, = ax2.plot(t,  f, 'r-', label='frequency')
@@ -100,6 +89,19 @@ class ArtificialInertiaService():
         plt.legend(handles=[l1, l2, l3])
 
         plot_filename = datetime.now().strftime('%Y%m%d') + '_ArtificialInertia_' + fleetname + '.png'
+        plot_dir = integration_test_result_dir
+
+        plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
+
+        # frequency versus Pservice
+        fig2, ax2 = plt.subplots()
+        ax2.set_title('Frequency versus Pservice')
+        ax2.plot(f, p_service, 'b-', label='service power')
+        ax2.set_ylabel('Power (kW)', color='b')
+        ax2.tick_params('y', colors='b')
+        ax2.set_xlabel('frequency (Hz)')
+
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_ArtificialInertia_' + fleetname + '_f_Pservice.png'
         plot_dir = integration_test_result_dir
 
         plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
@@ -149,6 +151,19 @@ class ArtificialInertiaService():
             except ZeroDivisionError:
                 print('Base energy is zero.')
 
+        # write results into .csv file
+        csv_file_name = datetime.now().strftime('%Y%m%d') + '_ArtificialInertia_' + fleetname + '.csv'
+
+        with open(join(integration_test_result_dir, csv_file_name), 'w', newline='') as csvfile:
+            csvwriter = csv.writer(csvfile, delimiter=',')
+            # csvwriter = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            csvwriter.writerow(['time', 'frequency', 'service power', 'power to grid'])
+            for tidx in range(len(t)):
+                csvwriter.writerow([t[tidx].strftime('%m/%d/%Y, %H:%M:%S'), str(f[tidx]), str(p_service[tidx]), str(p_togrid[tidx])])
+            csvwriter.writerow(['service efficacy=%06.4f' % service_efficacy])
+            # or csvwriter.writerow(['service efficacy={:06.4f}'.format(service_efficacy)])
+
+        csvfile.close()
 
         return service_efficacy, p_service, p_togrid, t, f
 
