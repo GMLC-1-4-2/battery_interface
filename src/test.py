@@ -176,6 +176,9 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     
     elif service_name == 'DistributionVoltageService':
         fleet_responses, fleet_requests = service.request_loop()
+
+    elif service_name == 'EnergyMarketService':
+        fleet_requests, fleet_responses = service.request_loop()
         
     else:
         pass
