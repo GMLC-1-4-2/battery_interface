@@ -12,6 +12,12 @@ def create_service(name, **kwargs):
         from services.reserve_service.reserve_service import ReserveService
 
         return ReserveService()
+    
+    
+    elif name == 'DistributionVoltageService':
+        from services.distribution_voltage_regulation.distribution_regulation_service import DistributionVoltageService
+
+        return DistributionVoltageService()
 
     raise "There is no service with name: " + name
 
