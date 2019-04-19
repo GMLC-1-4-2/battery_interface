@@ -8,7 +8,7 @@ from fleet_factory import create_fleet
 # ======================   DEFAULT TEST PARAMETERS    =======================
 
 # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
-fleet_name = 'Electrolyzer'
+fleet_name = 'ElectricVehicle'
 
 # start_time = parser.parse('8/1/17 16:00')
 # cur_time = parser.parse('8/1/17 16:00')
@@ -20,6 +20,8 @@ delt = timedelta(hours=0.000277777778)
 
 Prequest = 100;
 Qrequest = None;
+
+# ====================  Gen/load and Autonomous Flags (do not change) ====================
 
 if fleet_name == 'PV':
     generator_only = True
@@ -50,6 +52,7 @@ class TestDeviceAPI(unittest.TestCase):
     # Create test fleet
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -154,6 +157,7 @@ class TestDeviceTime(unittest.TestCase):
     # Create test fleet
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -188,6 +192,7 @@ class TestPowers(unittest.TestCase):
     # Create test fleet
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -225,6 +230,7 @@ class TestFleetScaling(unittest.TestCase):
     def test_assigned_service_kW(self):
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -250,6 +256,7 @@ class TestFreqResponse(unittest.TestCase):
         grid_type = 2
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         kwargs['autonomous'] = 'autonomous'
 
         cur_time = start_time + timedelta(seconds= 75)
@@ -283,6 +290,7 @@ class TestForecast(unittest.TestCase):
         # Create test fleet
         kwargs = {}
         kwargs['start_time'] = start_time
+        kwargs['service_weight'] = 0.75
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
