@@ -173,14 +173,17 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         fleet_responses = service.request_loop(start_time=start_time)
         avg = service.calculation(fleet_responses)
         print(avg)
-
+    
+    elif service_name == 'DistributionVoltageService':
+        fleet_responses, fleet_requests = service.request_loop()
+        
     else:
         pass
 
 
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
 
     # Test configuration
