@@ -128,7 +128,7 @@ def integration_test(service_name, fleet_name, **kwargs):
 
     elif service_name == 'ArtificialInertia':
         fleet_responses = service.request_loop(start_time=start_time)
-        avg = service.calculation(fleet_responses)
+        avg = service.calculation(fleetname=fleet_name, responses=fleet_responses, start_time=start_time)
         print(avg)
 
     else:
