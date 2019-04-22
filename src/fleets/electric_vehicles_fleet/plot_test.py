@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Oct  1 15:00:34 2018
-
 Description: 
 
-Last update: 10/01/2018
+Last update: 03/18/2019
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
@@ -82,6 +80,18 @@ class Plots(object):
         plt.xlim([0,max(time) - time[0]])
         plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
         plt.ylabel('SOC (%)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+        
+    def efficiency(self, time, eff_charge, eff_discharge, ts, dt, seconds_of_simulation):
+        plt.figure(figsize = self.figs_props['fig_s'])
+        plt.title(self.get_plot_title(ts, dt, seconds_of_simulation),
+                  fontsize=self.figs_props['font_s'] + 1, fontweight=self.figs_props['font_w'])
+        plt.plot(time - time[0], eff_charge, color = 'b', linewidth = self.figs_props['lw'], label = 'Efficiency Charging')
+        plt.plot(time - time[0], eff_discharge, color = 'r', linewidth = self.figs_props['lw'], label = 'Efficiency Discharging')
+        plt.grid()
+        plt.legend(prop = self.figs_props['leg_prop'])
+        plt.xlim([0,max(time) - time[0]])
+        plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+        plt.ylabel(r'$e_{in, out}$ (%)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
 
     def get_plot_title(self, ts, dt, seconds_of_simulation):
         title = 'Initial hour of request: {}:{}:{}'.format(ts.hour, ts.minute, ts.second) +\

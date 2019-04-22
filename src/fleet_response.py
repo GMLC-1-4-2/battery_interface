@@ -24,6 +24,8 @@ class FleetResponse:
         self.Q_togrid = None    # Previously called Q_injected
         self.P_service = None   # Dito
         self.Q_service = None   # Actual service being supplied in response to most recent request
+        self.P_base = None      # Baseline active power
+        self.Q_base = None      # Baseline reactive power
 
         # Constraints for the next time period
 

@@ -108,9 +108,9 @@ class RegService():
                 request_list_2s_65min = request_list_2s_65min_trad
                 response_list_2s_65min = response_list_2s_65min_trad
                 mileage_ratio = 1
-            # Convert lists into arrays.
-            request_array_2s = np.asarray(request_list_2s_65min)
-            response_array_2s = np.asarray(response_list_2s_65min)
+            # Convert lists into arrays. convert units from kW to MW.
+            request_array_2s = np.asarray(request_list_2s_65min)/1000
+            response_array_2s = np.asarray(response_list_2s_65min)/1000
             # Slice arrays at 10s intervals - resulted arrays have 390 data points.
             request_array_10s = request_array_2s[::5]
             response_array_10s = response_array_2s[::5]
@@ -136,24 +136,29 @@ class RegService():
         P_request = [r.P_req for r in request_list_2s_tot]
         ts_request = [r.ts_req for r in request_list_2s_tot]
         P_response = [r.P_service for r in response_list_2s_tot]
+        P_togrid = [r.P_togrid for r in response_list_2s_tot]
             
         # Save the responses to a csv
         results_df = pd.DataFrame({
             'DateTime': ts_request,
             'P_request': P_request,
-            'P_response': P_response
+            'P_response': P_response,
+            'P_togrid': P_togrid
             })
+        # Calculate P_base
+        results_df['P_base'] = results_df['P_togrid'] - results_df['P_response']
+        # Add SoC if battery fleet
         if 'battery' in fleet_name.lower():
             SOC = [r.soc for r in response_list_2s_tot]
             results_df['SOC'] = SOC
-        results_df_dir = dirname(abspath(__file__)) + '\\results\\'
+        results_df_dir = join(dirname(abspath(__file__)), 'results', '')
         ensure_ddir(results_df_dir)
         results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
-        plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+        plot_dir = join(dirname(abspath(__file__)), 'results', 'plots', '')
         ensure_ddir(plot_dir)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
                         ts_request[0].strftime('%B') +\
@@ -164,15 +169,22 @@ class RegService():
         plt.figure(1)
         plt.figure(figsize=(15,8))
         plt.subplot(211)
-        plt.plot(ts_request, P_request, label='P request')
-        plt.plot(ts_request, P_response, label='P response')
+        if (not(all(pd.isnull(results_df['P_request'])))):
+            plt.plot(ts_request, P_request, label='P_request')
+        if (not(all(pd.isnull(results_df['P_response'])))):
+            plt.plot(ts_request, P_response, label='P_response')
+        if (not(all(pd.isnull(results_df['P_togrid'])))):
+            plt.plot(ts_request, P_togrid, label='P_togrid')
+        if (not(all(pd.isnull(results_df['P_base'])))):
+            plt.plot(ts_request, results_df.P_base, label='P_base')
         plt.legend(loc='best')
         plt.ylabel('Power (MW)')
         if 'battery' in fleet_name.lower():
-            plt.subplot(212)
-            plt.plot(ts_request, SOC)
-            plt.ylabel('SOC (%)')
-            plt.xlabel('Date and Time')
+            if not(all(pd.isnull(results_df['SOC']))):
+                plt.subplot(212)
+                plt.plot(ts_request, SOC)
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
         plt.close()      
 
@@ -197,8 +209,7 @@ class RegService():
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
         sim_step = timedelta(seconds=2)
-        # Convert response kW into MW.
-        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()/1000) for x,i in signals.items()]
+        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x,i in signals.items()]
         requests = [x[0] for x in reqrespitems]
         responses = [x[1] for x in reqrespitems]
 
@@ -285,7 +296,7 @@ class RegService():
 
             # for debug use
             # x_axis_sig = np.arange(x_plot.size)
-            # plot_dir = dirname(abspath(__file__)) + '\\results\\plots\\'
+            # plot_dir = join(dirname(abspath(__file__)), 'results', 'plots')
             # plt.figure(1)
             # plt.figure(figsize=(15,8))
             # plt.plot(x_axis_sig, x_plot, "b")

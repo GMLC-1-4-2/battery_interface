@@ -1,0 +1,8 @@
+python-dateutil>=2.6.1
+configparser>=3.5.0
+numpy
+scipy
+matplotlib
+pandas
+colorama
+termcolor

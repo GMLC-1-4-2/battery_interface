@@ -6,3 +6,5 @@ matplotlib
 pandas
 xlrd
 control
+colorama
+termcolor
