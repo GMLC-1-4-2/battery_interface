@@ -5,6 +5,7 @@
 
 import sys
 from os.path import dirname, abspath, join
+import os
 
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
@@ -15,6 +16,7 @@ import configparser
 import numpy
 import maya
 import csv
+from pathlib import Path
 
 import utils
 from fleet_interface import FleetInterface
@@ -158,8 +160,11 @@ class DistributionVoltageService:
         plt.title('Fleet Reactive Power')
         plt.legend(loc='lower right')
         
+        data_folder=os.path.dirname(sys.modules['__main__'].__file__)
         plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse'  + '.png'
-        plt.savefig(join(self.base_path, plot_filename), bbox_inches='tight')
+        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
+
+        plt.savefig(File_Path_fig, bbox_inches='tight')
 #        File_Path_fig = os.path.join(self.base_path , 'VR_Fleet_Response.png')
 #        fig.savefig(File_Path_fig)
         #plt.legend(loc='lower right')
@@ -169,7 +174,9 @@ class DistributionVoltageService:
         ValueEfficacy=[]
  
         CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_'  + '.csv'
-        File_Path_CSV = join(self.base_path, CSV_FileName)
+
+        data_folder=os.path.dirname(sys.modules['__main__'].__file__)
+        File_Path_CSV = join(data_folder, 'integration_test','Voltage_Regulation',CSV_FileName)
         self.write_csv(File_Path_CSV,'Time','service efficacy (%)','value provided ($)','value efficacy (%)')
        
         for idd in range(len(Pach)):
@@ -199,7 +206,9 @@ class DistributionVoltageService:
         axs[2].set_title('ValueEfficacy')
         axs[2].set_ylabel('%')
         plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_ServiceMetrics'  + '.png'
-        plt.savefig(join(self.base_path, plot_filename), bbox_inches='tight')
+        
+        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
+        plt.savefig(File_Path_fig, bbox_inches='tight')
 
         
         plt.show()    
