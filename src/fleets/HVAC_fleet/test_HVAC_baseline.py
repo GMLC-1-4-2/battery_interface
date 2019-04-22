@@ -12,7 +12,7 @@ from fleet_request import FleetRequest
 from grid_info import GridInfo
 
 from fleets.HVAC_fleet.plot_test import Plots
-from fleets.HVAC_fleet.HVAC_Cont_Fleet_ORNL4 import HVACFleet
+from fleets.HVAC_fleet.HVAC_fleet import HVACFleet
 
 
 ###############################################################################
@@ -30,9 +30,9 @@ fleet_test = HVACFleet(grid, ts)
 fleet_test.is_autonomous = False
 fleet_test.is_P_priority = True
 
-dt = 30*60                                   # time step (in seconds)
+dt = 10*60                                   # time step (in seconds)
 sim_step = timedelta(seconds = dt)
-seconds_of_simulation = 24*3600              # (in seconds)
+seconds_of_simulation = 4*3600              # (in seconds)
 local_time = fleet_test.get_time_of_the_day(ts)
 t = np.arange(local_time,local_time+seconds_of_simulation,dt) # array of time in seconds 
 

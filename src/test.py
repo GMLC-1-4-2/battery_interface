@@ -190,8 +190,8 @@ if __name__ == '__main__':
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
 
     # Test configuration
-    services = ['ArtificialInertia']
-    fleets = ['BatteryInverter']
+    services = ['ArtificialInertia']  
+    fleets = ['BatteryInverter']  
     kwargs = {
         'start_time': parser.parse('2017-08-01 00:00:00'),
         'service_weight': 0.75

@@ -20,8 +20,8 @@ from configparser import ConfigParser
 from datetime import datetime, timedelta
 # This is the actual building thermal and HVAC models
 #import build_model as bm
-from build_model import BuildingModel
-from build_model import AC
+from fleets.HVAC_fleet.build_model import BuildingModel
+from fleets.HVAC_fleet.build_model import AC
 
 #from HVACFleet import FleetResponse   #HVACFleet
 from fleet_interface import FleetInterface
@@ -43,10 +43,12 @@ class HVACFleet(FleetInterface):   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, GridInfo, ts):
+    def __init__(self, GridInfo, ts, sim_step):
         """
         for battery def __init__(self, GridInfo,**kwargs):
         old: (self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40)
+        ts: Timestamp in simulation loop: datetime
+        sim_step: Simulation time step: timedelta object
         """
         # Location of working path
         base_path = dirname(abspath(__file__))
@@ -69,22 +71,20 @@ class HVACFleet(FleetInterface):   #FleetInterface
         base_path = dirname(abspath(__file__))
 
         # Total number of HVACs
-        self.numHVAC = self.df_HVACModels['Total_HVACs'].sum()
+        self.numHVAC = self.df_VehicleModels['Total_HVACs'].sum()
 
         #INPUTS
-        self.shortcycle=5*60 # minutes  time that AC unit has to stay off before turning back on
-        self.minrun=1*60 # minutes  minimum runtime for unit
+        self.shortcycle=5*60 # Shortcycle minimum time (minutes) that AC unit has to stay off before turning back on
+        self.minrun=1*60 # minutes minimum runtime for unit
         self.Twb_assumed=16.666667  #assumed indoor wet bulb temperature
 
-        self.ts = 1.0 # seconds, must be a divisor of 60, time step
-        self.shortcycle_ts=int(round(self.shortcycle/ts,0))  #number of time steps during short cycle timer
-        self.minrun_ts=int(round(self.minrun/ts,0))
-        self.Tset = 23.0 #celcius  cooling set point
-        self.deadband=0.5 #celcius cooling dead band
+        self.ts = 1.0 # in seconds
+        self.shortcycle_ts=int(round(self.shortcycle/self.ts,0))  #number of time steps during short cycle timer
+        self.minrun_ts=int(round(self.minrun/self.ts,0))
+        self.Tset = 23.0 #Celsius  cooling set point
+        self.deadband=0.5 #Celsius cooling dead band
 
-        # assign full SoC for the fleet
-        self.SoC = [[0.8 for x in range(1)] for y in range(self.numHVAC)]
-        
+               
         # #%% Frequency-watt parameters
         # FrequencyWatt='Frequency Watt'
         # self.db_UF=float(self.config.get(FrequencyWatt,'db_UF'))
@@ -105,8 +105,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # How to calculate effective fleet rating: this is going to be poorly
         # met because it does not consider random availability of the fleet. 
         # However this seems to be the best approximation
-        
-        self.fleet_rating = self.numHVAC * 3.5  # unit power is 3.5 kw, approximate 25% can provide service   
+        self.numHVAC = int(self.numHVAC)
+        self.fleet_rating = (self.numHVAC * 3.5)  # unit power is 3.5 kw, approximate 25% can provide service   
 
         # Weight used to scale the service request
         self.service_weight = LC.get_service_weight()    
@@ -281,7 +281,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.Qsolar_mass10 = (1-Sp3)*Qsolar  
 
         # interpolate the data from 10 mins to desired time resolution in seconds
-        (self.Qsolar_i, self.Qsolar_mass, temp_sol_W, temp_sol_R) = get_inputs(self.Qsolar_i10, self.Qsolar_mass10, self.temp_sol_W10, self.temp_sol_R10, timestep_s, ts)  
+        (self.Qsolar_i, self.Qsolar_mass, temp_sol_W, temp_sol_R) = get_inputs(self.Qsolar_i10, self.Qsolar_mass10, self.temp_sol_W10, self.temp_sol_R10, sim_step, ts)  
 
         # Load the other disturbance signals by randomly sampling with different weather conditions     
         Tamb = []
@@ -290,23 +290,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
         IHL = []
 
         for a in range(self.numHVAC):             
-            if a <= (self.MaxNumMonthlyConditions-1): #if numHVAC > MaxNumAnnualConditions just start reusing older conditions to save computational time               
       
-                (tamb, IHL_s) = get_daily_conditions(self.Location[a], dt, ts)  # location, timestep_s, start_time
-                
-                tsol_W = tamb + temp_sol_W
-                tsol_R = tamb + temp_sol_R
+            (tamb, IHL_s) = get_daily_conditions(self.Location[a], dt, ts)  # location, timestep_s, start_time
+            
+            tsol_W = tamb + temp_sol_W
+            tsol_R = tamb + temp_sol_R
 
-                Tamb.append(tamb)
-                Tsol_W.append(tsol_W)
-                Tsol_R.append(tsol_R)
-                IHL.append(IHL_s)
- 
-            else: #start re-using conditions
-                Tamb.append(Tamb[a - self.MaxNumMonthlyConditions][:])
-                Tsol_W.append(Tsol_W[a - self.MaxNumMonthlyConditions][:])
-                Tsol_R.append(Tsol_R[a - self.MaxNumMonthlyConditions][:])
-                IHL.append(IHL[a - self.MaxNumMonthlyConditions][:])
+            Tamb.append(tamb)
+            Tsol_W.append(tsol_W)
+            Tsol_R.append(tsol_R)
+            IHL.append(IHL_s)
         
         self.QIHL_i = np.multiply(Sp1, IHL)
         self.QIHL_mass = np.multiply(1-Sp1, IHL)
@@ -348,7 +341,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
         self.TotalServiceCallsAcceptedPerHVAC = [0 for y in range(self.numHVAC)]    
    
-        self.SoCInit = [0.5 for y in range(self.numHVAC)]
+        self.SoCInit = [0.8 for y in range(self.numHVAC)]
+        self.SOC = self.SoCInit
 
         self.AvailableCapacityAddInit = [0 for y in range(self.numHVAC)]
         self.AvailableCapacityShedInit = [0 for y in range(self.numHVAC)]
