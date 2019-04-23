@@ -7,14 +7,13 @@ import sys
 from dateutil import parser
 from datetime import datetime, timedelta
 import numpy as np
-import math  
 import matplotlib.pyplot as plt
-import pandas as pd
 
-from os.path import dirname, abspath
+from os.path import dirname, abspath, join
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
+
 
 class EnergyMarketService(object):
     
@@ -22,9 +21,8 @@ class EnergyMarketService(object):
     _fleet = None
         
     def __init__(self, *args, **kwargs):
-        """
-        Constructor
-        """
+        # Set current directory as base_path
+        self.base_path = dirname(abspath(__file__))
         self.requests = self.create_base_request()
             
     def create_base_request(self,
@@ -81,7 +79,7 @@ class EnergyMarketService(object):
 #        nChg_temp = math.floor (max (capacity/p_service_max))
         
         # Read prices
-        price = np.genfromtxt('CAISOApr2016Hourly.csv', delimiter = ',' )
+        price = np.genfromtxt(join(self.base_path, 'CAISOApr2016Hourly.csv'), delimiter=',')
 
         """
         Read round trip eff and strike for pairs of charge & discharge hours
@@ -93,10 +91,10 @@ class EnergyMarketService(object):
         #eff = np.genfromtxt('roundtrip_efficiency_electric_vehicle.csv', delimiter = ',' )
         
         #Read charge state - for this implementation just use state at period 0
-        charged = np.genfromtxt('ChargeStateOffHourly.csv', delimiter = ',' )
+        charged = np.genfromtxt(join(self.base_path, 'ChargeStateOffHourly.csv'), delimiter=',')
         
         # Read price elasitity (strike price) file
-        strike = np.genfromtxt('StrikePriceHourly.csv', delimiter = ',' )
+        strike = np.genfromtxt(join(self.base_path, 'StrikePriceHourly.csv'), delimiter=',')
         
         # Construct profit table: profit = -price(charge) + eff(i,j)*price(discharge)
         # Fill profit matrix with NaNs
@@ -234,7 +232,7 @@ class EnergyMarketService(object):
         print()
         
         # Write dispatch orders for single daily cycle to file 
-        dispatch = open('dispatchOrders.csv', 'a')
+        dispatch = open(join(self.base_path, 'dispatchOrders.csv'), 'a')
         header = ['Single cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax \n']
         dispatch.writelines( header )
         data = [str(timesteps), '\n', str(startT), '\n', str(stopT), '\n', str(charged[startT]), '\n', 
@@ -260,7 +258,7 @@ class EnergyMarketService(object):
         print()
         
         # Write dispatch orders for first cycle to file 
-        dispatch = open('dispatchOrders.csv', 'a')
+        dispatch = open(join(self.base_path, 'dispatchOrders.csv'), 'a')
         header = ['First cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax \n']
         dispatch.writelines( header )
         data = [str(timesteps), '\n', str(startT), '\n', str(stopT), '\n', str(charged[startT]), '\n', 
@@ -287,7 +285,7 @@ class EnergyMarketService(object):
         print()
         
         # Write dispatch orders for second cycle to file 
-        dispatch = open('dispatchOrders.csv', 'a')
+        dispatch = open(join(self.base_path, 'dispatchOrders.csv'), 'a')
         header = ['Second cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax \n']
         dispatch.writelines( header )
         data = [str(timesteps), '\n', str(startT), '\n', str(stopT), '\n', str(charged[startT]), '\n', 
@@ -379,14 +377,12 @@ class EnergyMarketService(object):
     
 
 def main():
-    
     from grid_info import GridInfo
     
-    
-    ts = datetime(2018, 9, 20, 00, 0, 00, 000000)    
+    ts = datetime(2018, 9, 20, 00, 0, 00, 000000)
     grid = GridInfo('Grid_Info_DATA_2.csv')   
     
-#    fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
+    # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
     fleets = ['ElectricVehicle']
     
     energy_market = EnergyMarketService()
@@ -397,11 +393,9 @@ def main():
             fleet = ElectricVehiclesFleet(grid, ts)
             energy_market.fleet = fleet   
 
-            
     req, resp = energy_market.request_loop()
     return req, resp
 
+
 if __name__ == "__main__":
    req, resp = main()
-       
-    
