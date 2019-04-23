@@ -12,9 +12,9 @@
 ### 2. Description
  
 This document provides the guidelines to use the `HVACFleet` class and describes its structure and basic functionality. Assumptions of the model and singularities of this fleet are remarked here:
-  - Variability in the daily schedules of electric vehicles drivers. This variability makes the availability of the fleet limited to the moments when the cars are plugged-in.
-  - User of electric cars want to have the control of their own charging strategy: electric cars manufacturers allow the users to choose among various charging strategies: start charging immediately, at midnight, or at a time to be fully charged before the beginning of the next day.
-  - Bidirectional charging is not considered in this model. 
+  - Variability in HVAC size, efficiency are randomly sampled from nominal building parameters.
+  - Experior disturbance signals have been also randomly pciked from nominal weather file.the daily schedules of electric vehicles drivers. This variability makes the availability of the fleet limited to the moments when the cars are plugged-in.
+  - The model will auto interpolate the model and disturbance signals to run at any desired time resolutions.
 
 ### 3. Structure of the `HVACFleet` class:
 
@@ -28,7 +28,7 @@ This document provides the guidelines to use the `HVACFleet` class and describes
 | `self.numHVAC`    | `int`|   200    | Number of total HVAC units in the fleet. The larger the number of the fleet, the better the results, but CPU time increases as the `numHVAC` does so.   |
 | `self.Tset`    | `real`|   23   | Average temperature setpoints across all the buildings in Celsius.  |
 | `self.deadband`    | `real`|   0.5   | Traditional thermostat deadbands in Celsius.  |
-| `self.dt`  | `int` | 1 | Time step in seconds for `forecast` and `process_request` methods. |
+| `self.dt`  | `int` | 10*60 | Default time step in seconds for `forecast` and `process_request` methods. |
 
 
 #### 3.1.2. Other variables
@@ -43,18 +43,20 @@ Apart from the inherited methods of the `FleetInterface` class, there are other 
     * Prameters: 
       * `P_req`: active power requested.
       * `Q_req`: reactive power requested.
-      * `initSOC`: initial SOC of the sub fleets.
+      * `initSOC`: initial SOC of the fleet.
       * `t`: local time of the class.
       * `dt`: time step
     * Returns:
       * `response`: an instance of the `FleetResponse` class.
       
-2. `self.run_baseline_simulation(self)`: This method is used to simulate and restore baseline power and SOC. 
+2. `self.run_baseline_simulation(self)`: This method is used to simulate and store baseline power, indoor temperatures, and SOC. 
     * Parameters:
     * Returns:
-      * It does not return anything, but it exports two csv files with the results of the SOC and the baseline power of the fleet.
+      * It does not return anything, but it exports several csv files with the results of the baseline power, indoor temperatures, and SOC of the fleet.
     
 ### 4. Run tests
+
+A standard test is provided by running the 'test_jin.py' inside the '/src' folder.
 
 * Specify grid information and initial timestamp of request to instantiate the fleet:
 ```python 
@@ -69,7 +71,7 @@ fleet_test = HVACFleet(grid, ts)
 * Specify time step and simulation time:
 ```python
 import numpy as np
-dt = 30*60
+dt = 10*60
 fleet_test.dt = dt # in seconds
 seconds_of_simulation = 3600*24
 local_time = fleet_test.get_time_of_the_dat(ts)
@@ -86,68 +88,3 @@ for i in range(len(t)):
   req = FleetRequest(ts, dt, power_request[i], 0.)
   requests.append(req)
 ```
-
-* Run a forecast and export results (**This may take a while depending on the system**):
-
-```python
-FORECAST = fleet_test.forecast(requests)
-# Store values as lists
-power_service = []
-max_power_service = []
-power_response = []
-energy_stored = np.zeros([len(t), ])
-for i in range(len(t)):
-  power_service.append(FORECAST[i].P_service)
-  max_power_service.append(FORECAST[i].P_service_max)
-  power_response.append(FORECAST[i].P_togrid)
-  energy_stored[i] = FORECAST[i].E
-```
-
-* If desired, export impact metrics and print them by screen:
-```python
-import pandas as pd
-fleet_test.output_metrics()
-print(pd.read_csv('impact_metrics.csv'))
-```
-
-* Make the plots:
-```python
-from plot_test import Plots
-plots = Plots()
-plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
-
-# Read baseline power if want to visualize total power injected to the grid:
-df_baseline = pd.read_csv(os.path.join(dirname,'data/power_baseline_charging_modes.csv' ))
-power_baseline = (fleet_test.strategies[1][0]*df_baseline['power_RightAway_kW'].iloc[local_time:local_time+seconds_of_simulation] + 
-                 fleet_test.strategies[1][1]*df_baseline['power_Midnight_kW'].iloc[local_time:local_time+seconds_of_simulation]  +
-                 fleet_test.strategies[1][2]*df_baseline['power_TCIN_kW'].iloc[local_time:local_time+seconds_of_simulation])
-plots.power_to_grid(t, power_response, power_baseline, power_request, ts, dt, seconds_of_simulation)
-plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
-```
-
-* Test of the `process_request_method` is also shown. First, re-initialization of the fleet is required:
-```python
-fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
-fleet_test.time = fleet_test.get_time_of_the_day(ts)
-fleet_test.dt = dt
-
-# process the requests 
-SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
-i = 0
-for req in requests:
-    fleet_test.process_request(req)
-    # The SOC change!
-    SOC_time[:,i] = fleet_test.SOC
-    i+=1
-    
-SOC_fleet_time = np.mean(SOC_time, axis = 0)
-SOC_right_away = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy) if x=='right away']], axis = 0)
-SOC_midnight = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy) if x=='midnight']], axis = 0)
-SOC_tcin = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy) if x=='tcin']], axis = 0)
-
-plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, SOC_midnight, SOC_tcin, ts, dt, seconds_of_simulation)
-```
-
-### 4. Results and analysis
-
-The response to a grid service request for one 24 hours-simulation is shown in this figure. As it can be observed, at the beginning of the day (5 AM), most of the vehicles are unplugged while driving, at work, or other places. Therefore, the fleet will not be able to track the grid service request. Once the sub fleets start arriving home after work around 4:30 PM, the fleet starts tracking the request accurately. Again, at the end of the day, when the TCIN constraint starts affecting, the request is not met.
