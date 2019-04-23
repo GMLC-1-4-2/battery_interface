@@ -19,12 +19,13 @@ class FleetRequest:
         """
         # Timestamp in simulation loop: datetime
         self.ts_req = ts
-        
-        # Timestamp in simulation loop: datetime
-        self.start_time = start_time
 
         # Simulation time step: timedelta object
         self.sim_step = sim_step
+        
+        # Initial timestamp in simulation loop: datetime 
+        # Used for artificial inertia service
+        self.start_time = start_time
 
         # Real power request
         self.P_req = p
