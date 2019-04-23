@@ -172,7 +172,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
-        fleet_responses = service.request_loop(start_time=start_time)
+        fleet_responses = service.request_loop(start_time=start_time, sim_step=sim_step)
         metrics_calc_start_time = kwargs['metrics_calc_start_time']
         metrics_calc_end_time = kwargs['metrics_calc_end_time']
 
