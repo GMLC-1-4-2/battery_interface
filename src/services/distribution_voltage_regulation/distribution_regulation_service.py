@@ -5,8 +5,6 @@
 
 import sys
 from os.path import dirname, abspath, join
-import os
-
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from dateutil import parser
@@ -16,7 +14,6 @@ import configparser
 import numpy
 import maya
 import csv
-from pathlib import Path
 
 import utils
 from fleet_interface import FleetInterface
@@ -58,8 +55,7 @@ class DistributionVoltageService:
         #self.starttime = self.config.get(config_header, 'starttime')
         #self.endtime = self.config.get(config_header, 'endtime')
 
-        self.sim_step = timedelta(seconds=30)
-        
+        #self.sim_step = timedelta(seconds=30)
 
     def request_loop(self, sensitivity_P = 0.0001, 
                      sensitivity_Q = 0.0005,
@@ -140,7 +136,7 @@ class DistributionVoltageService:
         Preq=[r.P_req for r in requests]
         Qreq=[r.Q_req for r in requests]
             
-        fig=plt.figure(1)
+        plt.figure(1)
         plt.subplot(211)
         plt.plot(ts_request, Preq, label='Req.')
         plt.plot(ts_request, Pach, label='Achieved')
@@ -160,25 +156,10 @@ class DistributionVoltageService:
         plt.title('Fleet Reactive Power')
         plt.legend(loc='lower right')
         
-        data_folder=os.path.dirname(sys.modules['__main__'].__file__)
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse'  + '.png'
-        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
-
-        plt.savefig(File_Path_fig, bbox_inches='tight')
-#        File_Path_fig = os.path.join(self.base_path , 'VR_Fleet_Response.png')
-#        fig.savefig(File_Path_fig)
         #plt.legend(loc='lower right')
-        plt.close
         ServiceEefficacy=[]
         ValueProvided=[]
         ValueEfficacy=[]
- 
-        CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_'  + '.csv'
-
-        data_folder=os.path.dirname(sys.modules['__main__'].__file__)
-        File_Path_CSV = join(data_folder, 'integration_test','Voltage_Regulation',CSV_FileName)
-        self.write_csv(File_Path_CSV,'Time','service efficacy (%)','value provided ($)','value efficacy (%)')
-       
         for idd in range(len(Pach)):
             service_efficacy,value_provided,value_efficacy=self.calculation(Prequest=Preq[idd],
                                 Qrequest=Qreq[idd],P0=Pach[idd],Q0=Qach[idd],price_P=1,price_Q=1)
@@ -186,8 +167,7 @@ class DistributionVoltageService:
             ServiceEefficacy.append(service_efficacy)
             ValueProvided.append(value_provided)
             ValueEfficacy.append(value_efficacy)
-            
-            self.write_csv(File_Path_CSV,ts_request[idd],service_efficacy,value_provided,value_efficacy)
+            self.write_csv(ts_request[idd],service_efficacy,value_provided,value_efficacy)
 
         fig, axs = plt.subplots(3, 1)
         axs[0].plot(ts_request, ServiceEefficacy)
@@ -205,11 +185,6 @@ class DistributionVoltageService:
         #axs[1].set_xlabel('time (s)')
         axs[2].set_title('ValueEfficacy')
         axs[2].set_ylabel('%')
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_ServiceMetrics'  + '.png'
-        
-        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
-        plt.savefig(File_Path_fig, bbox_inches='tight')
-
         
         plt.show()    
             
@@ -252,8 +227,9 @@ class DistributionVoltageService:
     def fleet(self, value):
         self._fleet = value
         
-    def write_csv(self,File_Path,ts_request,service_efficacy,value_provided,value_efficacy):     
+    def write_csv(self,ts_request,service_efficacy,value_provided,value_efficacy):
         
-        with open(File_Path, mode='a',newline='') as impact_metris:
+
+        with open('impact_metris_VR.csv', mode='a',newline='') as impact_metris:
             impact_metris_writer = csv.writer(impact_metris)
             impact_metris_writer.writerow([ts_request,service_efficacy,value_provided,value_efficacy])
