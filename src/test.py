@@ -172,14 +172,24 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
-        fleet_responses = service.request_loop(start_time=start_time, sim_step=sim_step)
-        avg = service.calculation(fleetname=fleet_name, responses=fleet_responses, start_time=start_time)
-        print(avg)
+        fleet_responses = service.request_loop(start_time=start_time)
+        metrics_calc_start_time = kwargs['metrics_calc_start_time']
+        metrics_calc_end_time = kwargs['metrics_calc_end_time']
+
+        # service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time,
+        #                                                      metrics_calc_start_time=metrics_calc_start_time,
+        #                                                      metrics_calc_end_time=metrics_calc_end_time)
+
+        service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time)
+        print(service_efficacy)
 
     elif service_name == 'DistributionVoltageService':
         service.sim_step = kwargs['sim_step']
-        fleet_responses, fleet_requests = service.request_loop()
+        fleet_responses, fleet_requests = service.request_loop(start_time=start_time)
 
+    elif service_name == 'EnergyMarketService':
+        fleet_requests, fleet_responses = service.request_loop()
+        
     else:
         pass
 
