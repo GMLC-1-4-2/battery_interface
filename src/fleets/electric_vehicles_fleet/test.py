@@ -52,7 +52,7 @@ power_request = 50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 # List of requests
 requests = []
 for i in range(len(t)):
-    req = FleetRequest(ts, sim_step, power_request[i], 0.)
+    req = FleetRequest(ts+i*sim_step, sim_step, ts, power_request[i], 0.)
     requests.append(req)
    
 print("SOC init = ", fleet_test.SOC)
@@ -68,14 +68,18 @@ power_service = []
 max_power_service = []
 power_response = []
 energy_stored = np.zeros([len(t),])
+eff_charging = []
+eff_discharging = []
 for i in range(len(t)):  
     power_service.append(FORECAST[i].P_service)
     max_power_service.append(FORECAST[i].P_service_max)
     power_response.append(FORECAST[i].P_togrid)
     energy_stored[i] = FORECAST[i].E
- 
-#fleet_test.output_impact_metrics()  
-#print("The impact metrics file has been produced: state of health of the batteries")
+    eff_charging.append(FORECAST[i].Eff_charge)
+    eff_discharging.append(FORECAST[i].Eff_discharge)
+    
+fleet_test.output_impact_metrics()  
+print("The impact metrics file has been produced: state of health of the batteries")
 print(pd.read_csv('impact_metrics.csv'))
 
 plots = Plots()

@@ -27,28 +27,29 @@ def create_fleet(name, grid_type=1, **kwargs):
         # Time stamp to start the simulation
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
-        ts = datetime(2018, 9, 20, 16, 0, 00, 000000)
+        ts = kwargs['start_time'] # Read it from kwargs dictionary
 
-        fleet_test = ElectricVehiclesFleet(grid, ts)
-        fleet_test.is_autonomous = False
-        fleet_test.is_P_priority = True
-
+        ev_fleet = ElectricVehiclesFleet(grid, ts)
+        ev_fleet.is_autonomous = False
+        ev_fleet.is_P_priority = True
+        ev_fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
-           fleet_test.is_autonomous = True
-        fleet_test.VV11_Enabled = False
-        fleet_test.FW21_Enabled = True
-        fleet_test.dt = dt
+           ev_fleet.is_autonomous = True
+        ev_fleet.VV11_Enabled = False
+        ev_fleet.FW21_Enabled = True
 
-        return fleet_test
+        return ev_fleet
 
     elif name == 'PV':
         from fleets.PV.PV_Inverter_Fleet import PVInverterFleet
         fleet = PVInverterFleet(GridInfo=grid)
+        fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
            fleet.is_autonomous = True
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
+
     elif name == 'WaterHeater':
         from fleets.water_heater_fleet.WH_fleet_control import WaterHeaterFleet
         fleet = WaterHeaterFleet()
@@ -57,6 +58,17 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
+
+    elif name == 'Electrolyzer':
+        from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet
+        fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+        return fleet
+
+    elif name == 'FuelCell':
+        from fleets.fuel_cell_fleet.fuelcell_fleet import FuelCellFleet
+        fleet = FuelCellFleet("", "config.ini", "FuelCell")
+        return fleet
+
 
     elif name == 'HVAC':
         return None
