@@ -191,7 +191,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         fleet_requests, fleet_responses = service.request_loop()
         
     else:
-        pass
+        raise 'Could not recognize service with name ' + service_name
 
 
 def dynamic_time_step(service_name, fleet_name):
