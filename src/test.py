@@ -64,6 +64,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             fleet_response = service.request_loop(service_type=service_type,
                                                     start_time=parser.parse(monthtimes[month][0]),
                                                     end_time=parser.parse(monthtimes[month][1]),
+                                                    sim_step=sim_step,
                                                     clearing_price_filename='historical-ancillary-service-data-2017.xls',
                                                     fleet_name=assigned_fleet_name)
             month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
@@ -124,6 +125,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             start_time = parser.parse(monthtimes[month][0])
             fleet_response = service.request_loop(start_time=start_time,
                                                   end_time=parser.parse(monthtimes[month][1]),
+                                                  sim_step=sim_step,
                                                   clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
                                                   previous_event_end=previous_event_end,
                                                   four_scenario_testing=False,
@@ -198,30 +200,59 @@ def dynamic_time_step(service_name, fleet_name):
     # Set simulation time step based on the default of the service and the limits of the device fleet
 
     fleet_step_min = {
-        'BatteryInverter':  timedelta(seconds=60 / 60),
-        'ElectricVehicle':  timedelta(seconds=60 / 60),
-        'PV':               timedelta(seconds=2 / 60),
-        'WaterHeater':      timedelta(seconds=60 / 60),
-        'Electrolyzer':     timedelta(seconds=60 / 60),
-        'FuelCell':         timedelta(seconds=60 / 60),
-        'HVAC':             timedelta(seconds=60 / 60),
-        'Refridge':         timedelta(seconds=60 / 60)
+        'BatteryInverter': timedelta(seconds=1),
+        'ElectricVehicle': timedelta(seconds=1),
+        'PV': timedelta(seconds=2/60),
+        'WaterHeater': timedelta(seconds=1),
+        'Electrolyzer': timedelta(seconds=1),
+        'FuelCell': timedelta(seconds=1),
+        'HVAC': timedelta(seconds=1),
+        'Refridge': timedelta(seconds=1)
+    }
+
+    fleet_step_max = {
+        'BatteryInverter': timedelta(minutes=5),
+        'ElectricVehicle': timedelta(minutes=5),
+        'PV': timedelta(minutes=15),
+        'WaterHeater': timedelta(minutes=60),
+        'Electrolyzer': timedelta(minutes=15),
+        'FuelCell': timedelta(minutes=15),
+        'HVAC': timedelta(minutes=15),
+        'Refridge': timedelta(minutes=15)
     }
 
     service_step_default = {
-        'Regulation':                   timedelta(minutes=1),
-        'Reserve':                      timedelta(seconds=2),
-        'ArtificialInertia':            timedelta(seconds=2 / 60),
-        'DistributionVoltageService':   timedelta(seconds=30)
+        'Regulation': timedelta(seconds=2),
+        'Reserve': timedelta(minutes=1),
+        'ArtificialInertia': timedelta(seconds=2 / 60),
+        'DistributionVoltageService': timedelta(seconds=30),
+        'EnergyMarketService': timedelta(minutes=60)
     }
 
     if service_name in ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']:
         sim_step = max(service_step_default[service_name], fleet_step_min[fleet_name])
 
-        if sim_step > service_step_default[service_name]:
+        if service_name in ['Regulation', 'Reserve']:
+            if sim_step != service_step_default[service_name]:
+                raise Exception('Need to run with default time step for ' + service_name + ' in current build')
+
+        elif sim_step > service_step_default[service_name]:
             print('     Executing ' + service_name + ' at slower time step for ' + fleet_name)
 
+    elif service_name in ['EnergyMarketService']:
+        sim_step = min(service_step_default[service_name], fleet_step_max[fleet_name])
+
+        if not (service_step_default[service_name] / sim_step).is_integer():
+            raise Exception('Maximum fleet device timestep needs to be a factor of ' + service_name + 'default timestep')
+
+        elif sim_step > service_step_default[service_name]:
+            print('     Executing ' + service_name + ' at faster time step for ' + fleet_name)
+
+    else:
+        raise Exception('Need to integrate time step defaults for ' + service_name)
+
     return sim_step
+
 
 
 # =======================  MAIN  ==========================
