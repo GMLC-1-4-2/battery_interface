@@ -17,7 +17,7 @@ class FleetRequest:
     """
 
     def __init__(self, ts=datetime.utcnow(),
-                 sim_step=timedelta(hours=1),
+                 sim_step=timedelta(minutes=10),
                  start_time=None,
                  p=None, q=None, steps=1):
         """

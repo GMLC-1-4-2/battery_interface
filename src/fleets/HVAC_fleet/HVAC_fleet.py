@@ -17,11 +17,16 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 ################################################################
 
 from configparser import ConfigParser
-from datetime import datetime, timedelta
+import datetime
+from datetime import timedelta
 # This is the actual building thermal and HVAC models
 #import build_model as bm
 from fleets.HVAC_fleet.build_model import BuildingModel
 from fleets.HVAC_fleet.build_model import AC
+from fleets.HVAC_fleet.build_model import EIR
+from fleets.HVAC_fleet.build_model import Capacity
+from fleets.HVAC_fleet.build_model import SHR
+from fleets.HVAC_fleet.build_model import building
 
 #from HVACFleet import FleetResponse   #HVACFleet
 from fleet_interface import FleetInterface
@@ -43,7 +48,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, GridInfo, ts, sim_step):
+    def __init__(self, GridInfo, ts):  # add , sim_step later
         """
         for battery def __init__(self, GridInfo,**kwargs):
         old: (self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40)
@@ -59,7 +64,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
        
         # Load config file and store data in a dataframe
         LC = LoadConfig(config)
-        self.df_VehicleModels = LC.get_config_models()
+        self.df_HVACModels = LC.get_config_models()
         
         # Run baseline power to store baseline power and SOC if parameters 
         # of the fleet are changed. ONLY ASSIGN TRUE IF YOU CHANGE THE 
@@ -71,24 +76,28 @@ class HVACFleet(FleetInterface):   #FleetInterface
         base_path = dirname(abspath(__file__))
 
         # Total number of HVACs
-        self.numHVAC = self.df_VehicleModels['Total_HVACs'].sum()
+        self.numHVAC = self.df_HVACModels['Total_HVACs'].sum()
 
         #INPUTS
         self.shortcycle=5*60 # Shortcycle minimum time (minutes) that AC unit has to stay off before turning back on
         self.minrun=1*60 # minutes minimum runtime for unit
         self.Twb_assumed=16.666667  #assumed indoor wet bulb temperature
 
-        self.ts = 1.0 # in seconds
-        self.shortcycle_ts=int(round(self.shortcycle/self.ts,0))  #number of time steps during short cycle timer
-        self.minrun_ts=int(round(self.minrun/self.ts,0))
+        
+        " TODO: update this sim_step in main interface "
+
+        self.sim_step = 10.0 * 60 # 10 min in seconds
+        
+        self.shortcycle_ts=int(round(self.shortcycle/self.sim_step,0))  #number of time steps during short cycle timer
+        self.minrun_ts=int(round(self.minrun/self.sim_step,0))
         self.Tset = 23.0 #Celsius  cooling set point
         self.deadband=0.5 #Celsius cooling dead band
 
                
         # #%% Frequency-watt parameters
         # FrequencyWatt='Frequency Watt'
-        # self.db_UF=float(self.config.get(FrequencyWatt,'db_UF'))
-        # self.db_OF=float(self.config.get(FrequencyWatt,'db_OF'))
+        # self.db_UF=float(LC.get(FW,'db_UF'))
+        # self.db_OF=float(LC.get(FW,'db_OF'))
         # self.k_UF=float(self.config.get(FrequencyWatt,'k_UF'))
         # self.k_OF=float(self.config.get(FrequencyWatt,'k_OF'))
 
@@ -97,10 +106,6 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # represents low efficiency, normal efficiency and high efficiency houses (corresponding to different envelope/insulation parameters)
         # for envelope type, location and max. number of service calls need to specify discrete values and randomly sampled to get a desired distribution 
         # self.numHVAC = 200 # number of HVACs in fleet, default 200
-#        Steps = 60 #num steps in simulation 6 steps = 1 hour 1 day = 24*6 = 144
-#        lengthRegulation = 20 # num of 4-second steps for regulation signal
-#        addshedTimestep = 10 # minutes, NOTE, MUST BE AN INTEGER DIVISOR OF 10. Acceptable numbers
-        # self.ts = ts  # mins/interval of discrete control
 
         # How to calculate effective fleet rating: this is going to be poorly
         # met because it does not consider random availability of the fleet. 
@@ -240,7 +245,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # inputs_ts['Tsolw']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADW]*0.3/inputs_ts[c.COL_H]
         # inputs_ts['Tsolr']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADR]*0.8/inputs_ts[c.COL_H]
 
-        measurement = pd.read_excel('./data_file/Vegas_TMY3_July_10mins.xlsx')   # or Min5_data_vegas.xlsx
+        measurement = pd.read_excel('./fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx')   # or Min5_data_vegas.xlsx
         #        measurement_or['Date/Time']=pd.to_datetime(measurement_or['Date/Time'])
         #        measurement_or = measurement_or.set_index('Date/Time')
         #        measurement = measurement_or.resample(str(ts)+'T').interpolate()  # interpolate from Hour to 10 min
@@ -281,7 +286,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.Qsolar_mass10 = (1-Sp3)*Qsolar  
 
         # interpolate the data from 10 mins to desired time resolution in seconds
-        (self.Qsolar_i, self.Qsolar_mass, temp_sol_W, temp_sol_R) = get_inputs(self.Qsolar_i10, self.Qsolar_mass10, self.temp_sol_W10, self.temp_sol_R10, sim_step, ts)  
+        (self.Qsolar_i, self.Qsolar_mass, temp_sol_W, temp_sol_R) = get_inputs(self.Qsolar_i10, self.Qsolar_mass10, self.temp_sol_W10, self.temp_sol_R10, self.sim_step, self.ts)  
 
         # Load the other disturbance signals by randomly sampling with different weather conditions     
         Tamb = []
@@ -291,7 +296,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
         for a in range(self.numHVAC):             
       
-            (tamb, IHL_s) = get_daily_conditions(self.Location[a], dt, ts)  # location, timestep_s, start_time
+            (tamb, IHL_s) = get_daily_conditions(self.Location[a], self.sim_step, self.ts)  # location, timestep_s, start_time
             
             tsol_W = tamb + temp_sol_W
             tsol_R = tamb + temp_sol_R
@@ -322,8 +327,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.AvailableCapacityShed = [0 for x in range(self.numHVAC)]
         self.ServiceCallsAccepted = [0 for x in range(self.numHVAC)]
         self.ServiceProvided = [0 for x in range(self.numHVAC)]
-        self.IsAvailableAdd = [0 for x in range(self.numHVAC)]
-        self.IsAvailableShed = [0 for x in range(self.numHVAC)]
+        self.IsAvailableAdd = [0 for x in range(self.numHVAC+1)]
+        self.IsAvailableShed = [0 for x in range(self.numHVAC+1)]
 
         self.elementOn = [0 for x in range(self.numHVAC)]
         self.lockon = [0 for x in range(self.numHVAC)]
@@ -333,8 +338,6 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.cycle_off_grid = [0 for x in range(self.numHVAC)]
         self.cycle_on_grid = [0 for x in range(self.numHVAC)]
  
-        # TotalServiceProvidedPerHVAC = [0 for y in range(self.numHVAC)]
-        self.TotalServiceProvidedPerTimeStep = [0 for y in range(Steps)]
         
         # MaxServiceAddedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
         # MaxServiceShedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
@@ -347,10 +350,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.AvailableCapacityAddInit = [0 for y in range(self.numHVAC)]
         self.AvailableCapacityShedInit = [0 for y in range(self.numHVAC)]
 
-        self.IsAvailableAddInit = [1 for y in range(self.numHVAC)]
-        self.IsAvailableShedInit = [1 for y in range(self.numHVAC)]
+        self.IsAvailableAddInit = [1 for y in range(self.numHVAC+1)]
+        self.IsAvailableShedInit = [1 for y in range(self.numHVAC+1)]
         
-        self.step = 1
+        self.step = 0
 
         P_req = 0
 
@@ -391,6 +394,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         """
         ts = fleet_request.ts_req   # starting time
         dt = int(fleet_request.sim_step.total_seconds())   #fleet_request.sim_step  # Sim_step is how long a simulation time step
+        # dt in timedelta format
         p_req = fleet_request.P_req
         q_req = fleet_request.Q_req
 
@@ -400,12 +404,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
         return fleet_response
 
-    # Example code for Frequency Watt Function (following battery intvrter)
-    '''
-     However, reactive power is not modeled in current model.
-     So, we skipped the VVO function.
-    '''
-    def frequency_watt(self, p_req = 0,ts=datetime.utcnow(),location=0):
+    # Example code for Frequency Watt Function (following PV inverter)
+
+    def frequency_watt(self, ts=datetime.datetime.utcnow(),location=0, start_time=None):
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -415,42 +416,42 @@ class HVACFleet(FleetInterface):   #FleetInterface
         """
         f = self.grid.get_frequency(ts,location)
 
-        if f < 60 - db_UF:
-            p_mod = 0
-        elif f > 60 + db_OF:
-            p_mod = p_req
+        from os.path import join
+        
+        # TODO Read and load forecast data
+
+        # File_Path_Forecast = join(self.base_path , 'Forecast.npy')
+        # File_Path_OperatingPoint = join(self.base_path , 'Operating_Point_Pre.npy')
+        # [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]=np.load(File_Path_Forecast)
+    
+        # [P_pre,Q_Pre,P_Requested,Q_Requested,Last_Time]=np.load(File_Path_OperatingPoint)
+        # ts_local=self.datetime_from_utc_to_local(ts)
+        # T_Stamp=[ts_local.year,ts_local.month,ts_local.day,ts_local.hour,ts_local.minute,ts.second]
+ 
+        # Current_Forecast_indx=self.Match_Time(Time_,T_Stamp)
+        P_avl=Pmpp_AC[Current_Forecast_indx]/self.s_max
+        P_min=self.p_min/self.s_max
+        P_pre=P_pre/self.s_max
+     
+        if f<60-self.db_UF:
+            P=min(P_pre+((60-self.db_UF)-f)/(60*self.k_UF),P_avl)
+        elif f>60+self.db_OF:
+            P=max(P_pre-(f-(60+self.db_OF))/(60*self.k_OF),P_min)
         else:
-            p_mod = p_prev
-
-        return p_mod
-
-    # def update_soc_due_to_frequency_droop(self, initSOC, subfleet_number, p_subfleet, dt):
-    #     """
-    #     This method returns the modified state of charge of each subfleet 
-    #     due to frequency droop in the grid
-    #     """
-    #     p_dc = self.power_dc_charger(self.df_VehicleModels['AC_Watts_Losses_0'][self.SubFleetId[subfleet_number]],
-    #                                  self.df_VehicleModels['AC_Watts_Losses_1'][self.SubFleetId[subfleet_number]],
-    #                                  self.df_VehicleModels['AC_Watts_Losses_2'][self.SubFleetId[subfleet_number]],
-    #                                  self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet_number]], p_subfleet)
-    #     R = self.resistance_battery(self.df_VehicleModels['R_SOC_0'][self.SubFleetId[subfleet_number]],
-    #                                 self.df_VehicleModels['R_SOC_1'][self.SubFleetId[subfleet_number]],
-    #                                 self.df_VehicleModels['R_SOC_2'][self.SubFleetId[subfleet_number]], initSOC)
-    #     v_oc = self.voltage_battery(self.df_VehicleModels['V_SOC_0'][self.SubFleetId[subfleet_number]],
-    #                                 self.df_VehicleModels['V_SOC_1'][self.SubFleetId[subfleet_number]],
-    #                                 self.df_VehicleModels['V_SOC_2'][self.SubFleetId[subfleet_number]], 
-    #                                 self.df_VehicleModels['Number_of_cells'][self.SubFleetId[subfleet_number]],initSOC,0,0)
+            """
+            select the operating mode withing deadband range
+            """
+            P=P_avl*(1-self.FW_P_reserve)
+            
+        dt = timedelta(hours=1)
+        p_req = P*self.SubFleet_NumberOfUnits*self.s_max
+        q_req = None
+        # call run function with proper inputs    
         
-    #     ibat_charging = self.current_charging(v_oc,R,p_dc) 
-    #     Ah_rate = ibat_charging/3600
-    #     charge_rate = Ah_rate/self.df_VehicleModels['Ah_usable'][self.SubFleetId[subfleet_number]]
-    #     SOC_update = initSOC + charge_rate*dt
-        
-    #     if SOC_update > 1:
-    #         p_subfleet = 0
-    #         SOC_update = initSOC
-
-    #     return p_subfleet*self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet_number]])/1000, SOC_update
+   
+        fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
+#        print('t = ',ts_local,' f =',f, ' and p = ',P, 'P_avl = ',P_avl, 'P_pre = ',P_pre,' Current_Forecast_indx = ',Current_Forecast_indx)
+        return fleet_response
 
     # Example code for VVO
     '''
@@ -523,9 +524,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
         for n in range(self.numHVAC):
-            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0 and self.SoC[n] < self.maxSOC and self.AvailableCapacityAdd[n] > self.minCapacityAdd:
+            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC and self.AvailableCapacityAdd[n] > self.minCapacityAdd:
                 NumDevicesToCall += 1
-            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0 and self.SoC[n] > self.minSOC and self.AvailableCapacityShed[n] > self.minCapacityShed:
+            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC and self.AvailableCapacityShed[n] > self.minCapacityShed:
                 NumDevicesToCall += 1          
     
         P_request_perHVAC =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
@@ -537,6 +538,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             TwallLast = self.TwallInitial[number]
             TmassLast = self.TmassInitial[number]
             TatticLast = self.TatticInitial[number] 
+
             if P_req<=0 and self.IsAvailableAdd[number] > 0 :
             # For step >=1, can use last step temperature...        
                 response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
@@ -555,12 +557,14 @@ class HVACFleet(FleetInterface):   #FleetInterface
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
                 P_req =  P_req - response.Eservice    
             # break
+
             else:        
                 response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], 0, dt, self.IHL_fleet_ave[self.step], self.elementOn[number], 
                                         self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
+
             # assign returned parameters to associated lists to be recorded
             self.TsetInitial[number] = response.Tset
             self.TinInitial[number] = response.Tin
@@ -576,7 +580,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.cycle_off_grid[number] = response.cycle_off_grid
             self.cycle_on_grid[number] = response.cycle_on_grid
             
-            self.SoC[number] = response.SOC
+            self.SOC[number] = response.SOC
             self.IsAvailableAdd[number] = response.IsAvailableAdd
             self.IsAvailableShed[number] = response.IsAvailableShed
             
@@ -610,45 +614,45 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
         FleetResponse.ts = ts
 
-        TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*
+        # TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*
         
         """
         Modify the power and SOC of the different subfeets according 
         to the frequency droop regulation according to IEEE standard
         """
-        for hvac in range(self.numHVAC):
-            if self.IsAvailableAdd[number] > 0:
-                if self.FW21_Enabled and self.is_autonomous:
-                    power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet]]
-                    p_prev = power_subfleet[subfleet]*1000/(self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]]))
-                    power_subfleet[subfleet] = self.frequency_watt(power_ac,
-                                                                    p_prev,
-                                                                    self.ts,
-                                                                    self.location[subfleet],
-                                                                    self.db_UF_subfleet[subfleet],
-                                                                    self.db_OF_subfleet[subfleet])
-                    power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
-                                                                                                            subfleet,
-                                                                                                            power_subfleet[subfleet],
-                                                                                                            dt)
-                else:
-                    break
+        # for hvac in range(self.numHVAC):
+        #     if self.IsAvailableAdd[number] > 0:
+        #         if self.FW21_Enabled and self.is_autonomous:
+        #             power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet]]
+        #             p_prev = power_subfleet[subfleet]*1000/(self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]]))
+        #             power_subfleet[subfleet] = self.frequency_watt(power_ac,
+        #                                                             p_prev,
+        #                                                             self.ts,
+        #                                                             self.location[subfleet],
+        #                                                             self.db_UF_subfleet[subfleet],
+        #                                                             self.db_OF_subfleet[subfleet])
+        #             power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
+        #                                                                                                     subfleet,
+        #                                                                                                     power_subfleet[subfleet],
+        #                                                                                                     dt)
+        #         else:
+        #             break
 
-        # Demand of power
-        power_demanded = np.sum(power_subfleet, axis = 0)
+        # # Demand of power
+        # power_demanded = np.sum(power_subfleet, axis = 0)
             
-            # # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
-            # for subfleet in range(self.N_SubFleets):
-            #     if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
-            #         if self.monitor_strategy[subfleet] == 'right away':
-            #             SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
-            #             if SOC_check > 1:
-            #                 power_subfleet[subfleet] = 0
+        #     # # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
+        #     # for subfleet in range(self.N_SubFleets):
+        #     #     if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
+        #     #         if self.monitor_strategy[subfleet] == 'right away':
+        #     #             SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
+        #     #             if SOC_check > 1:
+        #     #                 power_subfleet[subfleet] = 0
         
-            # # # Maximum demand of power
-            # # max_power_demanded = np.sum(power_subfleet, axis = 0)    
+        #     # # # Maximum demand of power
+        #     # # max_power_demanded = np.sum(power_subfleet, axis = 0)    
         
-        self.SOC = SOC_step
+        # self.SOC = SOC_step
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
         # Restart time if it surpasses 24 hours
@@ -669,12 +673,12 @@ class HVACFleet(FleetInterface):   #FleetInterface
         :return res: list of service responses
         """
         responses = []
-        SOC = self.soc 
+        SOC = self.SOC 
 
-        TinR = self.Tin
-        TwallR = self.Twall
-        TmassR = self.Tmass
-        TatticR = self.Tattic
+        TinR = self.TinInitial
+        TwallR = self.TwallInitial
+        TmassR = self.TmassInitial
+        TatticR = self.TatticInitial
 
         # Iterate and process each request in fleet_requests
         for req in requests:
@@ -682,7 +686,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             dt = int(req.sim_step.total_seconds())
             p_req = req.P_req
             q_req = req.Q_req
-            res = self.simulate(p_req, q_req, self.SOC, self.time, dt, ts)
+            res = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
 
             responses.append(res)
                     
@@ -710,12 +714,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
                        
         print("Exported baseline soc, Temperatures, power and HVAC cycles ...")
         
-        # base_path = dirname(abspath(__file__))
-        # path = join(base_path,'data')
+        base_path = dirname(abspath(__file__))
+        path = join(base_path,'data')
         
-        # df_soc.to_csv(join(path, r'SOC_baseline.csv'), index = False)
-        # df_power.to_csv(join(path, r'power_baseline.csv'), index = False)
-        # print("Exported")
+        # Already saved inside the right away function
+        # baseline_soc.to_csv(join(path, r'SOC_baseline.csv'), index = False)
+        # baseline_power.to_csv(join(path, r'power_baseline.csv'), index = False)
+        # baseline_Tin.to_csv(join(path, r'Tin_baseline.csv'), index = False)
+        # baseline_Tin_max.to_csv(join(path, r'Tin_max_baseline.csv'), index = False)
+        # baseline_Tin_min.to_csv(join(path, r'Tin_min_baseline.csv'), index = False)
+        print("Exported")
 
     def run_baseline_right_away(self, n_days_base, sim_time):
         """ Method to run baseline with 1-day ahead simulation strategy """
@@ -727,29 +735,43 @@ class HVACFleet(FleetInterface):   #FleetInterface
         baseline_Tin_min = np.zeros([sim_time, ])
         baseline_soc = np.zeros([sim_time, ])   
         baseline_std_soc = np.zeros([sim_time, ]) 
+
+        EIRrated = 0.31019
+        Qrated=14600
+
+        # inputs and outputs path
+        inputs_file='./fleets/HVAC_fleet/data_file/LasVegas_HighCDD.csv'
+        bldg_file='./fleets/HVAC_fleet/data_file/normal_building_para.xlsx'
+        save_dir='./fleets/HVAC_fleet/data_file/baseline'
+
+
+        #read in weather data and increase resolution to match time step of simulation
+        inputs=pd.read_csv(inputs_file, sep=',',skipfooter=48,engine='python')
+        inputs[c.COL_DATETIME]=pd.to_datetime(inputs[c.COL_DATETIME])
+        inputs=inputs.set_index(c.COL_DATETIME)
+        inputs_ts=inputs.resample(str(self.sim_step)+'T').interpolate()
        
         for day in range(n_days_base):
             print("Day %i" %(day+1))
             
             #initialize dataframes
-            timeB = np.array(np.arange(0,60*60*24,ts))
-            plot_timeB = np.array(np.arange(0,24,ts/3600))
+            timeB = np.array(np.arange(0,60*60*24,self.sim_step))
+            plot_timeB = np.array(np.arange(0,24,self.sim_step/3600))
 
-            Tin=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            Tmass=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            Twall=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            Tattic=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            ACstatus=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            dTin=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            dTmass=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            dTwall=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            dTattic=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            Power=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            cycles=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
-            SOC=pd.DataFrame(data=0,index=timeB,columns=range(0,numHVAC))
+            Tin=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            Tmass=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            Twall=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            Tattic=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            ACstatus=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            dTin=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            dTmass=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            dTwall=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            dTattic=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            Power=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            cycles=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
+            SOC=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numHVAC))
             
-            num_homes = numHVAC
-            
+            num_homes = self.numHVAC            
             
             #Load building characteristics from file
             df_bldg=pd.DataFrame.from_csv(bldg_file,sep=',')
@@ -767,16 +789,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
                 ac[i]=AC(df_bldg.Qrated[i],df_bldg.EIRrated[i])
             
             #Main simulation loop    
-            for i in range(0,int(1440*60/ts)):
+            for i in range(0,int(1440*60/self.sim_step)):
                 for j in range(0,num_homes):                    
                     
                     if i>0:   #initialize AC status for each timestep to prior state
                         ACstatus.iloc[i,j]=ACstatus.iloc[i-1,j]
                     else:     #Set AC status based on file input for first timestep
                         ACstatus.iloc[i,j]=b[j].Initial_On
-                    if Tin.iloc[i,j]>=Tset+deadband and ACstatus.iloc[max(i-shortcycle_ts,0):i,j].sum()==0:  #if temp is above deadband and unit has not run in past duration corresponding to short cycle timer turn on unit
+                    if Tin.iloc[i,j]>=self.Tset+self.deadband and ACstatus.iloc[max(i-self.shortcycle_ts,0):i,j].sum()==0:  #if temp is above deadband and unit has not run in past duration corresponding to short cycle timer turn on unit
                         ACstatus.iloc[i,j]=1.0
-                    if Tin.iloc[i,j]<=Tset-deadband:    #if temperature is below bottom deadband, turn off unit
+                    if Tin.iloc[i,j]<=self.Tset-self.deadband:    #if temperature is below bottom deadband, turn off unit
                         ACstatus.iloc[i,j]=0.0
                     #count cycles
                     if i>0 and ACstatus.iloc[i-1,j]==1.0 and ACstatus.iloc[i,j]==0.0:
@@ -786,7 +808,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
                     Power.iloc[i,j]=ACstatus.iloc[i,j]*Capacity(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)*EIR(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)
                     
                     # calculate SOC for each AC
-                    SOC.iloc[i,j] = (Tset+deadband - Tin.iloc[i,j])/(2*deadband)
+                    SOC.iloc[i,j] = (self.Tset+self.deadband - Tin.iloc[i,j])/(2*deadband)
 
                     #building model dT calculations
                     dTin.iloc[i,j]=ts*1.0/b[j].Cin*((Twall.iloc[i,j]-Tin.iloc[i,j])*2.0/b[j].Rwall
@@ -904,9 +926,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     '''
     #### Interpolate the time resolution of the disturbances
 def get_inputs(Qsolar_i10, Qsolar_mass10, temp_sol_W10, temp_sol_R10, timestep_s, ts):
-        num_steps = 3600*24.0/timestep_s  
-        dt = datetime.datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
-        start_time_dec = dt.hour + dt.minute/60.0 + dt.seconds/3600.0
+        num_steps = 3600*48.0/timestep_s  
+        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S')
+        start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec + timestep_s*num_steps/3600.0, num_steps)
 
@@ -967,7 +989,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         loc["Denver"] = 4
         loc["Minneapolis"] = 5
 
-        num_steps = 3600*24.0/timestep_s   
+        num_steps = 3600*48.0/timestep_s   
 
         try:
             amb_temp_column = loc[climate_location]
@@ -975,8 +997,8 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         except IndexError:
             raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        dt = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-        start_time_dec = dt.hour + dt.minute/60.0 + dt.seconds/3600.0
+        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S')
+        start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_s*num_steps/3600.0, num_steps)
 
@@ -986,7 +1008,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         # Tout and IHG profiles preprocessed for 10 mins,
         # if other time step, better to do preprocess outside the main function here
         # or use timestep_min below (we set timestep_min = 10 by default)
-        ambient_cond_file = pd.read_excel('./data_file/Cities_Tout_July_10mins.xlsx') #load steply ambient air temperature file
+        ambient_cond_file = pd.read_excel('./fleets/HVAC_fleet/data_file/Cities_Tout_July_10mins.xlsx') #load steply ambient air temperature file
         ambient_cond_file = np.matrix(ambient_cond_file)
         Tamb = ambient_cond_file[:,amb_temp_column]
         Tamb = np.squeeze(np.asarray(Tamb))
@@ -1000,7 +1022,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         new_Tamb = np.interp(new_time_list, Tamb_orig_time, Tamb)
 
         # turn from 10 min original time resoution to any time resolution in seconds
-        IHG_file = pd.read_excel('./data_file/Cities_IHG_July_10mins.xlsx')  #load steply IHG file
+        IHG_file = pd.read_excel('./fleets/HVAC_fleet/data_file/Cities_IHG_July_10mins.xlsx')  #load steply IHG file
         IHG_file = np.matrix(IHG_file)
         IHG = IHG_file[:,IHG_column]
         IHG = np.squeeze(np.asarray(IHG))

@@ -70,6 +70,40 @@ def EIR(AC,Tout,Tin=Tin_assumed):
 # Elec power consump will be Capacity * EIR (kW)
 #################################################################
 
+#SHR equation derived from apparatus dew point (ADP) method used by EnergyPlus for BEopt 2.7 AC    
+def SHR(Tout,Tdb,Twb):
+    return(0.64613+0.003183*Tdb-.08153*Twb+.059996*Tdb)
+
+#Building characteristics    
+class building:
+    def __init__(self,T_in,T_mass,T_wall,T_attic,Rwall=0.00852, Rattic=0.03441,Rwin=0.00702,SHGC=0.4,Cwall=6719515.27,Cin=8666569.0,C1=0.73244,C2=0.49534,C3=0.05,Cattic=501508.7,Rroof=0.002,Cmass=29999128.0,Rmass=.00661,Sp1=0.93,Sp2=0.10006,Sp3=0.92997, Qrated=14600, EIRrated=0.31019, TinWB=16.666667,Initial_On=0):
+        self.T_in=T_in
+        self.T_mass=T_mass
+        self.T_wall=T_wall
+        self.T_attic=T_attic
+        self.Rwall=Rwall
+        self.Rattic=Rattic
+        self.Cwall=Cwall
+        self.Cin=Cin
+        self.C1=C1
+        self.C2=C2
+        self.C3=C3
+        self.Cattic=Cattic
+        self.Rroof=Rroof
+        self.Cmass=Cmass
+        self.Rmass=Rmass
+        self.Sp1=Sp1
+        self.Sp2=Sp2
+        self.Sp3=Sp3
+        self.Qrated=Qrated
+        self.EIRrated=EIRrated
+        self.TinWB=TinWB
+        self.Rwin=Rwin
+        self.SHGC=SHGC
+        self.Initial_On=Initial_On
+
+
+
 class BuildingModel():
         def __init__(self, Tamb = 25.0, Tsol_w = [25.0],QIHL_i = [0], Qsolar_i = [0], 
                      Tsol_r = [25.0], QIHL_mass = [0], Qsolar_mass = 0,  
@@ -424,13 +458,9 @@ class BuildingModel():
             response.IsAvailableAdd = isAvailable_add_ts
             response.IsAvailableShed = isAvailable_shed_ts          
 
-
             # Report grid services response
             return response    
-            
 
-           # No direct calculation of Eloss_ts, 
-            # , CountC, CountD, E_cool
 if __name__ == '__main__':
    main()
         

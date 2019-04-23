@@ -84,7 +84,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'Reserve':
         monthtimes = dict({
-            'January': ["2017-01-08 00:00:00", "2017-01-08 23:59:59"],
+            'January': ["2017-01-08 00:00:00", "2017-01-08 17:59:59"],
             # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
             # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
             # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
@@ -182,7 +182,6 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         
     else:
         pass
-
 
 if __name__ == '__main__':
     # Full test
