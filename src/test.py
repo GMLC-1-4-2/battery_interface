@@ -171,8 +171,18 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'ArtificialInertia':
         fleet_responses = service.request_loop(start_time=start_time)
-        avg = service.calculation(fleetname=fleet_name, responses=fleet_responses, start_time=start_time)
-        print(avg)
+        metrics_calc_start_time = kwargs['metrics_calc_start_time']
+        metrics_calc_end_time = kwargs['metrics_calc_end_time']
+
+        # service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time,
+        #                                                      metrics_calc_start_time=metrics_calc_start_time,
+        #                                                      metrics_calc_end_time=metrics_calc_end_time)
+
+        service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time)
+        print(service_efficacy)
+
+    elif service_name == 'DistributionVoltageService':
+        fleet_responses = service.request_loop(start_time=start_time)
     
     elif service_name == 'DistributionVoltageService':
         fleet_responses, fleet_requests = service.request_loop()
@@ -181,21 +191,32 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         fleet_requests, fleet_responses = service.request_loop()
         
     else:
-        pass
+        raise 'Could not recognize service with name ' + service_name
 
 
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
+    # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
     services = ['ArtificialInertia']
-    fleets = ['BatteryInverter']
-    kwargs = {
-        'start_time': parser.parse('2017-08-01 00:00:00'),
-        'service_weight': 0.75
-    }
+    fleets = ['ElectricVehicle']
+    start_time = parser.parse('2017-08-01 00:00:00')
+
+    metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
+    metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
+
+    kwargs = {}
+    kwargs['start_time'] = start_time
+    kwargs['metrics_calc_start_time'] = metrics_calc_start_time
+    kwargs['metrics_calc_end_time'] = metrics_calc_end_time
+
+    #kwargs = {
+    #    'start_time': parser.parse('2017-08-01 00:00:00'),
+    #    'service_weight': 0.75
+    #}
     service_types = []
 
     for service in services:
