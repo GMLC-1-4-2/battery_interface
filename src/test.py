@@ -208,15 +208,12 @@ if __name__ == '__main__':
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
     metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
 
-    kwargs = {}
-    kwargs['start_time'] = start_time
-    kwargs['metrics_calc_start_time'] = metrics_calc_start_time
-    kwargs['metrics_calc_end_time'] = metrics_calc_end_time
-
-    #kwargs = {
-    #    'start_time': parser.parse('2017-08-01 00:00:00'),
-    #    'service_weight': 0.75
-    #}
+    kwargs = {
+        'start_time': start_time,
+        'metrics_calc_start_time': metrics_calc_start_time,
+        'metrics_calc_end_time': metrics_calc_end_time,
+        'service_weight': 0.75
+    }
     service_types = []
 
     for service in services:
