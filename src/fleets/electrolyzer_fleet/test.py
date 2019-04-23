@@ -6,87 +6,49 @@
 
 import sys
 from os.path import dirname, abspath, join
+
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
-from fleets.electrolyzer_fleet_test.ey_fleet import ElectrolyzerFleet, static_plots
+from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet, static_plots
 from fleet_request import FleetRequest
 from grid_info_artificial_inertia import GridInfo
 from datetime import datetime, timedelta
 from scipy.io import loadmat
 from numpy import array
 from matplotlib.pyplot import show, grid, subplots, rcParams
-from pandas.plotting import register_matplotlib_converters
-register_matplotlib_converters()
+#from pandas.plotting import register_matplotlib_converters
+
+#register_matplotlib_converters()
 base_path = dirname(abspath(__file__))
-#rcParams.update({'font.size': 22})
-
-def fleet_test1(fleet):
-
-    """
-    SCENARIO 1: Pre-load the power request curve
-    Number of electrolyzers (Ne) automatically computed based on the
-    area of the power request curve
-    """
-    # Set p_req as None in the model
-    # Get simulation duration based on pre-loaded power curve data
-    n = fleet.timespan
-
-    # Create fleet request
-    ts = datetime.utcnow()
-    dt = timedelta(seconds=1)
-    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=None, q=None) for i in range(n)]
-
-    # Process the request
-    P_togrid, Q_togrid, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
-    for fr in fleet_request:
-        fleet_response = fleet.process_request(fr)
-        P_togrid.append(fleet_response.P_togrid)
-        Q_togrid.append(fleet_response.Q_togrid)
-        soc.append(fleet_response.E)
-        ne.append(fleet_response.ne)
-        Eff_charge.append(fleet_response.Eff_charge)
-        V.append(fleet_response.V)
-        Ir.append(fleet_response.Ir)
-        ts.append(fleet_response.ts)
-        status.append(fleet_response.status)
-        fleetsize.append(fleet_response.ey_fleet)
-
-    # Simulation results
-    stat = "fully charged at %s sec." % str(sum(status))
-
-    # Plot the results
-    kwargs = {'P_response': (P_togrid, 'kW'),
-              'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
-              'Charging Efficiency': (Eff_charge, '%'), 'Energy efficiency of a cell': (ne, '%'),
-              'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
-              'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
-    static_plots(**kwargs)
 
 
-def fleet_test2(fleet):
-    """
-    SCENARIO 2: Use instantaneous power request
-    """
+# rcParams.update({'font.size': 22})
+
+
+def fleet_test1(fleet, grid_dat):
+
     p_data = loadmat(join(base_path, 'pdata.mat'), squeeze_me=True)
     time = p_data['TT']
 
-    # Power direction wrt the Grid.
+    # Power direction wrt the Grid (kW)
     # Ey is negative power to grid
     p_req = p_data['PP']
 
-    # Power curve to have both negative and positive
+    # Power request curve (kW)
     bload = p_req[0] * 0.2
     p_curve = [bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
 
     # Create fleet request
-    fleet.is_autonomous = False
     fleet.is_P_priority = True
+    fleet.FW21_Enabled = False
+    fleet.is_autonomous = False
     ts = datetime.utcnow()
     dt = timedelta(seconds=1)
-    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=v, q=0.) for i, v in enumerate(p_curve)]
+    fleet_request = [FleetRequest(ts=(ts + i * dt), sim_step=dt, p=v, q=0.) for i, v in enumerate(p_curve)]
 
     # Process the request
     P_togrid, Q_togrid, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
+
     for fr in fleet_request:
         fleet_response = fleet.process_request(fr)
         P_togrid.append(fleet_response.P_togrid)
@@ -101,6 +63,7 @@ def fleet_test2(fleet):
         fleetsize.append(fleet_response.ey_fleet)
 
     # Forecast
+    print("::FORECAST MODE::")
     forecast_fleet = fleet.forecast(fleet_request)
     p_response, energy_stored = [], []
     for i in range(len(forecast_fleet)):
@@ -115,8 +78,8 @@ def fleet_test2(fleet):
 
     # Plot the results
     kwargs = {'P_request': (p_curve, 'kW'), 'P_response': (P_togrid, 'kW'),
-              'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
-              'Charging Efficiency': (Eff_charge, '%'), 'Energy efficiency of a cell': (ne, '%'),
+              'Q_request': (Q_togrid, 'kVAr'), 'SoC (' + stat + ')': (soc, '%'),
+              'Charging Efficiency': (Eff_charge, '%'),
               'V': (V, 'Volts'), 'Ir': (Ir, 'Amps'),
               'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
     static_plots(**kwargs)
@@ -134,31 +97,27 @@ def fleet_test2(fleet):
     y1.legend(plots, [l.get_label() for l in plots])
     grid()
     show()
-    fig1.savefig(join(base_path, "Ey_result_P.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "Ey_result_P_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
 
 
-def fleet_test3(fleet, grid_dat):
-    """
-    SCENARIO 3: Use instantaneous power request with autonomous frequency regulation service enabled
-    """
+def fleet_test2(fleet, grid_dat):
+
     p_data = loadmat(join(base_path, 'pdata_3secs.mat'), squeeze_me=True)
     time = p_data['TT']
 
     # Power request
-    # Artifical intertia simulation. 
+    # Artifical intertia simulation.
     p_req = -p_data['PP'][:149]
-
-    # Power curve to have both negative and positive
-    #bload = p_req[0] * 0.2
-    #p_curve = [bload if v < 0 else -(abs(v) - bload - 80) for _, v in enumerate(p_req)]
 
     # Create fleet request
     fleet.is_autonomous = True
+    fleet.FW21_Enabled = True
     fleet.is_P_priority = False
     ts = datetime(2018, 9, 20, 00, 0, 00, 000000)
     dt = timedelta(seconds=1)
-    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, start_time=ts, p=v, q=0.) for i, v in enumerate(p_req)]
-    
+    fleet_request = [FleetRequest(ts=(ts + i * dt), sim_step=dt, start_time=ts, p=v, q=0.) for i, v in enumerate(p_req)]
+
     # Process the request
     P_service, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts, f = \
         [], [], [], [], [], [], [], [], [], []
@@ -174,7 +133,7 @@ def fleet_test3(fleet, grid_dat):
         ts.append(fleet_response.ts)
         status.append(fleet_response.status)
         fleetsize.append(fleet_response.ey_fleet)
-        print("service power is %4.2fkW at f = %4.2fHz" % (P_service[len(P_service)-1], f[len(f)-1]))
+        print("service power is %4.2fkW at f = %4.2fHz" % (P_service[len(P_service) - 1], f[len(f) - 1]))
 
     # Simulation results
     stat = "fully charged at %s sec." % str(sum(status))
@@ -188,31 +147,30 @@ def fleet_test3(fleet, grid_dat):
     p1, = y1.plot(P_service, label='P_response')
     y1.set_ylabel('P(kW)')
     y2 = y1.twinx()
-    p2, = y2.plot(60-array(f), label='Frequency', color='g')
+    p2, = y2.plot(60 - array(f), label='Frequency', color='g')
     y2.set_ylabel('60-f Hz')
     plots = [p0, p1, p2]
     y1.set_xlabel('Time (s)')
     y1.legend(plots, [l.get_label() for l in plots])
     grid()
     show()
-    fig1.savefig(join(base_path, "Ey_result_P_freq.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "Ey_result_P_freq_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
+
+    # Plot the results
+    fig2, y2 = subplots(figsize=(20, 12))
+    y2.scatter(f, P_service, label='P_response')
+    y2.set_ylabel('P(kW)')
+    y2.set_xlabel('60 Hz')
+    grid()
+    show()
+    fig2.savefig(join(base_path, "Ey_result_P_freq2_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
 
 
 if __name__ == '__main__':
-    # Run SCENARIO 1
-    # Pre-load the power request data using config.ini file
-    #fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
-    #fleet_test1(fleet)
 
-    # Run SCENARIO 2
-    # Use instantaneous power request with fleets specified in config.ini
-    #fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer")
-    #fleet_test2(fleet)
-
-    # Run SCENARIO 3
-    # Use instantaneous power request + frequency regulation
-    # Autonomous frequency request can also be changed from config.ini
     grid_dat = GridInfo('Grid_Info_data_artificial_inertia.csv')
-    fleet = ElectrolyzerFleet(grid_dat, "config.ini", "Electrolyzer")
-    fleet_test3(fleet, grid_dat)
+    fleet = ElectrolyzerFleet(grid_dat, "config.ini", "Electrolyzer", False)
+    fleet_test2(fleet, grid_dat)
 

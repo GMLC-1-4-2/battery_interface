@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python3
 """
-@authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov,
+@authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov, smshafiul.alam@inl.gov
 Description: This class implements the Electrolyzer FleetInterface to integrate with a fleet of
 Electrolyzers
 """
@@ -10,21 +10,21 @@ import sys
 from os.path import dirname, abspath, join
 from datetime import datetime
 from warnings import simplefilter, filterwarnings
-import colorama
-from termcolor import cprint
 import configparser
 from numpy import polyfit, RankWarning, trapz, log10, exp
 from scipy.optimize import fsolve
 from pandas import read_csv
-from matplotlib.pyplot import figure, subplot2grid
+from matplotlib.pyplot import figure, subplot2grid, show, grid, subplots
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 from frequency_droop import FrequencyDroop
 from csv import writer
+from pandas.plotting import register_matplotlib_converters
+
+register_matplotlib_converters()
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
-colorama.init()
 
 
 class ElectrolyzerFleet(FleetInterface):
@@ -43,7 +43,7 @@ class ElectrolyzerFleet(FleetInterface):
         # Establish the location that the electrolyzer fleet is connected in the grid
         self.grid = grid_info
 
-        # Pre-load the prequest curve
+        # Pre-load the P_request data
         if p_req_load:
             self.load_curve = True
         else:
@@ -107,24 +107,27 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_b = float(self.config.get(mdl_type, "b", fallback=1.55e-5))
         self.ey_LHV_H2 = float(self.config.get(mdl_type, "LHV_H2", fallback=120000))
         self.ey_ser_wght = float(self.config.get(mdl_type, "service_weight", fallback=1.0))
-        self.is_P_priority = bool(self.config.get(mdl_type, "is_P_priority", fallback=True))
-        self.FW21_Enabled = bool(self.config.get(mdl_type, "FW21_Enabled", fallback=False))
-        self.is_autonomous = bool(self.config.get(mdl_type, "is_autonomous", fallback=False))
-        self.ey_db_UF = float(self.config.get(mdl_type, "db_UF", fallback=0.02))
-        self.ey_db_OF = float(self.config.get(mdl_type, "db_OF", fallback=0.02))
+        self.is_P_priority = self.config.get(mdl_type, "is_P_priority", fallback=True)
+        self.FW21_Enabled = self.config.get(mdl_type, "FW21_Enabled", fallback=False)
+        self.is_autonomous = self.config.get(mdl_type, "is_autonomous", fallback=False)
+        self.ey_db_UF = float(self.config.get(mdl_type, "db_UF", fallback=0.36))
+        self.ey_db_OF = float(self.config.get(mdl_type, "db_OF", fallback=0.36))
         self.ey_k_UF = float(self.config.get(mdl_type, "k_UF", fallback=0.05))
         self.ey_k_OF = float(self.config.get(mdl_type, "k_OF", fallback=0.05))
 
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
         if self.load_curve:
-            self.ey_pdat = join(self.base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
+            try:
+                self.ey_pdat = join(self.base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
+            except FileNotFoundError:
+                print("File not found. Please ensure path or file name is correct for power_data in config.ini!!")
         if self.config.sections()[0] != mdl_type:
-            cprint("Error reading config.ini file for model:"+"\t"*3+"%s [FAIL]!!" % mdl_type, 'red',)
+            print("Error reading config.ini file for model:"+"\t"*3+"%s [FAIL]!!" % mdl_type)
             print("Model found in config.ini file:"+"\t"*5+"%s!!\n"
                   "Default modelling parameters will be used!!\n" % self.config.sections()[0])
         else:
-            cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
+            print("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0])
 
         # Compute initial state parameters for the Electrolyzer model
         if self.FW21_Enabled and self.is_autonomous:
@@ -166,31 +169,34 @@ class ElectrolyzerFleet(FleetInterface):
         if self.load_curve:
             # Fit the power curve input data
             self.p, self.timespan = fit_pdat(self.ey_pdat)
-
             # Compute the optimum number of Electrolyzers
             self.ey_Ne = ne_calc(join(self.base_path, self.ey_pdat), self.ey_E_size, self.ey_Ne)
         # Output metrics dataframe
-        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age', 'Lka_H2', 'nch', 'P_togrid', 'P_service', 'f']]
+        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age',
+                         'Lka_H2', 'nch', 'P_togrid', 'P_service', 'f']]
         self.inc = 0
 
     def process_request(self, fleet_request):
-        resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req, fleet_request.start_time)
+        resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step,
+                                 fleet_request.P_req, False, fleet_request.start_time)
         return resp
 
     def forecast(self, requests):
-        soc_state, soc_state_age = self.soc, self.soc_age
-        resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req, req.start_time) for req in requests]
-        self.soc, self.soc_age = soc_state, soc_state_age
+        soc_state, soc_state_age, state = self.soc, self.soc_age, self.inc
+        resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req, True, req.start_time) for req in requests]
+        self.soc, self.soc_age, self.inc = soc_state, soc_state_age, state
         return resp
 
-    def run_ey_fleet(self, ts, sim_step, Preq, start_time=None):
+    def run_ey_fleet(self, ts, sim_step, Preq, forecast=False, start_time=None):
         """
         :param ts: Request created for current time-step: datetime
         :param sim_step: Request for simulation time-step: timedelta object
         :param Preq: Request for current real power request
+        :param forecast: Returns fleet response forcast
         :param start_time: Request for current real power request
         :return resp: Fleet response object
         """
+
         resp = FleetResponse()
 
         if self.P_tank >= self.max_charge:
@@ -214,7 +220,8 @@ class ElectrolyzerFleet(FleetInterface):
                 Preq = self.P_opt(abs(Preq), self.ey_Pmin_fleet, self.ey_Pmax_fleet)
                 if self.FW21_Enabled and self.is_autonomous:
                     # all in kW
-                    Preq, self.f = self.frequency_watt(p_pre=self.P_pre, p_avl=Preq,
+                    self.P_pre = self.P_opt(self.P_pre, self.ey_Pmin_fleet, self.ey_Pmax_fleet)
+                    Preq, self.f = self.frequency_watt(p_pre=self.P_pre, p_avl=self.ey_Pmax_fleet,
                                                        p_min=self.ey_Pmin_fleet,
                                                        ts=ts, start_time=start_time)
                 Pr =abs(Preq)*1e3/self.ey_Ne   # Watts
@@ -276,17 +283,15 @@ class ElectrolyzerFleet(FleetInterface):
 
             # Charging efficiency
             eta_ch = self.ey_LHV_H2*m_dotH2*1e3/P_tot          # (W/W)
-
             self.soc = round(self.P_tank/self.max_charge, 3)
             self.soc_age = round(self.moles_age/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank/self.max_charge, 3)
             if self.soc > 1.0 or self.soc < 0.0:
-                sys.exit(cprint("Soc limit violation!!" + "\t" * 6 + " [!!]\n", 'red'))
+                sys.exit(print("Soc limit violation!!" + "\t" * 6 + " [!!]\n"))
         self.inc += 1
 
         # Response
         # Power injected to the Grid is positive
         # Only respond to negative P as that is request to consume
-        # active power
         # Send 0 for positive request
         # Ignore all negative P incase of Fuelcell, set P = 0 if Preq < 0
         # Send Preq only for Preq>0 for fuelcell
@@ -301,12 +306,12 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Eff_discharge = None
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = -P_tot*1e-3 + self.ey_Pmin_fleet
+        resp.P_service = -P_tot*1e-3
         resp.P_service_max = 0
         resp.P_service_min = 0
         resp.P_togrid = -P_tot*1e-3     # (kW)
-        resp.P_togrid_max = self.ey_Pmax_fleet
-        resp.P_togrid_min = self.ey_Pmin_fleet
+        resp.P_togrid_max = -self.ey_Pmax_fleet
+        resp.P_togrid_min = -self.ey_Pmin_fleet
         resp.Q_dot_down = None
         resp.Q_dot_up = None
         resp.Q_service = None
@@ -315,7 +320,11 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Q_togrid = 0
         resp.Q_togrid_max = None
         resp.Q_togrid_min = None
-        resp.T_restore = 0
+        resp.T_restore = None
+        resp.P_base = -self.ey_Pmin_fleet
+        resp.Q_base = 0
+        resp.Strike_price = None
+        resp.SOC_cost = None
         resp.status = is_avail
         resp.V = V
         resp.Ir = Ir
@@ -323,14 +332,15 @@ class ElectrolyzerFleet(FleetInterface):
         resp.nf = nf*1e2
 
         # Impact metrics
-        self.metrics.append([str(ts), str(V), str(V_age), str(ne),
-                             str(ne_age), str(resp.E), str(self.soc_age*1e2),
-                             str(self.lka_h2), str(resp.Eff_charge), str(resp.P_togrid), str(resp.P_service), str(self.f)])
+        if not forecast:
+            self.metrics.append([str(ts), str(V), str(V_age), str(ne),
+                                 str(ne_age), str(resp.E), str(self.soc_age*1e2),
+                                 str(self.lka_h2), str(resp.Eff_charge), str(resp.P_togrid),
+                                 str(resp.P_service), str(self.f)])
 
-        # Print Soc every 5 secs.
+        # Print SoC status every 5 secs.
         if self.inc % 5000 == 0:
             print("Soc:%4.2f%%" % resp.E)
-
         return resp
 
     def calc_VIchar(self):
@@ -347,23 +357,23 @@ class ElectrolyzerFleet(FleetInterface):
         with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
             write = writer(out)
             write.writerows(self.metrics)
-            cprint("Impact metrics created"+"\t"*5+" [OKAY]\n", 'green')
+            print("Impact metrics file has been created"+"\t"*5+" [OKAY]\n")
 
-    def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.0, ts=datetime.utcnow(), location=0, start_time=None):
+    def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.1, ts=datetime.utcnow(), location=0, start_time=None):
         f = self.grid.get_frequency(ts, location, start_time)
-        print("before",p_pre, p_avl, p_min)
-        P_pre = -p_pre/self.ey_Pmax_fleet
-        P_avl = -p_avl/self.ey_Pmax_fleet
-        P_min = -p_min/self.ey_Pmax_fleet
-        print("after",P_pre, P_avl, P_min)
+        # print("before",p_pre, p_avl, p_min)
+        P_pre = -p_pre / self.ey_Pmax_fleet
+        P_avl = -p_avl / self.ey_Pmax_fleet
+        P_min = -p_min / self.ey_Pmax_fleet
+        # print("PUafter",P_pre, P_avl, P_min)
         if f < 60 - self.ey_db_UF:
-            p_new = min(P_pre+((60-self.ey_db_UF)-f)/(60*self.ey_k_UF),P_avl)
+            p_set = min(P_pre + (60 - self.ey_db_UF - f) / (60 * self.ey_k_UF), P_min)
         elif f > 60 + self.ey_db_OF:
-            p_new = max(P_pre-(f-(60+self.ey_db_OF))/(60*self.ey_k_OF),P_min) #min(P_pre+((60-self.ey_db_UF)-f)/(60*self.ey_k_UF),P_avl)
+            p_set = max(P_pre + (60 + self.ey_db_OF - f) / (60 * self.ey_k_OF), P_avl)
         else:
-            p_new = P_avl
-        p_new *= self.ey_Pmax_fleet
-        return p_new, f
+            p_set = P_pre
+        p_set *= -self.ey_Pmax_fleet
+        return p_set, f
 
     def assigned_service_kW(self):
         return self.ey_ser_wght*self.fleet_rating
@@ -379,8 +389,8 @@ def ne_calc(filename, e_size, ne=None):
     df = read_csv(filename, header=None, parse_dates=[0], names=['datetime', 'Pval'])
     opt_ne = int(round(trapz(df['Pval'])/len(df)/e_size))
     if int(ne) != opt_ne:
-        cprint("Number of Electrolyzers does not fit the power curve:\t\t[%d]" % int(ne), 'red')
-        cprint("Optimum Electrolyzers used for this simulation run:\t\t[%d]" % opt_ne, 'cyan')
+        print("Number of Electrolyzers does not fit the power curve:\t\t[%d]" % int(ne))
+        print("Optimum Electrolyzers used for this simulation run:\t\t[%d]" % opt_ne)
         return opt_ne
     return ne
 
@@ -401,7 +411,7 @@ def fit_pdat(filename, time_interval=None):
             raise Exception("\tUnable to infer time interval from input data\n"
                             "\tPlease specify the time_interval parameter in seconds!!\n")
         if any(i in interval for i in ('L', 'ms', 'U', 'us', 'N')) is False:
-            cprint("Power data time-interval is at least in seconds:\t\t[OKAY]", 'green')
+            print("Power data time-interval is at least in seconds:\t\t[OKAY]")
             df = read_csv(filename, header=None, parse_dates=[0], names=['datetime', 'Pval'])
             df['sec'] = df['datetime'].sub(df['datetime'].iloc[0]).dt.total_seconds()
         else:
@@ -443,4 +453,6 @@ def static_plots(**kwargs):
         res_plt[str(i)].plot(v[0], '-.r')
         res_plt[str(i)].set_ylabel(v[1])
         res_plt[str(i)].grid()
-    fig1.savefig(join(base_path, "Ey_result.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "Ey_result_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
+

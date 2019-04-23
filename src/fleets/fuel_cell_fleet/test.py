@@ -10,6 +10,7 @@ sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleets.fuel_cell_fleet.fuelcell_fleet import FuelCellFleet, static_plots
 from fleet_request import FleetRequest
+from grid_info_artificial_inertia import GridInfo
 from datetime import datetime, timedelta
 from scipy.io import loadmat
 from matplotlib.pyplot import show, grid, subplots
@@ -18,53 +19,8 @@ register_matplotlib_converters()
 base_path = dirname(abspath(__file__))
 
 
-def fleet_test1(fleet):
+def fleet_test(fleet):
 
-    """
-    SCENARIO 1: Pre-load the power request curve
-    """
-
-    # Get simulation duration based on pre-loaded power curve data
-    n = fleet.timespan
-
-    # Create fleet request
-    ts = datetime.utcnow()
-    dt = timedelta(seconds=1)
-    fleet_request = [FleetRequest(ts=(ts+i*dt), sim_step=dt, p=None, q=None) for i in range(n)]
-
-    # Process the request
-    P_togrid, Q_togrid, soc, ne, Eff_discharge, Vr, Ir, status, fleetsize, ts = [], [], [], [], [], [], [], [], [], []
-    for fr in fleet_request:
-        fleet_response = fleet.process_request(fr)
-        P_togrid.append(fleet_response.P_togrid)
-        Q_togrid.append(fleet_response.Q_togrid)
-        soc.append(fleet_response.E)
-        ne.append(fleet_response.ne)
-        Eff_discharge.append(fleet_response.Eff_discharge)
-        Vr.append(fleet_response.V)
-        Ir.append(fleet_response.Ir)
-        ts.append(fleet_response.ts)
-        status.append(fleet_response.status)
-        fleetsize.append(fleet_response.fc_fleet)
-
-    # Simulation results
-    stat = "fully charged at %s sec." % str(sum(status))
-
-    # Plot the results
-    kwargs = {'P_response': (P_togrid, 'kW'),
-              'Q_request': (Q_togrid, 'kVAr'), 'SoC ('+stat+')': (soc, '%'),
-              'Charging Efficiency': (Eff_discharge, '%'), 'Energy efficiency of a cell': (ne, '%'),
-              'V_real': (Vr, 'Volts'), 'Ir': (Ir, 'Amps.'),
-              'Fleet Availability: %s' % fleetsize[0]: (fleetsize, 'Fleets')}
-    static_plots(**kwargs)
-
-
-def fleet_test2(fleet):
-    """
-    SCENARIO 2: Use instantaneous power request
-    Number of FuelCells (Nfc) needs to be specified in the
-    config.ini file
-    """
     p_data = loadmat(join(base_path, 'pdata.mat'), squeeze_me=True)
     time = p_data['TT']
 
@@ -97,6 +53,7 @@ def fleet_test2(fleet):
         fleetsize.append(fleet_response.fc_fleet)
 
     # Forecast
+    print("::FORECAST MODE::")
     forecast_fleet = fleet.forecast(fleet_request)
     p_response, energy_stored = [], []
     for i in range(len(forecast_fleet)):
@@ -130,16 +87,12 @@ def fleet_test2(fleet):
     y1.legend(plots, [l.get_label() for l in plots])
     grid()
     show()
-    fig1.savefig(join(base_path, "FC_result_P.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "FC_result_P_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
 
 
 if __name__ == '__main__':
-    # Run SCENARIO 1
-    # Pre-load the power request data using config.ini file
-    #fleet = FuelCellFleet("", "config.ini", "FuelCell")
-    #fleet_test1(fleet)
 
-    # Run SCENARIO 2
-    # Use instantaneous power request with fleets specified in config.ini
-    fleet = FuelCellFleet("", "config.ini", "FuelCell")
-    fleet_test2(fleet)
+    grid_dat = GridInfo('Grid_Info_data_artificial_inertia.csv')
+    fleet = FuelCellFleet(grid_dat, "config.ini", "FuelCell", False)
+    fleet_test(fleet)

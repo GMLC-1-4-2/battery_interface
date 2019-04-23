@@ -9,9 +9,8 @@ FuelCells
 import sys
 from os.path import dirname, abspath, join
 from warnings import simplefilter, filterwarnings
-import colorama
-from termcolor import cprint
 import configparser
+from datetime import datetime
 from numpy import polyfit, convolve, RankWarning, log, exp
 from pandas import read_csv
 from scipy.optimize import fsolve
@@ -22,7 +21,6 @@ from fleet_response  import FleetResponse
 from csv import writer
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
-colorama.init()
 
 
 class FuelCellFleet(FleetInterface):
@@ -103,13 +101,16 @@ class FuelCellFleet(FleetInterface):
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
         if self.load_curve:
-            self.fc_pdat = join(base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
+            try:
+                self.fc_pdat = join(base_path, self.config.get(mdl_type, "power_data", fallback="pdata.csv"))
+            except FileNotFoundError:
+                print("File not found. Please ensure path or file name is correct for power_data in config.ini!!")
         if self.config.sections()[0] != mdl_type:
-            cprint("Error reading config.ini file for model:"+"\t"*3+"%s [FAIL]!!" % mdl_type, 'red',)
+            print("Error reading config.ini file for model:"+"\t"*3+"%s [FAIL]!!" % mdl_type)
             print("Model found in config.ini file:"+"\t"*5+"%s!!\n"
                   "Default modelling parameters will be used!!\n" % self.config.sections()[0])
         else:
-            cprint("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0], 'green')
+            print("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0])
 
         # Compute state parameters for the FuelCell model
         self.fleet_rating = self.fc_Nfc*self.fc_size
@@ -156,16 +157,25 @@ class FuelCellFleet(FleetInterface):
         self.inc = 0
 
     def process_request(self, fleet_request):
-        resp = self.fc_model(fleet_request.ts_req, fleet_request.sim_step, fleet_request.P_req)
+        resp = self.fc_model(fleet_request.ts_req, fleet_request.sim_step,
+                             fleet_request.P_req, False, fleet_request.start_time)
         return resp
 
     def forecast(self, requests):
-        soc_state, soc_state_age = self.soc_ideal, self.soc_age
-        resp = [self.fc_model(req.ts_req, req.sim_step, req.P_req) for req in requests]
-        self.soc_ideal, self.soc_age = soc_state, soc_state_age
+        soc_state, soc_state_age, state = self.soc_ideal, self.soc_age, self.inc
+        resp = [self.fc_model(req.ts_req, req.sim_step, req.P_req, True, req.start_time) for req in requests]
+        self.soc_ideal, self.soc_age, self.inc = soc_state, soc_state_age, state
         return resp
 
-    def fc_model(self, ts, sim_step, Preq):
+    def fc_model(self, ts, sim_step, Preq, forecast=False, start_time=None):
+        """
+        :param ts: Request created for current time-step: datetime
+        :param sim_step: Request for simulation time-step: timedelta object
+        :param Preq: Request for current real power request
+        :param forecast: Returns fleet response forecast
+        :param start_time: Request for current real power request
+        :return resp: Fleet response object
+        """
         resp = FleetResponse()
 
         if self.P_tank_ideal <= self.min_charge:
@@ -241,7 +251,8 @@ class FuelCellFleet(FleetInterface):
             # Discharging efficiency
             eta_ds = P_tot_ideal*1e3/self.fc_LHV_H2/(m_dotH2*1e3)          # (W/W)
             is_avail = 1
-
+            if self.soc_ideal > 1.0 or self.soc_ideal < 0.0:
+                sys.exit(print("Soc limit violation!!" + "\t" * 6 + " [!!]\n"))
         self.inc += 1
 
         # Response
@@ -270,16 +281,21 @@ class FuelCellFleet(FleetInterface):
         resp.Q_togrid = 0
         resp.Q_togrid_max = None
         resp.Q_togrid_min = None
-        resp.T_restore = 0
+        resp.T_restore = None
+        resp.P_base = self.fc_Pmin_fleet
+        resp.Q_base = 0
+        resp.Strike_price = None
+        resp.SOC_cost = None
         resp.status = is_avail
         resp.V = Vr
         resp.Ir = Ir
         resp.ne = ne
 
         # Impact metrics
-        self.metrics.append([str(ts), str(Vr), str(Vr_age), str(ne),
-                             str(ne_age), str(self.soc_ideal * 1e2), str(self.soc_age[0] * 1e2),
-                             str(self.lka_h2), str(eta_ds * 1e2)])
+        if not forecast:
+            self.metrics.append([str(ts), str(Vr), str(Vr_age), str(ne),
+                                 str(ne_age), str(self.soc_ideal * 1e2), str(self.soc_age[0] * 1e2),
+                                 str(self.lka_h2), str(eta_ds * 1e2)])
 
         # Print Soc every 5 secs.
         if self.inc % 5000 == 0:
@@ -292,7 +308,7 @@ class FuelCellFleet(FleetInterface):
         with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
             write = writer(out)
             write.writerows(self.metrics)
-            cprint("Impact metrics created"+"\t"*5+" [OKAY]\n", 'green')
+            print("Impact metrics created has been created"+"\t"*5+" [OKAY]\n")
 
     def assigned_service_kW(self):
         return self.fc_ser_wght*self.fleet_rating
@@ -314,7 +330,7 @@ def fit_pdat(filename, time_interval=None):
             raise Exception("\tUnable to infer time interval from input data\n"
                             "\tPlease specify the time_interval parameter in seconds!!\n")
         if any(i in interval for i in ('L', 'ms', 'U', 'us', 'N')) is False:
-            cprint("Power data time-interval is at least in seconds:\t\t[OKAY]", 'green')
+            print("Power data time-interval is at least in seconds:\t\t[OKAY]")
             df = read_csv(filename, header=None, parse_dates=[0], names=['datetime', 'Pval'])
             df['sec'] = df['datetime'].sub(df['datetime'].iloc[0]).dt.total_seconds()
         else:
@@ -360,4 +376,5 @@ def static_plots(**kwargs):
         res_plt[str(i)].plot(v[0], '-.r')
         res_plt[str(i)].set_ylabel(v[1])
         res_plt[str(i)].grid()
-    fig1.savefig(join(base_path, "FC_result.png"), bbox_inches='tight')
+    fig1.savefig(join(base_path, "FC_result_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
+                 bbox_inches='tight')
