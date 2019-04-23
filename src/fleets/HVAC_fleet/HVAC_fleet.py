@@ -245,7 +245,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # inputs_ts['Tsolw']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADW]*0.3/inputs_ts[c.COL_H]
         # inputs_ts['Tsolr']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADR]*0.8/inputs_ts[c.COL_H]
 
-        measurement = pd.read_excel('./fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx')   # or Min5_data_vegas.xlsx
+        measurement = pd.read_excel(r".../fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx")   # or Min5_data_vegas.xlsx
         #        measurement_or['Date/Time']=pd.to_datetime(measurement_or['Date/Time'])
         #        measurement_or = measurement_or.set_index('Date/Time')
         #        measurement = measurement_or.resample(str(ts)+'T').interpolate()  # interpolate from Hour to 10 min
@@ -1008,7 +1008,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         # Tout and IHG profiles preprocessed for 10 mins,
         # if other time step, better to do preprocess outside the main function here
         # or use timestep_min below (we set timestep_min = 10 by default)
-        ambient_cond_file = pd.read_excel('./fleets/HVAC_fleet/data_file/Cities_Tout_July_10mins.xlsx') #load steply ambient air temperature file
+        ambient_cond_file = pd.read_excel(r'./fleets/HVAC_fleet/data_file/Cities_Tout_July_10mins.xlsx') #load steply ambient air temperature file
         ambient_cond_file = np.matrix(ambient_cond_file)
         Tamb = ambient_cond_file[:,amb_temp_column]
         Tamb = np.squeeze(np.asarray(Tamb))
@@ -1022,7 +1022,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         new_Tamb = np.interp(new_time_list, Tamb_orig_time, Tamb)
 
         # turn from 10 min original time resoution to any time resolution in seconds
-        IHG_file = pd.read_excel('./fleets/HVAC_fleet/data_file/Cities_IHG_July_10mins.xlsx')  #load steply IHG file
+        IHG_file = pd.read_excel(r'./fleets/HVAC_fleet/data_file/Cities_IHG_July_10mins.xlsx')  #load steply IHG file
         IHG_file = np.matrix(IHG_file)
         IHG = IHG_file[:,IHG_column]
         IHG = np.squeeze(np.asarray(IHG))

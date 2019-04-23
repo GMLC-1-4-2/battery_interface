@@ -1,0 +1,60 @@
+Single cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+0
+23
+0.0
+2
+500
+54.16028072669837
+9
+19
+First cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+0
+11
+0.0
+2
+500
+19.008765785241287
+2
+6
+Second cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+12
+23
+0.0
+2
+500
+51.247899870795514
+12
+19
+Single cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+0
+23
+0.0
+2
+500
+54.16028072669837
+9
+19
+First cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+0
+11
+0.0
+2
+500
+19.008765785241287
+2
+6
+Second cycle output:, timesteps, startT, stopT, charged[startT], nChg, tFull, maxValue, chargeMax, dischargeMax 
+24
+12
+23
+0.0
+2
+500
+51.247899870795514
+12
+19
