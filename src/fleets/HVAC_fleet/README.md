@@ -13,7 +13,7 @@
  
 This document provides the guidelines to use the `HVACFleet` class and describes its structure and basic functionality. Assumptions of the model and singularities of this fleet are remarked here:
   - Variability in HVAC size, efficiency are randomly sampled from nominal building parameters.
-  - Experior disturbance signals have been also randomly pciked from nominal weather file.the daily schedules of electric vehicles drivers. This variability makes the availability of the fleet limited to the moments when the cars are plugged-in.
+  - Experior disturbance signals have been also randomly pciked from nominal weather file.
   - The model will auto interpolate the model and disturbance signals to run at any desired time resolutions.
 
 ### 3. Structure of the `HVACFleet` class:
