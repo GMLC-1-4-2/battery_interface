@@ -245,7 +245,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # inputs_ts['Tsolw']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADW]*0.3/inputs_ts[c.COL_H]
         # inputs_ts['Tsolr']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADR]*0.8/inputs_ts[c.COL_H]
 
-        measurement = pd.read_excel(r".../fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx")   # or Min5_data_vegas.xlsx
+        measurement = pd.read_excel(r"./fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx")   # or Min5_data_vegas.xlsx
         #        measurement_or['Date/Time']=pd.to_datetime(measurement_or['Date/Time'])
         #        measurement_or = measurement_or.set_index('Date/Time')
         #        measurement = measurement_or.resample(str(ts)+'T').interpolate()  # interpolate from Hour to 10 min
@@ -607,10 +607,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
         FleetResponse.P_service_min  = 0
         
         # FleetResponse.Q_dot_down     = 0
-        FleetResponse.dT_hold_limit  = None
-        FleetResponse.T_restore      = None
-        FleetResponse.Strike_price   = None
-        FleetResponse.SOC_cost       = None
+        FleetResponse.dT_hold_limit  = NA
+        FleetResponse.T_restore      = NA
+        FleetResponse.Strike_price   = NA
+        FleetResponse.SOC_cost       = NA
 
         FleetResponse.ts = ts
 

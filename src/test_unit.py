@@ -24,7 +24,7 @@ fleet_name = 'HVAC'
 
 start_time = datetime.utcnow()
 cur_time = datetime.utcnow()
-delt = timedelta(hours=0.000277777778)
+delt = timedelta(hours=1.0/6.0)
 
 Prequest = 100
 Qrequest = None
