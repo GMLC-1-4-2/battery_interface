@@ -189,6 +189,10 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'EnergyMarketService':
         fleet_requests, fleet_responses = service.request_loop()
+
+    elif service_name == 'PeakManagementService':
+        start_time = service.drive_cycle["dt"][0]
+        service.request_loop(start_time, fleet_name=assigned_fleet_name)
         
     else:
         raise 'Could not recognize service with name ' + service_name
@@ -201,7 +205,7 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['ArtificialInertia']
+    services = ['PeakManagementService']
     fleets = ['ElectricVehicle']
     start_time = parser.parse('2017-08-01 00:00:00')
 
