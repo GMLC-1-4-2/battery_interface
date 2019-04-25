@@ -26,6 +26,10 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     if service_name == 'ArtificialInertia':
         grid_type = 2
 
+    start_time = kwargs['start_time']
+    sim_step = dynamic_time_step(service_name, fleet_name)
+    kwargs = {'sim_step': sim_step}
+        
     # Create test fleet
     fleet = create_fleet(fleet_name, grid_type, **kwargs)
     if fleet is None:
@@ -34,10 +38,6 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     # Assign test fleet to test service to use
     service.fleet = fleet
     assigned_fleet_name = service.fleet.__class__.__name__
-
-    start_time = kwargs['start_time']
-    sim_step = dynamic_time_step(service_name, fleet_name)
-    kwargs = {'sim_step': sim_step}
 
     # Run test
     if service_name == 'Regulation':
