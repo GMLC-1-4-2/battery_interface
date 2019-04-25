@@ -490,17 +490,17 @@ class HVACFleet(FleetInterface):   #FleetInterface
         P_request_perHVAC = P_req / self.numHVAC # this is only for the first step
         #        print(P_request_perWH)
         
-        FleetResponse.Q_togrid = 0
-        FleetResponse.Q_service = 0
-        FleetResponse.Q_service_max = 0
-        FleetResponse.Q_service_min = 0
-        FleetResponse.Q_togrid_min = 0  
-        FleetResponse.Q_togrid_max = 0
+        FleetResponse.Q_togrid = 'NA'
+        FleetResponse.Q_service = 'NA'
+        FleetResponse.Q_service_max = 'NA'
+        FleetResponse.Q_service_min = 'NA'
+        FleetResponse.Q_togrid_min = 'NA'  
+        FleetResponse.Q_togrid_max = 'NA'
         Eloss = 0
         Edel = 0 
         
-        FleetResponse.Q_dot_up = 0
-        FleetResponse.Q_dot_down = 0
+        FleetResponse.Q_dot_up = 'NA'
+        FleetResponse.Q_dot_down = 'NA'
         FleetResponse.P_dot_up = 0
         FleetResponse.P_dot_down = 0
    
@@ -607,10 +607,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
         FleetResponse.P_service_min  = 0
         
         # FleetResponse.Q_dot_down     = 0
-        FleetResponse.dT_hold_limit  = NA
-        FleetResponse.T_restore      = NA
-        FleetResponse.Strike_price   = NA
-        FleetResponse.SOC_cost       = NA
+        FleetResponse.dT_hold_limit  = 'NA'
+        FleetResponse.T_restore      = 'NA'
+        FleetResponse.Strike_price   = 'NA'
+        FleetResponse.SOC_cost       = 'NA'
 
         FleetResponse.ts = ts
 
@@ -927,7 +927,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #### Interpolate the time resolution of the disturbances
 def get_inputs(Qsolar_i10, Qsolar_mass10, temp_sol_W10, temp_sol_R10, timestep_s, ts):
         num_steps = 3600*48.0/timestep_s  
-        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S')
+        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S.%f')  #
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec + timestep_s*num_steps/3600.0, num_steps)
@@ -997,7 +997,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         except IndexError:
             raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S')
+        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S.%f')
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_s*num_steps/3600.0, num_steps)
