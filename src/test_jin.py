@@ -36,6 +36,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     assigned_fleet_name = service.fleet.__class__.__name__
 
     start_time = kwargs['start_time']
+    sim_step =  kwargs['sim_step']
 
     # Run test
     if service_name == 'Regulation':
@@ -62,6 +63,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             fleet_response = service.request_loop(service_type=service_type,
                                                     start_time=parser.parse(monthtimes[month][0]),
                                                     end_time=parser.parse(monthtimes[month][1]),
+                                                    sim_step=5*60,
                                                     clearing_price_filename='historical-ancillary-service-data-2017.xls',
                                                     fleet_name=assigned_fleet_name)
             month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
@@ -84,14 +86,14 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'Reserve':
         monthtimes = dict({
-            'January': ["2017-01-08 00:00:00", "2017-01-08 17:59:59"],
+            # 'January': ["2017-01-08 00:00:00", "2017-01-08 17:59:59"],
             # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
             # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
             # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
             # 'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:59"],
             # 'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:59"],
             # 'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:59"],
-            # 'August': ["2017-08-01 00:00:00", "2017-08-31 23:59:59"],
+            'August': ["2017-08-01 16:00:00", "2017-08-31 18:59:59"],
             # 'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:59"],
             # 'October': ["2017-10-01 00:00:00", "2017-10-31 23:59:59"],
             # 'November': ["2017-11-01 00:00:00", "2017-11-30 23:59:59"],
@@ -122,6 +124,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             start_time = parser.parse(monthtimes[month][0])
             fleet_response = service.request_loop(start_time=start_time,
                                                   end_time=parser.parse(monthtimes[month][1]),
+                                                  sim_step=5*60,
                                                   clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
                                                   previous_event_end=previous_event_end,
                                                   four_scenario_testing=False,
@@ -203,12 +206,14 @@ if __name__ == '__main__':
     services = ['Regulation']  #ArtificialInertia
     fleets = ['HVAC']  # BatteryInverter
     start_time = parser.parse('2017-08-01 00:00:00')
+    sim_step = 5*60
 
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
     metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
 
     kwargs = {
         'start_time': start_time,
+        'sim_step': sim_step,
         'metrics_calc_start_time': metrics_calc_start_time,
         'metrics_calc_end_time': metrics_calc_end_time,
         'service_weight': 0.75

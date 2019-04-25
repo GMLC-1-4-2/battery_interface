@@ -77,8 +77,9 @@ def create_fleet(name, grid_type=1, **kwargs):
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
         ts = kwargs['start_time'] # Read it from kwargs dictionary
+        simu_step = kwargs['sim_step'] # Read it from kwargs dictionary
 
-        hvac_fleet = HVACFleet(grid, ts)
+        hvac_fleet = HVACFleet(grid, ts, simu_step)
         hvac_fleet.is_autonomous = False
         hvac_fleet.is_P_priority = True
         hvac_fleet.service_weight = kwargs['service_weight']

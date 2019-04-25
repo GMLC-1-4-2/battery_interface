@@ -48,7 +48,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, GridInfo, ts):  # add , sim_step later
+    def __init__(self, GridInfo, ts, simu_step):  # add , sim_step later
         """
         for battery def __init__(self, GridInfo,**kwargs):
         old: (self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40)
@@ -86,7 +86,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         
         " TODO: update this sim_step in main interface "
 
-        self.sim_step = 10.0 * 60 # 10 min in seconds
+        self.sim_step = simu_step   #10.0 * 60 # 10 min in seconds
         
         self.shortcycle_ts=int(round(self.shortcycle/self.sim_step,0))  #number of time steps during short cycle timer
         self.minrun_ts=int(round(self.minrun/self.sim_step,0))
@@ -116,10 +116,6 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # Weight used to scale the service request
         self.service_weight = LC.get_service_weight()    
 
-        """
-        Can this fleet operate in autonomous operation?
-        """
-        
         # Locations of the subfleets: suppose that you only have one location
         self.location = np.random.randint(0,1,self.numHVAC)
         
@@ -245,7 +241,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # inputs_ts['Tsolw']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADW]*0.3/inputs_ts[c.COL_H]
         # inputs_ts['Tsolr']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADR]*0.8/inputs_ts[c.COL_H]
 
-        measurement = pd.read_excel(r"./fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx")   # or Min5_data_vegas.xlsx
+        measurement = pd.read_excel(r"./fleets/HVAC_fleet/data_file/Vegas_TMY3_July_10mins.xlsx")
         #        measurement_or['Date/Time']=pd.to_datetime(measurement_or['Date/Time'])
         #        measurement_or = measurement_or.set_index('Date/Time')
         #        measurement = measurement_or.resample(str(ts)+'T').interpolate()  # interpolate from Hour to 10 min
@@ -484,6 +480,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         FleetResponse.P_togrid_max = 0
         FleetResponse.P_togrid_min = 0
         FleetResponse.P_forecast = 0
+        FleetResponse.P_base = 0
         FleetResponse.E = 0
         FleetResponse.C = 0
 
@@ -593,7 +590,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
             FleetResponse.P_togrid += response.Eused
             FleetResponse.P_togrid_max += response.PusedMax
             FleetResponse.P_togrid_min += response.PusedMin                
-            FleetResponse.P_service += response.Eservice                
+            FleetResponse.P_service += response.Eservice 
+            FleetResponse.P_base += response.Pbase               
             number += 1  # go to next device
 
             # Available Energy stored at the end of the most recent timestep
@@ -927,7 +925,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #### Interpolate the time resolution of the disturbances
 def get_inputs(Qsolar_i10, Qsolar_mass10, temp_sol_W10, temp_sol_R10, timestep_s, ts):
         num_steps = 3600*48.0/timestep_s  
-        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S.%f')  #
+        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S') #.%f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec + timestep_s*num_steps/3600.0, num_steps)
@@ -997,7 +995,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         except IndexError:
             raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S.%f')
+        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S')  #.f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_s*num_steps/3600.0, num_steps)

@@ -437,6 +437,7 @@ class BuildingModel():
             response.Tattic = Tattic_ts
             response.Tset = Tset_ts 
             response.Eused = Eused_ts 
+            response.Pbase = Eused_baseline_ts
 
             response.lockoff = lockoff 
             response.lockon = lockon 
