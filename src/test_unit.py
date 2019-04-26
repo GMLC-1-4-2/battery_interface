@@ -8,11 +8,11 @@ from fleet_factory import create_fleet
 # ======================   DEFAULT TEST PARAMETERS    =======================
 
 # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
-fleet_name = 'ElectricVehicle'
+fleet_name = 'PV'
 
-# start_time = parser.parse('8/1/17 16:00')
-# cur_time = parser.parse('8/1/17 16:00')
-# delt = timedelta(seconds=30)
+#start_time = parser.parse('8/1/17 16:00')
+#cur_time = parser.parse('8/1/17 16:00')
+#delt = timedelta(seconds=30)
 
 start_time = datetime.utcnow()
 cur_time = datetime.utcnow()
@@ -46,7 +46,8 @@ class TestDeviceAPI(unittest.TestCase):
 # See Table 3.4 of the "Battery-Equivalent Models for Distributed Energy Resource Devices’ Ability to Provide
 # Grid Services" Report
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
     #This method instantiates the fleet and executes a simple request to get the device response for evaluation
 
     # Create test fleet
@@ -122,7 +123,7 @@ class TestDeviceAPI(unittest.TestCase):
     def test_P_dot_down(self):
         self.assertIsNotNone(self.response.P_dot_down, 'P_dot_down is not provided!')
 
-    def test_Q_service_min(self):
+    def test_Q_dot_down(self):
         self.assertIsNotNone(self.response.Q_dot_down, 'Q_dot_down is not provided!')
 
     def test_Eff_charge(self):
@@ -151,7 +152,8 @@ class TestDeviceAPI(unittest.TestCase):
 class TestDeviceTime(unittest.TestCase):
 # This class is specifically designed to test for consistency and flexibility in handling timestampes and timesteps
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
     #This method instantiates the fleet and executes a simple request to get the device response for evaluation
 
     # Create test fleet
@@ -186,7 +188,8 @@ class TestDeviceTime(unittest.TestCase):
 class TestPowers(unittest.TestCase):
 # This class is specifically designed to test for sign consistency of P_base, P_togrid, and the calculation of P_service
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
     #This method instantiates the fleet and executes a simple request to get the device response for evaluation
 
     # Create test fleet
@@ -247,7 +250,8 @@ class TestFreqResponse(unittest.TestCase):
 # This class is specifically designed to test...
 
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
         # This method instantiates the fleet and executes a simple request to get the device response for evaluation
 
         # Create test fleet
@@ -275,7 +279,7 @@ class TestFreqResponse(unittest.TestCase):
     def test_FreqResponseSign(self):
         fdroop = 60 - self.f
         fsign = fdroop / abs(fdroop)
-        self.assertGreater((self.response.P_service*fsign), 0, 'P_Service has the incorrect sign for Autonomous Frequency Response (aka Artificial Inertia)')
+        self.assertGreaterEqual((self.response.P_service*fsign), 0, 'P_Service has the incorrect sign for Autonomous Frequency Response (aka Artificial Inertia)')
 
     def tearDown(self):
         self.response = []
@@ -284,7 +288,8 @@ class TestFreqResponse(unittest.TestCase):
 class TestForecast(unittest.TestCase):
 # This class is specifically designed to test...
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
         # This method instantiates the fleet and executes a simple request to get the device response for evaluation
 
         # Create test fleet
@@ -319,7 +324,7 @@ if __name__ == '__main__':
     unittest.main()
 
 #Concepts for later tests:
-# Test to see that the devices can run with a range of P_request and Q_request
+# Test to see that the devices can run with a range of P_request and Q_request (particularly [positive P_Request)
 # Run to see that it can run with range of start times.
 # Run to see that it can run with range of time-steps.
 # Check that variables such as start time created in a class set up are not used by other classes 
@@ -327,3 +332,4 @@ if __name__ == '__main__':
 # Investigate test class grouping to see if execution can be sped up by doing setup once per set of tests.
 # Just have tests focus on devices for now as services are really just P and Q request generators (except
 # for artificial inertia generation).
+
