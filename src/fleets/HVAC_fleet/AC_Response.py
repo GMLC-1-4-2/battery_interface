@@ -26,6 +26,7 @@ class ACResponse:
         self.Tattic = 0
         self.Tset = 0 
         self.Eused = 0 
+        self.Pbase = 0
         self.PusedMax = 0
         self.PusedMin = 0
         self.ElementOn = 0
