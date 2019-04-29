@@ -22,7 +22,7 @@ from matplotlib.pyplot import show, grid, subplots, rcParams
 base_path = dirname(abspath(__file__))
 
 
-# rcParams.update({'font.size': 22})
+rcParams.update({'font.size': 22})
 
 
 def fleet_test1(fleet, grid_dat):
@@ -103,7 +103,7 @@ def fleet_test1(fleet, grid_dat):
 
 def fleet_test2(fleet, grid_dat):
 
-    p_data = loadmat(join(base_path, 'pdata_3secs.mat'), squeeze_me=True)
+    p_data = loadmat(join(base_path, 'pdata.mat'), squeeze_me=True)
     time = p_data['TT']
 
     # Power request
@@ -114,7 +114,7 @@ def fleet_test2(fleet, grid_dat):
     fleet.is_autonomous = True
     fleet.FW21_Enabled = True
     fleet.is_P_priority = False
-    ts = datetime(2018, 9, 20, 00, 0, 00, 000000)
+    ts = datetime.utcnow()
     dt = timedelta(seconds=1)
     fleet_request = [FleetRequest(ts=(ts + i * dt), sim_step=dt, start_time=ts, p=v, q=0.) for i, v in enumerate(p_req)]
 
@@ -133,7 +133,7 @@ def fleet_test2(fleet, grid_dat):
         ts.append(fleet_response.ts)
         status.append(fleet_response.status)
         fleetsize.append(fleet_response.ey_fleet)
-        print("service power is %4.2fkW at f = %4.2fHz" % (P_service[len(P_service) - 1], f[len(f) - 1]))
+        #print("service power is %4.2fkW at f = %4.2fHz" % (P_service[len(P_service) - 1], f[len(f) - 1]))
 
     # Simulation results
     stat = "fully charged at %s sec." % str(sum(status))
@@ -143,13 +143,12 @@ def fleet_test2(fleet, grid_dat):
 
     # Plot the results
     fig1, y1 = subplots(figsize=(20, 12))
-    p0, = y1.plot(p_req, label='P_request')
-    p1, = y1.plot(P_service, label='P_response')
-    y1.set_ylabel('P(kW)')
+    p1, = y1.plot(f, label='Frequency', color='g')
+    y1.set_ylabel('Hz')
     y2 = y1.twinx()
-    p2, = y2.plot(60 - array(f), label='Frequency', color='g')
-    y2.set_ylabel('60-f Hz')
-    plots = [p0, p1, p2]
+    p2, = y2.plot(array(P_service)/130, label='P_response')
+    y2.set_ylabel('Power Consumption (p.u.)')
+    plots = [p1, p2]
     y1.set_xlabel('Time (s)')
     y1.legend(plots, [l.get_label() for l in plots])
     grid()
@@ -157,11 +156,10 @@ def fleet_test2(fleet, grid_dat):
     fig1.savefig(join(base_path, "Ey_result_P_freq_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),
                  bbox_inches='tight')
 
-    # Plot the results
     fig2, y2 = subplots(figsize=(20, 12))
-    y2.scatter(f, P_service, label='P_response')
-    y2.set_ylabel('P(kW)')
-    y2.set_xlabel('60 Hz')
+    y2.scatter(f, array(P_service)/130, label='P_response')
+    y2.set_ylabel('Power Consumption(p.u.)')
+    y2.set_xlabel('Hz')
     grid()
     show()
     fig2.savefig(join(base_path, "Ey_result_P_freq2_%s.png" % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S'))),

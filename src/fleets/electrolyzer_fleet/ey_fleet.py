@@ -114,6 +114,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.ey_db_OF = float(self.config.get(mdl_type, "db_OF", fallback=0.36))
         self.ey_k_UF = float(self.config.get(mdl_type, "k_UF", fallback=0.05))
         self.ey_k_OF = float(self.config.get(mdl_type, "k_OF", fallback=0.05))
+        self.__P_pre = float(self.config.get(mdl_type, "P_pre", fallback=-1.0))
 
         # Will pre-load the power curve input data if P_req is not set. User will have to provide
         # a time-stamped CSV data file that has the power input data
@@ -130,10 +131,6 @@ class ElectrolyzerFleet(FleetInterface):
             print("Model parameters found for:"+"\t"*5+"%s [OKAY]\n" % self.config.sections()[0])
 
         # Compute initial state parameters for the Electrolyzer model
-        if self.FW21_Enabled and self.is_autonomous:
-            self.P_pre = 0
-            self.freq_reg = FrequencyDroop(self.ey_db_UF, self.ey_db_OF, self.ey_k_UF, self.ey_k_OF, self.ey_Pmax_fleet,
-                                           self.ey_Pmin_fleet, 0)
         self.f = None
         self.nn = 0
         self.ey_I = 0
@@ -174,7 +171,7 @@ class ElectrolyzerFleet(FleetInterface):
         # Output metrics dataframe
         self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age',
                          'Lka_H2', 'nch', 'P_togrid', 'P_service', 'f']]
-        self.inc = 0
+        self.__inc = 0
 
     def process_request(self, fleet_request):
         resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step,
@@ -218,12 +215,6 @@ class ElectrolyzerFleet(FleetInterface):
                 # Check if Preq is within operational range in kW
                 # Fleet size remains constant
                 Preq = self.P_opt(abs(Preq), self.ey_Pmin_fleet, self.ey_Pmax_fleet)
-                if self.FW21_Enabled and self.is_autonomous:
-                    # all in kW
-                    self.P_pre = self.P_opt(self.P_pre, self.ey_Pmin_fleet, self.ey_Pmax_fleet)
-                    Preq, self.f = self.frequency_watt(p_pre=self.P_pre, p_avl=self.ey_Pmax_fleet,
-                                                       p_min=self.ey_Pmin_fleet,
-                                                       ts=ts, start_time=start_time)
                 Pr =abs(Preq)*1e3/self.ey_Ne   # Watts
                 is_avail = 1
             resp.ey_fleet = int(self.ey_Ne)
@@ -237,7 +228,7 @@ class ElectrolyzerFleet(FleetInterface):
             P = self.ey_Ne*self.ey_Nc*V*Ir
 
             # Ageing
-            V_age = V+((self.inc+1)*3.88888888888887e-08)
+            V_age = V+((self.__inc+1)*3.88888888888887e-08)
             Ir_age = Pr/(V_age*self.ey_Nc)
 
             # Compute Faraday Efficiency
@@ -266,7 +257,14 @@ class ElectrolyzerFleet(FleetInterface):
 
             # Total power demanded from the grid in Watts
             P_tot = W_c*1e3+P
-            self.P_pre = P_tot*1e-3
+
+            if self.FW21_Enabled and self.is_autonomous:
+                # all in kW
+                self.__P_pre = self.P_opt(P_tot*1e-3, self.ey_Pmin_fleet, self.ey_Pmax_fleet)
+                Preq, self.f = self.frequency_watt(p_pre=self.__P_pre, p_avl=self.ey_Pmax_fleet,
+                                                   p_min=self.ey_Pmin_fleet,
+                                                   ts=ts, start_time=start_time)
+                self.__P_pre = Preq
             # Storage Tank
             # Number of moles in time i in the system of tanks
             self.moles += Qh2_m*1
@@ -287,7 +285,7 @@ class ElectrolyzerFleet(FleetInterface):
             self.soc_age = round(self.moles_age/self.ey_Nt*self.ey_R*(self.ey_T+273.15)/self.ey_V_tank/self.max_charge, 3)
             if self.soc > 1.0 or self.soc < 0.0:
                 sys.exit(print("Soc limit violation!!" + "\t" * 6 + " [!!]\n"))
-        self.inc += 1
+        self.__inc += 1
 
         # Response
         # Power injected to the Grid is positive
@@ -306,7 +304,7 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Eff_discharge = None
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = -P_tot*1e-3
+        resp.P_service = -self.__P_pre
         resp.P_service_max = 0
         resp.P_service_min = 0
         resp.P_togrid = -P_tot*1e-3     # (kW)
@@ -339,7 +337,7 @@ class ElectrolyzerFleet(FleetInterface):
                                  str(resp.P_service), str(self.f)])
 
         # Print SoC status every 5 secs.
-        if self.inc % 5000 == 0:
+        if self.__inc % 5000 == 0:
             print("Soc:%4.2f%%" % resp.E)
         return resp
 
@@ -361,15 +359,13 @@ class ElectrolyzerFleet(FleetInterface):
 
     def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.1, ts=datetime.utcnow(), location=0, start_time=None):
         f = self.grid.get_frequency(ts, location, start_time)
-        # print("before",p_pre, p_avl, p_min)
         P_pre = -p_pre / self.ey_Pmax_fleet
         P_avl = -p_avl / self.ey_Pmax_fleet
         P_min = -p_min / self.ey_Pmax_fleet
-        # print("PUafter",P_pre, P_avl, P_min)
         if f < 60 - self.ey_db_UF:
-            p_set = min(P_pre + (60 - self.ey_db_UF - f) / (60 * self.ey_k_UF), P_min)
+            p_set = min(P_min, P_pre + (60 - self.ey_db_UF - f) / (60 * self.ey_k_UF))
         elif f > 60 + self.ey_db_OF:
-            p_set = max(P_pre + (60 + self.ey_db_OF - f) / (60 * self.ey_k_OF), P_avl)
+            p_set = max(P_avl, P_pre + (60 + self.ey_db_OF - f) / (60 * self.ey_k_OF))
         else:
             p_set = P_pre
         p_set *= -self.ey_Pmax_fleet

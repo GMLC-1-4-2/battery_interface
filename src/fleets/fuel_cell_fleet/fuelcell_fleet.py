@@ -179,8 +179,8 @@ class FuelCellFleet(FleetInterface):
         resp = FleetResponse()
 
         if self.P_tank_ideal <= self.min_charge:
-            is_avail, resp.fc_fleet, P_tot_ideal, ne, nf, Vr, Vi, Ir, eta_ds =\
-                0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+            is_avail, resp.fc_fleet, P_tot_ideal, P_tot_age, ne, ne_age, nf, Vr, Vr_age, Vi, Ir, eta_ds =\
+                0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         else:
             if self.load_curve and Preq is None:
                 # Power profile (kW)
@@ -267,10 +267,10 @@ class FuelCellFleet(FleetInterface):
         resp.Eff_discharge = eta_ds*1e2
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = P_tot_ideal+self.fc_Pe_base
+        resp.P_service = P_tot_age+self.fc_Pe_base
         resp.P_service_max = 0
         resp.P_service_min = 0
-        resp.P_togrid = P_tot_ideal
+        resp.P_togrid = P_tot_age
         resp.P_togrid_max = self.fc_Pmax_fleet
         resp.P_togrid_min = self.fc_Pmin_fleet
         resp.Q_dot_down = None
@@ -282,7 +282,7 @@ class FuelCellFleet(FleetInterface):
         resp.Q_togrid_max = None
         resp.Q_togrid_min = None
         resp.T_restore = None
-        resp.P_base = self.fc_Pmin_fleet
+        resp.P_base = self.fc_Pe_base
         resp.Q_base = 0
         resp.Strike_price = None
         resp.SOC_cost = None
@@ -294,7 +294,7 @@ class FuelCellFleet(FleetInterface):
         # Impact metrics
         if not forecast:
             self.metrics.append([str(ts), str(Vr), str(Vr_age), str(ne),
-                                 str(ne_age), str(self.soc_ideal * 1e2), str(self.soc_age[0] * 1e2),
+                                 str(ne_age), str(self.soc_ideal * 1e2), str(self.soc_age * 1e2),
                                  str(self.lka_h2), str(eta_ds * 1e2)])
 
         # Print Soc every 5 secs.
