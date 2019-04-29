@@ -60,7 +60,17 @@ class AC:
             self.EIRrated=EIRrated
 
 AC=AC(13800*1.15,0.30839)  # rated 4900 W
-        
+
+#Column names for weather input data
+class c():
+    COL_TOUT='Dry-bulb (C)'
+    COL_H='Hconvection'
+    COL_QIHL='QIHL (W)'
+    COL_RADW='Radwall (W/m^2)'
+    COL_RADR='Radroof (W/m^2)'
+    COL_RADWIN='Radwindow (W/m^2)'
+    COL_DATETIME='Date/Time'
+
 def Capacity(AC,Tout,Tin=Tin_assumed):
     return((AC.C1+AC.C2*Tin+AC.C3*Tin*Tin+AC.C4*Tout+AC.C5*Tout*Tout+AC.C6*Tout*Tin)*AC.Qrated)
     
@@ -436,6 +446,7 @@ class BuildingModel():
             response.Tmass = Tmass_ts
             response.Tattic = Tattic_ts
             response.Tset = Tset_ts 
+            
             response.Eused = Eused_ts 
             response.Pbase = Eused_baseline_ts
 

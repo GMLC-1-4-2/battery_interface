@@ -23,6 +23,7 @@ from datetime import timedelta
 #import build_model as bm
 from fleets.HVAC_fleet.build_model import BuildingModel
 from fleets.HVAC_fleet.build_model import AC
+from fleets.HVAC_fleet.build_model import c
 from fleets.HVAC_fleet.build_model import EIR
 from fleets.HVAC_fleet.build_model import Capacity
 from fleets.HVAC_fleet.build_model import SHR
@@ -149,16 +150,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.db_OF_subfleet = np.random.uniform(low = self.db_OF[0], high = self.db_OF[1], size = (self.numHVAC, ))
         
         # Impact metrics of the fleet
-        # End of life cost
         metrics = LC.get_impact_metrics_params()
+        # Aveage indoor temperature
         self.ave_Tin = metrics[0]
         # Cylce life
         self.cycle_life = metrics[1]
-        # State of health of the battery equivalent model
+        # Unmet hours of the fleet
         self.unmet_hours = metrics[2]
-        # self.soh = np.repeat(metrics[2], self.N_SubFleets)
-
-       
+        # State of Charge of the battery equivalent model
+        self.SOC_metric = metrics[3]
+               
         ########### initial indoor temperatures and SoC
         self.TinInitialMean = 23.67 #deg C
         self.TinInitialStddev = 0.3 #deg C
@@ -359,7 +360,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         ##############################################################################################################
  
         #    Initializing the building HVAC models
-        #    Get the baseline power
+       
         self.hvacs = [BuildingModel(self.Tamb[0], self.Tsol_W[0], self.QIHL_i[0], self.Qsolar_i[0], self.Tsol_R[0],
                                     self.QIHL_mass[0], self.Qsolar_mass[0], P_req, self.Rext[number], 
                                     self.Rattic[number], self.Cmass[number], 0, self.MaxServiceCalls[number], self.dt) for number in range(self.numHVAC)]
@@ -445,10 +446,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
         dt = timedelta(hours=1)
         p_req = P*self.SubFleet_NumberOfUnits*self.s_max
         q_req = None
-        # call run function with proper inputs    
-        
+
+        # call run function with proper inputs            
    
-        fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
+        fleet_response = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
 #        print('t = ',ts_local,' f =',f, ' and p = ',P, 'P_avl = ',P_avl, 'P_pre = ',P_pre,' Current_Forecast_indx = ',Current_Forecast_indx)
         return fleet_response
 
@@ -521,6 +522,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         servmax = 0
         servmax2 = 0
         NumDevicesToCall = 0
+        P_service_max0 = 0
         # laststep = step - 1
 
     #  decision making about which HVAC to call on for service, check if available at last step, if so then 
@@ -605,7 +607,13 @@ class HVACFleet(FleetInterface):   #FleetInterface
             # FleetResponse.E += response.Estored
             FleetResponse.E = 0
             FleetResponse.C += response.SOC / (self.numHVAC)
-            FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+
+            if P_req<=0:
+                FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+            else:
+                P_service_max0 += response.AvailableCapacityAdd
+                FleetResponse.P_service_max = -1.0*P_service_max0
+
             
         # FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
         FleetResponse.P_dot = FleetResponse.P_togrid / dt
@@ -680,10 +688,21 @@ class HVACFleet(FleetInterface):   #FleetInterface
         responses = []
         SOC = self.SOC 
 
-        TinR = self.TinInitial
-        TwallR = self.TwallInitial
-        TmassR = self.TmassInitial
-        TatticR = self.TatticInitial
+        for number in range(self.numHVAC): #loop through all HVACs
+            TinR = self.TinInitial[number]
+            TwallR = self.TwallInitial[number]
+            TmassR = self.TmassInitial[number]
+            TatticR = self.TatticInitial[number]
+
+            SOCR = self.SOC[number]
+
+            elementOnR = self.elementOn[number]
+            lockonR = self.lockon[number]
+            lockoffR = self.lockoff[number]
+            cycle_offR = self.cycle_off_base[number]
+            cycle_on_baseR = self.cycle_on_base[number]
+            cycle_off_gridR = self.cycle_off_grid[number]
+            cycle_on_gridR = self.cycle_on_grid[number]
 
         # Iterate and process each request in fleet_requests
         for req in requests:
@@ -696,15 +715,23 @@ class HVACFleet(FleetInterface):   #FleetInterface
             responses.append(res)
                     
         # reset the model
-        self.soc = SOC 
-        self.Tin = TinR
-        self.Twall = TwallR
-        self.Tmass = TmassR
-        self.Tattic = TatticR
-  
+        for number in range(self.numHVAC): #loop through all HVACs
+            self.soc = SOCR 
+            self.TinInitial[number] = TinR
+            self.TwallInitial[number] = TwallR
+            self.TmassInitial[number] = TmassR
+            self.TatticInitial[number] = TatticR
+
+            self.elementOn[number] = elementOnR
+            self.lockon[number] = lockonR
+            self.lockoff[number] = lockoffR
+            self.cycle_off_base[number] = cycle_offR
+            self.cycle_on_base[number] = cycle_on_baseR
+            self.cycle_off_grid[number] = cycle_off_gridR
+            self.cycle_on_grid[number] = cycle_on_gridR
+
         return responses
  
-
     def run_baseline_simulation(self):
         """ 
         Method to run baseline simulation and store power level and SOC of 
@@ -784,6 +811,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             #Initialize Temperatures and assign building and AC characteristics
             b=[0]*num_homes
             ac=[0]*num_homes
+
             for i in range(0,num_homes):
                 b[i]=building(df_bldg.T_in[i],df_bldg.T_mass[i],df_bldg.T_wall[i],df_bldg.T_attic[i],df_bldg.Rwall[i],df_bldg.Rattic[i],df_bldg.Rwin[i],df_bldg.SHGC[i],df_bldg.Cwall[i],df_bldg.Cin[i],df_bldg.C1[i],df_bldg.C2[i],df_bldg.C3[i],df_bldg.Cattic[i],df_bldg.Rroof[i],df_bldg.Cmass[i],df_bldg.Rmass[i],df_bldg.Sp1[i],df_bldg.Sp2[i],df_bldg.Sp3[i],df_bldg.Qrated[i],df_bldg.EIRrated[i],df_bldg.TinWB[i],df_bldg.Initial_On[i])
                 Tin.iloc[0,i]=b[i].T_in
@@ -813,9 +841,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
                     Power.iloc[i,j]=ACstatus.iloc[i,j]*Capacity(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)*EIR(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)
                     
                     # calculate SOC for each AC
-                    SOC.iloc[i,j] = (self.Tset+self.deadband - Tin.iloc[i,j])/(2*deadband)
+                    SOC.iloc[i,j] = (self.Tset+self.deadband - Tin.iloc[i,j])/(2*self.deadband)
 
                     #building model dT calculations
+                    ts = self.sim_step
                     dTin.iloc[i,j]=ts*1.0/b[j].Cin*((Twall.iloc[i,j]-Tin.iloc[i,j])*2.0/b[j].Rwall
                             +(Tattic.iloc[i,j]-Tin.iloc[i,j])/b[j].Rattic
                             +(Tmass.iloc[i,j]-Tin.iloc[i,j])/b[j].Rmass+inputs_ts[c.COL_QIHL][i]*b[j].C1*b[j].Sp1
@@ -840,16 +869,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
             # calculate peak power and plot data
             PeakPower=Power.sum(axis=1).max()*1.0 # plot out the peak power in kW
-            Plot_Power=np.full(len(plot_time),PeakPower/1000.0)
+            Plot_Power=np.full(len(plot_timeB),PeakPower/1000.0)
             fig,ax = plt.subplots(2,1,figsize=(6,8),sharey='row')
-            p1=ax[0].plot(plot_time,Power.sum(axis=1)/1000.0,color='blue',linestyle='solid',label='Baseline')
-            ax[0].plot(plot_time,Plot_Power,color='black',linestyle='--',label='Targeted Power')
+            p1=ax[0].plot(plot_timeB,Power.sum(axis=1)/1000.0,color='blue',linestyle='solid',label='Baseline')
+            ax[0].plot(plot_timeB,Plot_Power,color='black',linestyle='--',label='Targeted Power')
             ax[0].set_ylabel('Total Power (kW)')
             ax[1].set_ylabel('Indoor Temperature ($^\circ$C)')
             ax[1].set_xlabel('Hour of Day')
-            p2=ax[1].plot(plot_time,Tin.mean(axis=1),color='blue',linestyle='solid',label='Baseline Avg')
-            p3=ax[1].plot(plot_time,Tin.max(axis=1),color='blue',linestyle='dotted',label='Baseline Min/Max')
-            p4=ax[1].plot(plot_time,Tin.min(axis=1),color='blue',linestyle='dotted',label='_nolegend_')
+            p2=ax[1].plot(plot_timeB,Tin.mean(axis=1),color='blue',linestyle='solid',label='Baseline Avg')
+            p3=ax[1].plot(plot_timeB,Tin.max(axis=1),color='blue',linestyle='dotted',label='Baseline Min/Max')
+            p4=ax[1].plot(plot_timeB,Tin.min(axis=1),color='blue',linestyle='dotted',label='_nolegend_')
             
             # Saves baseline data to csv
             #ToDo: needs cut the whole day simulation to compare only segment with providing grid services
@@ -871,43 +900,40 @@ class HVACFleet(FleetInterface):   #FleetInterface
             baseline_std_Tin = Tin.std(axis = 1)
             baseline_Tin_max = Tin.max(axis=1)
             baseline_Tin_min = Tin.min(axis=1)
-
-            baseline_soc = SOC.mean(axis = 1)
-            baseline_std_soc = SOC.std(axis = 1)
                     
         return baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min
     
     
-    # def output_impact_metrics(self):   
-    #     impact_metrics_DATA = [["Impact Metrics File"],
-    #                             ["state-of-health", "initial value", "final value", "degradation cost"]]
-    #     for i in range(self.num_of_devices):
-    #         impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
+    def output_impact_metrics(self):   
+        impact_metrics_DATA = [["Impact Metrics File"],
+                                ["state-of-health", "initial value", "final value", "degradation cost"]]
+        for i in range(self.num_of_devices):
+            impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
 
-    #     total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
-    #     impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
+        total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
+        impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
 
-    #     with open('impact_metrics.csv', 'w') as csvfile:
-    #         writer = csv.writer(csvfile)
-    #         writer.writerows(impact_metrics_DATA)     
+        with open('impact_metrics.csv', 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(impact_metrics_DATA)     
 
     #     pass
 
-    # def change_config(self, fleet_config):
+    def change_config(self, fleet_config):
     #     """
     #     This function updates the fleet configuration settings programatically.
     #     :param fleet_config: an instance of FleetConfig
     #     """
 
-    #     # change config
-    #     self.is_P_priority = fleet_config.is_P_priority
-    #     self.is_autonomous = fleet_config.is_autonomous
-    #     self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
-    #     self.fw_function.db_UF = self.FW_Param[0]
-    #     self.fw_function.db_OF = self.FW_Param[1]
-    #     self.fw_function.k_UF = self.FW_Param[2]
-    #     self.fw_function.k_OF = self.FW_Param[3]
-    #     self.autonomous_threshold = fleet_config.autonomous_threshold
+        # change config
+        self.is_P_priority = fleet_config.is_P_priority
+        self.is_autonomous = fleet_config.is_autonomous
+        self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
+        self.fw_function.db_UF = self.FW_Param[0]
+        self.fw_function.db_OF = self.FW_Param[1]
+        self.fw_function.k_UF = self.FW_Param[2]
+        self.fw_function.k_OF = self.FW_Param[3]
+        self.autonomous_threshold = fleet_config.autonomous_threshold
     #     self.Vset = fleet_config.v_thresholds
 
     def assigned_service_kW(self):
