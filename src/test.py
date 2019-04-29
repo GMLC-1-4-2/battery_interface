@@ -17,6 +17,10 @@ from service_factory import create_service
 
 
 def integration_test(service_name, fleet_name, service_type='Traditional', **kwargs):
+    start_time = kwargs['start_time']
+    sim_step = dynamic_time_step(service_name, fleet_name)
+    kwargs['sim_step'] = sim_step
+    
     # Create test service
     service = create_service(service_name)
     if service is None:
@@ -25,10 +29,6 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     grid_type = 1
     if service_name == 'ArtificialInertia':
         grid_type = 2
-
-    start_time = kwargs['start_time']
-    sim_step = dynamic_time_step(service_name, fleet_name)
-    kwargs = {'sim_step': sim_step}
         
     # Create test fleet
     fleet = create_fleet(fleet_name, grid_type, **kwargs)
