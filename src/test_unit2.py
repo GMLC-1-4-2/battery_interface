@@ -8,7 +8,7 @@ from fleet_factory import create_fleet
 # ======================   DEFAULT TEST PARAMETERS    =======================
 
 # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
-fleet_name = 'HVAC'
+fleet_name = 'Refridge'
 
 #start_time = parser.parse('8/1/17 16:00')
 #cur_time = parser.parse('8/1/17 16:00')

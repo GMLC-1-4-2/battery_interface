@@ -4,15 +4,15 @@ Created on Mon Dec 12 2018
 For GMLC 1.4.2, 
 Creating the Fleet Interface
 
-@author: Jin Dong (ORNL), Teja Kuruganti (ORNL)
+@author: Jin Dong (ORNL)
 """
 
 from datetime import datetime
 
 
-class FRResponse:
+class RFResponse:
     """
-    This class describes 1-timestep output of a HVAC
+    This class describes 1-timestep output of a Refridgerator
     """
 
     def __init__(self, ts=datetime.utcnow()):
@@ -22,8 +22,11 @@ class FRResponse:
         
         self.Tair = 0
         self.Tfood = 0
+        self.Tcase = 0
+        
         self.Tset = 0 
         self.Eused = 0 
+        self.Pbase = 0
         self.PusedMax = 0
         self.PusedMin = 0
         self.ElementOn = 0
@@ -35,4 +38,3 @@ class FRResponse:
         self.IsAvailableAdd = 0
         self.IsAvailableShed = 0
         
-#        return tin, twall, tmass, tattic, tset, eused, pusedmax, eloss, elementon, eservice, soC, availableCapacityAdd, availableCapacityShed, serviceCallsAccepted, isAvailableAdd, isAvailableShed
