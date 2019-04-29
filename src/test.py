@@ -190,7 +190,11 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         fleet_responses, fleet_requests = service.request_loop(start_time=start_time)
 
     elif service_name == 'EnergyMarketService':
-        fleet_requests, fleet_responses = service.request_loop()
+        fleet_requests, fleet_responses = service.request_loop(sim_step=sim_step)
+
+    elif service_name == 'PeakManagementService':
+        start_time = service.drive_cycle["dt"][0]
+        service.request_loop(start_time, fleet_name=assigned_fleet_name)
         
     else:
         raise 'Could not recognize service with name ' + service_name
@@ -226,7 +230,8 @@ def dynamic_time_step(service_name, fleet_name):
         'Reserve': timedelta(minutes=1),
         'ArtificialInertia': timedelta(seconds=2 / 60),
         'DistributionVoltageService': timedelta(seconds=30),
-        'EnergyMarketService': timedelta(minutes=60)
+        'EnergyMarketService': timedelta(minutes=5),
+        'PeakManagementService': timedelta(minutes=60)
     }
 
     if service_name in ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']:
@@ -239,7 +244,7 @@ def dynamic_time_step(service_name, fleet_name):
         elif sim_step > service_step_default[service_name]:
             print('     Executing ' + service_name + ' at slower time step for ' + fleet_name)
 
-    elif service_name in ['EnergyMarketService']:
+    elif service_name in ['EnergyMarketService', 'PeakManagementService']:
         sim_step = min(service_step_default[service_name], fleet_step_max[fleet_name])
 
         if not (service_step_default[service_name] / sim_step).is_integer():
