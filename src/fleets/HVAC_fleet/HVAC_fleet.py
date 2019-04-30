@@ -7,7 +7,7 @@ Based on a valided 4R4C building thermal model
 Last update: 03/18/2019
 Version: 1.0
 
-@author: Jin Dong (ORNL), Jeffrey Munk (ORNL), Teja Kuruganti (ORNL)
+@author: Jin Dong (ORNL), Teja Kuruganti (ORNL)
 """
 
 # code needed for GLOBAL fleet_interface
@@ -153,12 +153,14 @@ class HVACFleet(FleetInterface):   #FleetInterface
         metrics = LC.get_impact_metrics_params()
         # Aveage indoor temperature
         self.ave_Tin = metrics[0]
-        # Cylce life
-        self.cycle_life = metrics[1]
+        # Cylces in baseline
+        self.cycle_basee = metrics[1]
+        # Cylces in grid operation
+        self.cycle_grid = metrics[2]
         # Unmet hours of the fleet
-        self.unmet_hours = metrics[2]
+        self.unmet_hours = metrics[3]
         # State of Charge of the battery equivalent model
-        self.SOC_metric = metrics[3]
+        self.SOC_metric = metrics[4]
                
         ########### initial indoor temperatures and SoC
         self.TinInitialMean = 23.67 #deg C
@@ -404,9 +406,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
         return fleet_response
 
-    # Example code for Frequency Watt Function (following PV inverter)
+    # Example code for Frequency Watt Function
 
-    def frequency_watt(self, ts=datetime.datetime.utcnow(),location=0, start_time=None):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -415,57 +417,36 @@ class HVACFleet(FleetInterface):   #FleetInterface
         :return p_mod: modifyed real power based on FW21 function
         """
         f = self.grid.get_frequency(ts,location)
-
-        from os.path import join
         
-        # TODO Read and load forecast data
-
-        # File_Path_Forecast = join(self.base_path , 'Forecast.npy')
-        # File_Path_OperatingPoint = join(self.base_path , 'Operating_Point_Pre.npy')
-        # [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]=np.load(File_Path_Forecast)
-    
-        # [P_pre,Q_Pre,P_Requested,Q_Requested,Last_Time]=np.load(File_Path_OperatingPoint)
-        # ts_local=self.datetime_from_utc_to_local(ts)
-        # T_Stamp=[ts_local.year,ts_local.month,ts_local.day,ts_local.hour,ts_local.minute,ts.second]
- 
-        # Current_Forecast_indx=self.Match_Time(Time_,T_Stamp)
-        P_avl=Pmpp_AC[Current_Forecast_indx]/self.s_max
-        P_min=self.p_min/self.s_max
-        P_pre=P_pre/self.s_max
-     
-        if f<60-self.db_UF:
-            P=min(P_pre+((60-self.db_UF)-f)/(60*self.k_UF),P_avl)
-        elif f>60+self.db_OF:
-            P=max(P_pre-(f-(60+self.db_OF))/(60*self.k_OF),P_min)
+        if f < 60 - db_UF:
+            p_mod = 0
+        elif f > 60 + db_OF:
+            p_mod = p_req
         else:
-            """
-            select the operating mode withing deadband range
-            """
-            P=P_avl*(1-self.FW_P_reserve)
-            
-        dt = timedelta(hours=1)
-        p_req = P*self.SubFleet_NumberOfUnits*self.s_max
-        q_req = None
+            p_mod = p_prev
+        
+        return p_mod
 
-        # call run function with proper inputs            
-   
-        fleet_response = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
-#        print('t = ',ts_local,' f =',f, ' and p = ',P, 'P_avl = ',P_avl, 'P_pre = ',P_pre,' Current_Forecast_indx = ',Current_Forecast_indx)
-        return fleet_response
+    def update_soc_due_to_frequency_droop(self, initSOC, p_fleet, dt):
+        """
+        This method returns the modified state of charge of each subfleet 
+        due to frequency droop in the grid
+        """        
+        
+        charge_rate = p_fleet/(self.numHVAC*3.5)*0.1  # Heuristic soc change rate
+        SOC_update = initSOC + charge_rate
+        
+        if SOC_update > 1:
+            p_fleet = 0
+            SOC_update = initSOC
 
+        return p_fleet, SOC_update
+    
     # Example code for VVO
     '''
      However, reactive power is not modeled in current model.
      So, we skipped the VVO function.
     '''
-    # # Rewrite following battery inverter model
-    # def forecast(self, fleet_requests):
-    #     responses = []
-    #     for request in fleet_requests:
-    #         response = self.run(request, forecast=1)
-    #         responses.append(response)
-
-    #     return responses
 
     def run(self, P_req, Q_req, initSOC, t, dt, ts): 
         #ExecuteFleet(self, Steps, Timestep, P_request, Q_request, forecast):
@@ -633,46 +614,45 @@ class HVACFleet(FleetInterface):   #FleetInterface
         Modify the power and SOC of the different subfeets according 
         to the frequency droop regulation according to IEEE standard
         """
-        # for hvac in range(self.numHVAC):
-        #     if self.IsAvailableAdd[number] > 0:
-        #         if self.FW21_Enabled and self.is_autonomous:
-        #             power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet]]
-        #             p_prev = power_subfleet[subfleet]*1000/(self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]]))
-        #             power_subfleet[subfleet] = self.frequency_watt(power_ac,
-        #                                                             p_prev,
-        #                                                             self.ts,
-        #                                                             self.location[subfleet],
-        #                                                             self.db_UF_subfleet[subfleet],
-        #                                                             self.db_OF_subfleet[subfleet])
-        #             power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
-        #                                                                                                     subfleet,
-        #                                                                                                     power_subfleet[subfleet],
-        #                                                                                                     dt)
-        #         else:
-        #             break
+    
 
-        # # Demand of power
-        # power_demanded = np.sum(power_subfleet, axis = 0)
-            
-        #     # # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
-        #     # for subfleet in range(self.N_SubFleets):
-        #     #     if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
-        #     #         if self.monitor_strategy[subfleet] == 'right away':
-        #     #             SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
-        #     #             if SOC_check > 1:
-        #     #                 power_subfleet[subfleet] = 0
+        if self.FW21_Enabled and self.is_autonomous:
+            power_ac = FleetResponse.P_service_max
+            p_prev = FleetResponse.P_togrid
+            power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
+            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
+
+
         
-        #     # # # Maximum demand of power
-        #     # # max_power_demanded = np.sum(power_subfleet, axis = 0)    
-        
-        # self.SOC = SOC_step
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
         # Restart time if it surpasses 24 hours
         if self.time > 24*3600:
             self.time = self.time - 24*3600
+
+        # Update the metrics
+        Ttotal = 0
+        SOCTotal = 0
+
+
         
-        # return TotalServiceProvidedPerTimeStep, MaxServiceAddedPerTimeStep, MaxServiceShedPerTimeStep, P_injected, Q_injected, P_service, Q_service, P_injected_max, Q_service_max, P_forecast, Q_forecast
+        Ttotal = np.sum(self.TinInitial)
+            
+        SOCTotal = np.sum(self.SOC)
+
+        self.cycle_base = np.sum(self.cycle_off_base)
+        self.cycle_base = np.sum(self.cycle_on_base)
+        self.cycle_grid = np.sum(self.cycle_off_grid)
+        self.cycle_grid = np.sum(self.cycle_on_grid)
+
+
+        for numberr in range(self.numHVAC-1):    
+            if self.TinInitial[numberr]>=self.TsetInitial[numberr]+self.deadband:
+                self.unmet_hours += 1*self.sim_step/3600.0
+
+        self.ave_Tin = Ttotal/self.numHVAC
+        self.SOC_metric = SOCTotal/self.numHVAC
+
         return FleetResponse 
       
     #################################################   
@@ -906,12 +886,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     
     def output_impact_metrics(self):   
         impact_metrics_DATA = [["Impact Metrics File"],
-                                ["state-of-health", "initial value", "final value", "degradation cost"]]
-        for i in range(self.num_of_devices):
-            impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
-
-        total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
-        impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
+                                ["ave_Tin", "Cycle_base", "Cycle_grid", "SOC_metric", "Unmet Hours"]]
+        
+        impact_metrics_DATA.append(["HVAC Fleet", str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)

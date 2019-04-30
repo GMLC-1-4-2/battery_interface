@@ -84,7 +84,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'Reserve':
         monthtimes = dict({
-            'January': ["2017-01-08 00:00:00", "2017-01-08 17:59:59"],
+            'January': ["2017-01-08 00:00:00", "2017-01-08 23:59:59"],
             # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
             # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
             # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
@@ -204,8 +204,8 @@ if __name__ == '__main__':
     fleets = ['HVAC']  # BatteryInverter
     start_time = parser.parse('2017-08-01 00:00:00')
 
-    metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
-    metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
+    metrics_calc_start_time = parser.parse('2017-08-01 15:00:00')  # the beginning of timeframe to calculate metrics
+    metrics_calc_end_time = parser.parse('2017-08-01 18:00:00')  # the end of timeframe to calculate metrics
 
     kwargs = {
         'start_time': start_time,

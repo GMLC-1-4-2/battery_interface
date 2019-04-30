@@ -63,9 +63,11 @@ class LoadConfig(object):
     def get_impact_metrics_params(self):
         metrics = list()
         
-        metrics.append(float(self.config_file.get('Impact Metrics', 'ave_Tin', fallback = 1000)))
-        metrics.append(float(self.config_file.get('Impact Metrics', 'CycleLife', fallback = 1000)))
-        metrics.append(float(self.config_file.get('Impact Metrics', 'UnmetHours', fallback = 100)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'ave_Tair', fallback = 1000)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'CycleBase', fallback = 10)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'CycleGrid', fallback = 10)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'UnmetHours', fallback = 1)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'SOC_metric', fallback = 0.6)))
         # metrics.append(float(self.config_file.get('Impact Metrics', 'EnergyEfficiency', fallback = 1.0)))
         
         return metrics

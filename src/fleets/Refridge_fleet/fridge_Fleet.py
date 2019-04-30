@@ -7,7 +7,7 @@ Based on a valided RC case thermal model
 Last update: 04/25/2019
 Version: 1.0
 
-@author: Jin Dong (ORNL), Jeffrey Munk (ORNL), Teja Kuruganti (ORNL)
+@author: Jin Dong (ORNL), Teja Kuruganti (ORNL)
 """
 
 # code needed for GLOBAL fleet_interface
@@ -19,8 +19,7 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 from configparser import ConfigParser
 import datetime
 from datetime import timedelta
-# This is the actual building thermal and HVAC models
-#import build_model as bm
+
 from fleets.Refridge_fleet.case_model import CaseModel
 from fleets.Refridge_fleet.case_model import AC_RF
 
@@ -71,7 +70,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         # Get cur directory
         base_path = dirname(abspath(__file__))
 
-        # Total number of HVACs
+        # Total number of RFs
         self.numRF = self.df_RFModels['Total_RFs'].sum()
 
         #INPUTS
@@ -101,7 +100,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         # varying R, C values by some coefficients
         # represents low efficiency, normal efficiency and high efficiency houses (corresponding to different envelope/insulation parameters)
         # for envelope type, location and max. number of service calls need to specify discrete values and randomly sampled to get a desired distribution 
-        # self.numRF = 200 # number of HVACs in fleet, default 200
+        # self.numRF = 60 # number of RFs in fleet, default 50
 
         # How to calculate effective fleet rating: this is going to be poorly
         # met because it does not consider random availability of the fleet. 
@@ -146,14 +145,17 @@ class RFFleet(FleetInterface):   #FleetInterface
             self.db_OF_subfleet = np.random.uniform(low = self.db_OF[0], high = self.db_OF[1], size = (self.numRF, ))
         
         # Impact metrics of the fleet
-        # End of life cost
         metrics = LC.get_impact_metrics_params()
-        self.ave_Tin = metrics[0]
-        # Cylce life
-        self.cycle_life = metrics[1]
-        # State of health of the battery equivalent model
-        self.unmet_hours = metrics[2]
-        # self.soh = np.repeat(metrics[2], self.N_SubFleets)
+        # Aveage indoor temperature
+        self.ave_Tair = metrics[0]
+        # Cylces in baseline
+        self.cycle_basee = metrics[1]
+        # Cylces in grid operation
+        self.cycle_grid = metrics[2]
+        # Unmet hours of the fleet
+        self.unmet_hours = metrics[3]
+        # State of Charge of the battery equivalent model
+        self.SOC_metric = metrics[4]
 
        
         ########### initial indoor temperatures and SoC
@@ -217,16 +219,15 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.dt = 1       # time step (in seconds)
 
         ##################################     
-        #    Initializing lists to be saved to track indivisual HVAC performance over each timestep
+        #    Initializing lists to be saved to track indivisual RF performance over each timestep
 
-        # Randomly set up and mix the HVAC fleet
+        # Randomly set up and mix the RF fleet
         # Random seed for regenerating the same result
         self.seed = 0
         np.random.seed(self.seed)
 
-        # generate distribution of initial HVAC fleet states. this means Rext, Rattic, Cmass,
-        # profile for the yr for each building in fleet, this will be imported later, just get something reasonable here
-        # random initial temperatures (total 4 states in the 4R4C Model)
+        # generate distribution of initial Refridge fleet states. 
+
         self.TairInitial=np.random.normal(self.TairInitialMean, self.TairInitialStddev,self.numRF)
         self.TfoodInitial=np.random.normal(self.TfoodInitialMean, self.TfoodInitialStddev,self.numRF)
         self.TcaseInitial=np.random.normal(self.TcaseInitialMean, self.TcaseInitialStddev,self.numRF)
@@ -247,23 +248,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.MaxServiceCalls = [random.choice(self.MaxServiceCallMasterList) for n in range(self.numRF)]    
         
         ###########################################################################       
-        #   for calculating weather conditions needed by building model
-        #   V = [ Tsol_w,   QIHL_i,   Qsolar_i;   Tsol_r,   QIHL_mass,   Qsolar_mass] 
-        # load the weather profile
-
-        #read in weather data and increase resolution to match time step of simulation
-        # # measurement = pd.read_excel('./data_file/Vegas_TMY3_July_10mins.xlsx')   # or Min5_data_vegas.xlsx
-        # inputs = pd.read_csv('./data_file/LasVegas_HighCDD.csv', sep=',',skipfooter=48,engine='python')
-        # inputs[c.COL_DATETIME] = pd.to_datetime(inputs[c.COL_DATETIME])
-        # inputs = inputs.set_index(c.COL_DATETIME)
-        # inputs_ts = inputs.resample(str(ts)+'T').interpolate()         # resample T means minutes, change to seconds 
-        
-        # #calculate T solar for walls and roofs
-        # #TODO: make house specific
-        # inputs_ts['Tsolw']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADW]*0.3/inputs_ts[c.COL_H]
-        # inputs_ts['Tsolr']=inputs_ts[c.COL_TOUT]+inputs_ts[c.COL_RADR]*0.8/inputs_ts[c.COL_H]
-
-        
+                
         Tamb = []
         for a in range(self.numRF):             
       
@@ -308,7 +293,7 @@ class RFFleet(FleetInterface):   #FleetInterface
 
         ##############################################################################################################
  
-        #    Initializing the building HVAC models
+        #    Initializing the Refridge models
         #    Get the baseline power
         self.RFs = [CaseModel(self.Tamb[0], self.TsetInitial[number], self.R_case[number], self.R_food[number], self.R_infil[number],
                                     self.C_case[number], self.C_food[number], self.C_air[number], P_req, 0, self.MaxServiceCalls[number], self.dt) for number in range(self.numRF)]
@@ -351,9 +336,9 @@ class RFFleet(FleetInterface):   #FleetInterface
 
         return fleet_response
 
-    # Example code for Frequency Watt Function (following PV inverter)
+    # Example code for Frequency Watt Function
 
-    def frequency_watt(self, ts=datetime.datetime.utcnow(),location=0, start_time=None):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -362,57 +347,36 @@ class RFFleet(FleetInterface):   #FleetInterface
         :return p_mod: modifyed real power based on FW21 function
         """
         f = self.grid.get_frequency(ts,location)
-
-        from os.path import join
         
-        # TODO Read and load forecast data
-
-        # File_Path_Forecast = join(self.base_path , 'Forecast.npy')
-        # File_Path_OperatingPoint = join(self.base_path , 'Operating_Point_Pre.npy')
-        # [Time_,Pmpp_AC,Q_max_available_Plus,Q_max_available_Minus,eff_mpp]=np.load(File_Path_Forecast)
-    
-        # [P_pre,Q_Pre,P_Requested,Q_Requested,Last_Time]=np.load(File_Path_OperatingPoint)
-        # ts_local=self.datetime_from_utc_to_local(ts)
-        # T_Stamp=[ts_local.year,ts_local.month,ts_local.day,ts_local.hour,ts_local.minute,ts.second]
- 
-        # Current_Forecast_indx=self.Match_Time(Time_,T_Stamp)
-        P_avl=Pmpp_AC[Current_Forecast_indx]/self.s_max
-        P_min=self.p_min/self.s_max
-        P_pre=P_pre/self.s_max
-     
-        if f<60-self.db_UF:
-            P=min(P_pre+((60-self.db_UF)-f)/(60*self.k_UF),P_avl)
-        elif f>60+self.db_OF:
-            P=max(P_pre-(f-(60+self.db_OF))/(60*self.k_OF),P_min)
+        if f < 60 - db_UF:
+            p_mod = 0
+        elif f > 60 + db_OF:
+            p_mod = p_req
         else:
-            """
-            select the operating mode withing deadband range
-            """
-            P=P_avl*(1-self.FW_P_reserve)
-            
-        dt = timedelta(hours=1)
-        p_req = P*self.SubFleet_NumberOfUnits*self.s_max
-        q_req = None
-        # call run function with proper inputs    
+            p_mod = p_prev
         
-   
-        fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
-#        print('t = ',ts_local,' f =',f, ' and p = ',P, 'P_avl = ',P_avl, 'P_pre = ',P_pre,' Current_Forecast_indx = ',Current_Forecast_indx)
-        return fleet_response
+        return p_mod
 
+    def update_soc_due_to_frequency_droop(self, initSOC, p_fleet, dt):
+        """
+        This method returns the modified state of charge of each subfleet 
+        due to frequency droop in the grid
+        """        
+        
+        charge_rate = p_fleet/(self.numRF*3.5)*0.1  # Heuristic soc change rate
+        SOC_update = initSOC + charge_rate
+        
+        if SOC_update > 1:
+            p_fleet = 0
+            SOC_update = initSOC
+
+        return p_fleet, SOC_update
+    
     # Example code for VVO
     '''
      However, reactive power is not modeled in current model.
      So, we skipped the VVO function.
     '''
-    # # Rewrite following battery inverter model
-    # def forecast(self, fleet_requests):
-    #     responses = []
-    #     for request in fleet_requests:
-    #         response = self.run(request, forecast=1)
-    #         responses.append(response)
-
-    #     return responses
 
     def run(self, P_req, Q_req, initSOC, t, dt, ts): 
         #ExecuteFleet(self, Steps, Timestep, P_request, Q_request, forecast):
@@ -456,14 +420,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         FleetResponse.P_dot_down = 0
    
         # run through fleet once as a forecast just to get initial conditions
-        # number = 0
-        # for h in hvacs:
-            
-        #     response = h.execute(self.TinInitial[number], self.TwallInitial[number], self.TmassInitial[number], self.TatticInitial[number], self.TsetInitial[number], self.Tamb[number][0], \
-        #                self.Tsol_W[number][0], self.QIHL_i[number][0], self.Qsolar_i[0], self.Tsol_R[number][0], self.QIHL_mass[number][0], self.Qsolar_mass[0], self.Rext[number], \
-        #                self.Rattic[number], self.Cmass[number], P_request_perRF, ServiceRequest.Timestep, self.IHL_fleet_ave[0], elementOn[number][0], \
-        #                self.lockon[number][0], self.lockoff[number][0], self.cycle_off_base[number][0], self.cycle_on_base[number][0], self.cycle_off_grid[number][0], self.cycle_on_grid[number][0]) #forecast = 1
-        #     number += 1
+        
         number = 0 # run through all the devices
         servsum = 0
         servmax = 0
@@ -471,7 +428,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         NumDevicesToCall = 0
         # laststep = step - 1
 
-    #  decision making about which HVAC to call on for service, check if available at last step, if so then 
+    #  decision making about which RF to call on for service, check if available at last step, if so then 
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
         for n in range(self.numRF):
@@ -483,7 +440,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         P_request_perRF =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
 
         #################################      
-        for rfdg in self.RFs: #loop through all HVACs
+        for rfdg in self.RFs: #loop through all RFs
             TsetLast = self.TsetInitial[number]
 
             TairLast = self.TairInitial[number]    
@@ -562,43 +519,17 @@ class RFFleet(FleetInterface):   #FleetInterface
         FleetResponse.Strike_price   = 'NA'
         FleetResponse.SOC_cost       = 'NA'
 
-        # TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*
-        
         """
         Modify the power and SOC of the different subfeets according 
         to the frequency droop regulation according to IEEE standard
         """
-        # for hvac in range(self.numRF):
-        #     if self.IsAvailableAdd[number] > 0:
-        #         if self.FW21_Enabled and self.is_autonomous:
-        #             power_ac = self.df_VehicleModels['Max_Charger_AC_Watts'][self.SubFleetId[subfleet]]
-        #             p_prev = power_subfleet[subfleet]*1000/(self.VehiclesSubFleet*(1 - 0.01*self.df_VehicleModels['Sitting_cars_per'][self.SubFleetId[subfleet]]))
-        #             power_subfleet[subfleet] = self.frequency_watt(power_ac,
-        #                                                             p_prev,
-        #                                                             self.ts,
-        #                                                             self.location[subfleet],
-        #                                                             self.db_UF_subfleet[subfleet],
-        #                                                             self.db_OF_subfleet[subfleet])
-        #             power_subfleet[subfleet], SOC_step[subfleet] = self.update_soc_due_to_frequency_droop(initSOC[subfleet],
-        #                                                                                                     subfleet,
-        #                                                                                                     power_subfleet[subfleet],
-        #                                                                                                     dt)
-        #         else:
-        #             break
+    
 
-        # # Demand of power
-        # power_demanded = np.sum(power_subfleet, axis = 0)
-            
-        #     # # Calculate maximum power that can be injected to the grid -> all the right away chargers are turned on
-        #     # for subfleet in range(self.N_SubFleets):
-        #     #     if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
-        #     #         if self.monitor_strategy[subfleet] == 'right away':
-        #     #             SOC_check, power_subfleet[subfleet] = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
-        #     #             if SOC_check > 1:
-        #     #                 power_subfleet[subfleet] = 0
-        
-        #     # # # Maximum demand of power
-        #     # # max_power_demanded = np.sum(power_subfleet, axis = 0)    
+        if self.FW21_Enabled and self.is_autonomous:
+            power_ac = FleetResponse.P_service_max
+            p_prev = FleetResponse.P_togrid
+            power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
+            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)  
         
         # self.SOC = SOC_step
         self.time = t + dt
@@ -607,7 +538,28 @@ class RFFleet(FleetInterface):   #FleetInterface
         if self.time > 24*3600:
             self.time = self.time - 24*3600
         
-        # return TotalServiceProvidedPerTimeStep, MaxServiceAddedPerTimeStep, MaxServiceShedPerTimeStep, P_injected, Q_injected, P_service, Q_service, P_injected_max, Q_service_max, P_forecast, Q_forecast
+        # Update the metrics
+        Ttotal = 0
+        SOCTotal = 0
+
+
+        
+        Ttotal = np.sum(self.TairInitial)
+            
+        SOCTotal = np.sum(self.SOC)
+
+        self.cycle_base = np.sum(self.cycle_off_base)
+        self.cycle_base = np.sum(self.cycle_on_base)
+        self.cycle_grid = np.sum(self.cycle_off_grid)
+        self.cycle_grid = np.sum(self.cycle_on_grid)
+
+
+        for numberr in range(self.numRF-1):    
+            if self.TairInitial[numberr]>=self.TsetInitial[numberr]+self.deadband:
+                self.unmet_hours += 1*self.sim_step/3600.0
+
+        self.ave_Tair = Ttotal/self.numRF
+        self.SOC_metric = SOCTotal/self.numRF
         return FleetResponse 
       
     #################################################   
@@ -623,9 +575,20 @@ class RFFleet(FleetInterface):   #FleetInterface
         responses = []
         SOC = self.SOC 
 
-        TairR = self.TairInitial
-        TfoodR = self.TfoodInitial
-        TcaseR = self.TcaseInitial
+        for number in range(self.numRF): #loop through all RFs
+            TairR = self.TairInitial[number]
+            TfoodR = self.TfoodInitial[number]
+            TcaseR = self.TcaseInitial[number]
+           
+            SOCR = self.SOC[number]
+
+            elementOnR = self.elementOn[number]
+            lockonR = self.lockon[number]
+            lockoffR = self.lockoff[number]
+            cycle_offR = self.cycle_off_base[number]
+            cycle_on_baseR = self.cycle_on_base[number]
+            cycle_off_gridR = self.cycle_off_grid[number]
+            cycle_on_gridR = self.cycle_on_grid[number]
 
         # Iterate and process each request in fleet_requests
         for req in requests:
@@ -638,10 +601,20 @@ class RFFleet(FleetInterface):   #FleetInterface
             responses.append(res)
                     
         # reset the model
-        self.soc = SOC 
-        self.Tair = TairR
-        self.Tfoodl = TfoodR
-        self.Tcase = TcaseR
+        for number in range(self.numRF): #loop through all RFs
+            self.soc = SOCR 
+            self.TairInitial[number] = TairR
+            self.TfoodInitial[number] = TfoodR
+            self.TcaseInitial[number] = TcaseR
+            
+
+            self.elementOn[number] = elementOnR
+            self.lockon[number] = lockonR
+            self.lockoff[number] = lockoffR
+            self.cycle_off_base[number] = cycle_offR
+            self.cycle_on_base[number] = cycle_on_baseR
+            self.cycle_off_grid[number] = cycle_off_gridR
+            self.cycle_on_grid[number] = cycle_on_gridR
   
         return responses
  
@@ -658,7 +631,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         print("Running baseline right away charging strategy ...")
         baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min = self.run_baseline_right_away(n_days_base, sim_time)
                        
-        print("Exported baseline soc, Temperatures, power and HVAC cycles ...")
+        print("Exported baseline soc, Temperatures, power and RF cycles ...")
         
         base_path = dirname(abspath(__file__))
         path = join(base_path,'data')
@@ -686,9 +659,9 @@ class RFFleet(FleetInterface):   #FleetInterface
         Qrated=14600
 
         # inputs and outputs path
-        inputs_file='./fleets/HVAC_fleet/data_file/LasVegas_HighCDD.csv'
-        bldg_file='./fleets/HVAC_fleet/data_file/normal_building_para.xlsx'
-        save_dir='./fleets/HVAC_fleet/data_file/baseline'
+        inputs_file='./fleets/Refridge_fleet/data_file/LasVegas_HighCDD.csv'
+        bldg_file='./fleets/Refridge_fleet/data_file/normal_building_para.xlsx'
+        save_dir='./fleets/Refridge_fleet/data_file/baseline'
 
 
         #read in weather data and increase resolution to match time step of simulation
@@ -819,18 +792,15 @@ class RFFleet(FleetInterface):   #FleetInterface
         return baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min
     
     
-    # def output_impact_metrics(self):   
-    #     impact_metrics_DATA = [["Impact Metrics File"],
-    #                             ["state-of-health", "initial value", "final value", "degradation cost"]]
-    #     for i in range(self.num_of_devices):
-    #         impact_metrics_DATA.append(["battery-"+str(i), str(self.soh_init), str(self.soh[i]), str((self.soh_init-self.soh[i])*self.eol_cost/100)])
+    def output_impact_metrics(self):   
+        impact_metrics_DATA = [["Impact Metrics File"],
+                                ["ave_Tair", "Cycle_base", "Cycle_grid", "SOC_metric", "Unmet Hours"]]
+        
+        impact_metrics_DATA.append(["Refridge Fleet", str(self.ave_Tair), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
 
-    #     total_cost = sum((self.soh_init-self.soh)*self.eol_cost/100)
-    #     impact_metrics_DATA.append(["Total degradation cost:", str(total_cost)])
-
-    #     with open('impact_metrics.csv', 'w') as csvfile:
-    #         writer = csv.writer(csvfile)
-    #         writer.writerows(impact_metrics_DATA)     
+        with open('impact_metrics.csv', 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(impact_metrics_DATA)   
 
     #     pass
 
