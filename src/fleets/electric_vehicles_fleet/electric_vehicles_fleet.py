@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 03/18/2019
+Last update: 05/01/2019
 Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
@@ -22,7 +22,6 @@ from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 from frequency_droop import FrequencyDroop
 from fleets.electric_vehicles_fleet.load_config import LoadConfig
-
 
 class ElectricVehiclesFleet(FleetInterface):
     
@@ -158,6 +157,8 @@ class ElectricVehiclesFleet(FleetInterface):
         self.fleet_rating = self.strategies[1][0]*self.mean_driven*self.mean_charger_kW*self.df_VehicleModels['Total_Vehicles'].sum()
         self.fleet_rating = self.fleet_rating - self.mean_base
 
+        # How is the baseline computed and results referenced?
+        self.montecarlo_reference = LC.get_base_reference()
         
         """
         Can this fleet operate in autonomous operation?
@@ -301,13 +302,19 @@ class ElectricVehiclesFleet(FleetInterface):
         if Q_req == None:
             Q_req = 0
 
-        # Baseline power is extracted from baseline simulations
-        self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
-                           self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.time] + 
-                           self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.time])
-
-        # The total power requested must be referenced to the baseline power
-        p_total = self.p_baseline - P_req
+        # What is the reference? MC simulations are more accurate, but the fleet responds to None requests "randomly"
+        if self.montecarlo_reference == True:
+            # Baseline power is extracted from Monte Carlo simulations
+            self.p_baseline = (self.strategies[1][0]*self.df_baseline_power['power_RightAway_kW'].iloc[self.time] + 
+                               self.strategies[1][1]*self.df_baseline_power['power_Midnight_kW'].iloc[self.time] + 
+                               self.strategies[1][2]*self.df_baseline_power['power_TCIN_kW'].iloc[self.time])
+    
+            # The total power requested must be referenced to the baseline power
+            p_total = self.p_baseline - P_req
+        else:
+            # Baseline power is calculated from the current simulation
+            self.p_baseline_ref_2 = 0
+            p_total = self.p_baseline_ref_2 - P_req
 
         if any(initSOC) > 1 or any(initSOC) < 0:
             print('ERROR: initial SOC out of range')
@@ -411,11 +418,24 @@ class ElectricVehiclesFleet(FleetInterface):
                         if SOC_step[subfleet] > 1:
                             SOC_step[subfleet] = initSOC[subfleet]
                             power_subfleet[subfleet] = 0
-                            power_dc_subfleet[subfleet] = 0
-            
+                            power_dc_subfleet[subfleet] = 0           
             # Calculate the total power uncontrolled            
             power_uncontrolled = np.sum(power_subfleet, axis = 0)
             
+            # We can reference all the calculations to the real baseline of the case that is being run
+            if self.montecarlo_reference == False:
+                self.p_baseline_ref_2 = power_uncontrolled
+                
+                # Calculate new baseline
+                for subfleet in range(self.N_SubFleets):
+                    if self.state_of_the_subfleet(t,subfleet) == 'home after schedule':  
+                        if self.monitor_strategy[subfleet] == 'right away':
+                            SOC_check, p,_ = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
+                            if SOC_check <= 1:
+                                self.p_baseline_ref_2 += p
+                # New power demanded                
+                p_total = self.p_baseline_ref_2 - P_req
+
             SOC_monitor = pd.DataFrame(columns = ['SOCinit', 'state_subfleet', 'charging_strategy'])
             for subfleet in range(self.N_SubFleets):
                 SOC_monitor.loc[subfleet, 'SOCinit'] = initSOC[subfleet]
@@ -504,8 +524,6 @@ class ElectricVehiclesFleet(FleetInterface):
                         SOC_check, power_subfleet[subfleet],_ = self.start_charging_right_away_strategy(subfleet, initSOC[subfleet], dt)
                         if SOC_check > 1:
                             power_subfleet[subfleet] = 0
-
-                        
             # Maximum demand of power
             max_power_demanded = np.sum(power_subfleet, axis = 0)
             
@@ -539,6 +557,9 @@ class ElectricVehiclesFleet(FleetInterface):
             
             # response outputs 
             response = FleetResponse()
+            
+            if self.montecarlo_reference == False:
+                self.p_baseline = self.p_baseline_ref_2
             
             response.ts = ts
             response.sim_step  = timedelta(seconds=dt)
