@@ -4,7 +4,7 @@
 # }}}
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil import parser
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -174,6 +174,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
+
         fleet_responses = service.request_loop(start_time=start_time, sim_step=sim_step)
         metrics_calc_start_time = kwargs['metrics_calc_start_time']
         metrics_calc_end_time = kwargs['metrics_calc_end_time']
@@ -198,7 +199,6 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         
     else:
         raise 'Could not recognize service with name ' + service_name
-
 
 def dynamic_time_step(service_name, fleet_name):
     # Set simulation time step based on the default of the service and the limits of the device fleet
@@ -259,13 +259,12 @@ def dynamic_time_step(service_name, fleet_name):
     return sim_step
 
 
-
 # =======================  MAIN  ==========================
-
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
+    # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
     services = ['ArtificialInertia']
