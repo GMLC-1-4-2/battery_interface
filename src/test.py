@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 from dateutil import parser
 import pandas as pd
 import matplotlib.pyplot as plt
-from os.path import dirname, abspath, join
 
+from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_factory import create_fleet
@@ -17,6 +17,10 @@ from service_factory import create_service
 
 
 def integration_test(service_name, fleet_name, service_type='Traditional', **kwargs):
+    start_time = kwargs['start_time']
+    sim_step = dynamic_time_step(service_name, fleet_name)
+    kwargs['sim_step'] = sim_step
+    
     # Create test service
     service = create_service(service_name)
     if service is None:
@@ -25,10 +29,6 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     grid_type = 1
     if service_name == 'ArtificialInertia':
         grid_type = 2
-        
-    start_time = kwargs['start_time']
-    sim_step = dynamic_time_step(service_name, fleet_name)
-    kwargs = {'sim_step': sim_step}
         
     # Create test fleet
     fleet = create_fleet(fleet_name, grid_type, **kwargs)
@@ -64,6 +64,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             fleet_response = service.request_loop(service_type=service_type,
                                                     start_time=parser.parse(monthtimes[month][0]),
                                                     end_time=parser.parse(monthtimes[month][1]),
+                                                    sim_step=sim_step,
                                                     clearing_price_filename='historical-ancillary-service-data-2017.xls',
                                                     fleet_name=assigned_fleet_name)
             month_results = pd.DataFrame.from_dict(fleet_response, orient='index')
@@ -124,6 +125,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
             start_time = parser.parse(monthtimes[month][0])
             fleet_response = service.request_loop(start_time=start_time,
                                                   end_time=parser.parse(monthtimes[month][1]),
+                                                  sim_step=sim_step,
                                                   clearing_price_filename=start_time.strftime('%Y%m') + '.csv',
                                                   previous_event_end=previous_event_end,
                                                   four_scenario_testing=False,
@@ -172,60 +174,111 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
                  datetime.now().strftime('%Y%m%d') + '_annual_signals_reserve_' + assigned_fleet_name + '.csv'))
 
     elif service_name == 'ArtificialInertia':
+
         fleet_responses = service.request_loop(start_time=start_time, sim_step=sim_step)
-        avg = service.calculation(fleetname=fleet_name, responses=fleet_responses, start_time=start_time)
-        print(avg)
+        metrics_calc_start_time = kwargs['metrics_calc_start_time']
+        metrics_calc_end_time = kwargs['metrics_calc_end_time']
+
+        # service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time,
+        #                                                      metrics_calc_start_time=metrics_calc_start_time,
+        #                                                      metrics_calc_end_time=metrics_calc_end_time)
+
+        service_efficacy, p_service, p_togrid, t, f = service.calculation(fleet_name, fleet_responses, start_time)
+        print(service_efficacy)
 
     elif service_name == 'DistributionVoltageService':
         service.sim_step = kwargs['sim_step']
-        fleet_responses, fleet_requests = service.request_loop()
+        fleet_responses, fleet_requests = service.request_loop(start_time=start_time)
 
+    elif service_name == 'EnergyMarketService':
+        fleet_requests, fleet_responses = service.request_loop(sim_step=sim_step)
+
+    elif service_name == 'PeakManagementService':
+        start_time = service.drive_cycle["dt"][0]
+        service.request_loop(start_time, fleet_name=assigned_fleet_name)
+        
     else:
-        pass
+        raise 'Could not recognize service with name ' + service_name
 
 
 def dynamic_time_step(service_name, fleet_name):
     # Set simulation time step based on the default of the service and the limits of the device fleet
 
     fleet_step_min = {
-        'BatteryInverter':  timedelta(seconds=60 / 60),
-        'ElectricVehicle':  timedelta(seconds=60 / 60),
-        'PV':               timedelta(seconds=2 / 60),
-        'WaterHeater':      timedelta(seconds=60 / 60),
-        'Electrolyzer':     timedelta(seconds=60 / 60),
-        'FuelCell':         timedelta(seconds=60 / 60),
-        'HVAC':             timedelta(seconds=60 / 60),
-        'Refridge':         timedelta(seconds=60 / 60)
+        'BatteryInverter': timedelta(seconds=1),
+        'ElectricVehicle': timedelta(seconds=1),
+        'PV': timedelta(seconds=2/60),
+        'WaterHeater': timedelta(seconds=1),
+        'Electrolyzer': timedelta(seconds=1),
+        'FuelCell': timedelta(seconds=1),
+        'HVAC': timedelta(seconds=1),
+        'Refridge': timedelta(seconds=1)
+    }
+
+    fleet_step_max = {
+        'BatteryInverter': timedelta(minutes=5),
+        'ElectricVehicle': timedelta(minutes=5),
+        'PV': timedelta(minutes=15),
+        'WaterHeater': timedelta(minutes=60),
+        'Electrolyzer': timedelta(minutes=15),
+        'FuelCell': timedelta(minutes=15),
+        'HVAC': timedelta(minutes=15),
+        'Refridge': timedelta(minutes=15)
     }
 
     service_step_default = {
-        'Regulation':                   timedelta(minutes=1),
-        'Reserve':                      timedelta(seconds=2),
-        'ArtificialInertia':            timedelta(seconds=2 / 60),
-        'DistributionVoltageService':   timedelta(seconds=30)
+        'Regulation': timedelta(seconds=2),
+        'Reserve': timedelta(minutes=1),
+        'ArtificialInertia': timedelta(seconds=2 / 60),
+        'DistributionVoltageService': timedelta(seconds=30),
+        'EnergyMarketService': timedelta(minutes=5),
+        'PeakManagementService': timedelta(minutes=60)
     }
 
     if service_name in ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']:
         sim_step = max(service_step_default[service_name], fleet_step_min[fleet_name])
 
-        if sim_step > service_step_default[service_name]:
+        if service_name in ['Regulation', 'Reserve']:
+            if sim_step != service_step_default[service_name]:
+                raise Exception('Need to run with default time step for ' + service_name + ' in current build')
+
+        elif sim_step > service_step_default[service_name]:
             print('     Executing ' + service_name + ' at slower time step for ' + fleet_name)
+
+    elif service_name in ['EnergyMarketService', 'PeakManagementService']:
+        sim_step = min(service_step_default[service_name], fleet_step_max[fleet_name])
+
+        if not (service_step_default[service_name] / sim_step).is_integer():
+            raise Exception('Maximum fleet device timestep needs to be a factor of ' + service_name + 'default timestep')
+
+        elif sim_step > service_step_default[service_name]:
+            print('     Executing ' + service_name + ' at faster time step for ' + fleet_name)
+
+    else:
+        raise Exception('Need to integrate time step defaults for ' + service_name)
 
     return sim_step
 
 
 # =======================  MAIN  ==========================
-
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia', 'DistributionVoltageService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
+    # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
     services = ['DistributionVoltageService']
     fleets = ['ElectricVehicle']
+    start_time = parser.parse('2017-08-01 00:00:00')
+
+    metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
+    metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
+
     kwargs = {
-        'start_time': parser.parse('2017-08-01 00:00:00'),
+        'start_time': start_time,
+        'metrics_calc_start_time': metrics_calc_start_time,
+        'metrics_calc_end_time': metrics_calc_end_time,
         'service_weight': 0.75
     }
     service_types = []

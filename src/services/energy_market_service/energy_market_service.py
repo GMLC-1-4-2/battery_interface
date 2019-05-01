@@ -296,8 +296,8 @@ class EnergyMarketService(object):
         # Return charge time (t1), discharge time (t2), and the request in kW
         return chargeMax, dischargeMax, Preq  
     
-    def request_loop(self, 
-                     start_time = parser.parse("2017-01-01 00:00:00"),
+    def request_loop(self, start_time = parser.parse("2017-01-01 00:00:00"),
+                     sim_step = timedelta(minutes=5),
                      end_time = parser.parse("2017-01-01 23:59:59")):
         """
         Method to run the request generated from the dispatch algorithm to see
@@ -309,7 +309,7 @@ class EnergyMarketService(object):
         t_charge, t_discharge, p_req = self.dispatch_algorithm()
         
         ndx_end = 24
-        sim_step = timedelta(minutes=5)
+        #sim_step = timedelta(minutes=5)
         sim_time = int(ndx_end*3600/sim_step.seconds)
         requests = []
         responses = []
