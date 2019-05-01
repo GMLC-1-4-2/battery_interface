@@ -58,7 +58,7 @@ class DistributionVoltageService:
         #self.starttime = self.config.get(config_header, 'starttime')
         #self.endtime = self.config.get(config_header, 'endtime')
 
-        self.sim_step = timedelta(seconds=30)
+        #self.sim_step = timedelta(seconds=30)
         
 
     def request_loop(self, sensitivity_P = 0.0001, 
