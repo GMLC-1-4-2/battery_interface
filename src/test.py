@@ -4,12 +4,12 @@
 # }}}
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil import parser
 import pandas as pd
 import matplotlib.pyplot as plt
-from os.path import dirname, abspath, join
 
+from os.path import dirname, abspath, join
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_factory import create_fleet
@@ -200,6 +200,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     else:
         raise 'Could not recognize service with name ' + service_name
 
+
 def dynamic_time_step(service_name, fleet_name):
     # Set simulation time step based on the default of the service and the limits of the device fleet
 
@@ -267,7 +268,7 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['ArtificialInertia']
+    services = ['DistributionVoltageService']
     fleets = ['ElectricVehicle']
     start_time = parser.parse('2017-08-01 00:00:00')
 
