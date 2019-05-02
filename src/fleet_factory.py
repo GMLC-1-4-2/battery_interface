@@ -61,7 +61,12 @@ def create_fleet(name, grid_type=1, **kwargs):
 
     elif name == 'Electrolyzer':
         from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet
-        fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+        fleet = ElectrolyzerFleet(grid, "config.ini", "Electrolyzer", False)
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+           fleet.is_P_priority = False
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
 
     elif name == 'FuelCell':
@@ -77,3 +82,4 @@ def create_fleet(name, grid_type=1, **kwargs):
 
 
     raise "There is no fleet with name: " + name
+
