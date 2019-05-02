@@ -188,7 +188,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'DistributionVoltageService':
         service.sim_step = kwargs['sim_step']
-        fleet_responses, fleet_requests = service.request_loop(start_time=start_time)
+        fleet_responses, fleet_requests = service.request_loop()
 
     elif service_name == 'EnergyMarketService':
         fleet_requests, fleet_responses = service.request_loop(sim_step=sim_step)
@@ -268,9 +268,10 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['DistributionVoltageService']
-    fleets = ['ElectricVehicle']
-    start_time = parser.parse('2017-08-01 00:00:00')
+    services = ['ArtificialInertia']
+    fleets = ['Electrolyzer']
+    #start_time = parser.parse('2017-08-01 00:00:00')
+    start_time = datetime.utcnow()
 
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
     metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics
@@ -297,3 +298,4 @@ if __name__ == '__main__':
             else:
                 for service_type in service_types:
                     integration_test(service, fleet, service_type, **kwargs)
+
