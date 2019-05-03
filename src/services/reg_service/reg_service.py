@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from os.path import dirname, abspath, join
+
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
@@ -41,6 +42,7 @@ class RegService():
     def request_loop(self, service_type="Traditional",
                      start_time=parser.parse("2017-08-01 16:00:00"),
                      end_time=parser.parse("2017-08-01 21:00:00"),
+                     sim_step=timedelta(seconds=2),
                      clearing_price_filename='historical-ancillary-service-data-2017.xls',
                      fleet_name="PVInverterFleet"):
 
@@ -50,10 +52,10 @@ class RegService():
         # Generate lists of 2s request and response class objects based on regulation service type (i.e. traditional vs. dynamic).
 
         print('     Generating traditional signal lists')
-        request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time)
+        request_list_2s_trad, response_list_2s_trad = self.get_signal_lists('Traditional', start_time, end_time, sim_step)
         if service_type == 'Dynamic':
             print('     Generating dynamic signal lists')
-            request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time)
+            request_list_2s_dynm, response_list_2s_dynm = self.get_signal_lists(service_type, start_time, end_time, sim_step)
 
             # Assign generic names to signal lists.
             request_list_2s_tot = request_list_2s_dynm
@@ -78,13 +80,15 @@ class RegService():
             cur_end_time = cur_time + timedelta(minutes=65)
             # Traditional regulation request and response signals are needed regardless of service type.
             request_list_2s_65min_trad = [r.P_req for r in request_list_2s_trad if cur_time <= r.ts_req <= cur_end_time]
-            response_list_2s_65min_trad = [r.P_service for r in response_list_2s_trad if cur_time <= r.ts <= cur_end_time]
+            response_list_2s_65min_trad = [r.P_service for r in response_list_2s_trad if
+                                           cur_time <= r.ts <= cur_end_time]
             request_array_2s_65min_trad = np.asarray(request_list_2s_65min_trad)
             response_array_2s_65min_trad = np.asarray(response_list_2s_65min_trad)
             # For dynamic regulation, mileage ratio calculation is as below.
             if service_type == 'Dynamic':
                 # Chop total signals to 1 hour.
-                request_list_2s_65min_dynm = [r.P_req for r in request_list_2s_dynm if cur_time <= r.ts_req <= cur_end_time]
+                request_list_2s_65min_dynm = [r.P_req for r in request_list_2s_dynm if
+                                              cur_time <= r.ts_req <= cur_end_time]
                 response_list_2s_65min_dynm = [r.P_service for r in response_list_2s_dynm if
                                                cur_time <= r.ts <= cur_end_time]
                 request_array_2s_65min_dynm = np.asarray(request_list_2s_65min_dynm)
@@ -100,7 +104,7 @@ class RegService():
                     # length to work properly.  Therefore, henever the underlying data have missing
                     # values, this function breaks.
                     mileage_ratio = np.nan
-                
+
                 # Assign generic names to signal lists.
                 request_list_2s_65min = request_list_2s_65min_dynm
                 response_list_2s_65min = response_list_2s_65min_dynm
@@ -109,8 +113,8 @@ class RegService():
                 response_list_2s_65min = response_list_2s_65min_trad
                 mileage_ratio = 1
             # Convert lists into arrays. convert units from kW to MW.
-            request_array_2s = np.asarray(request_list_2s_65min)/1000
-            response_array_2s = np.asarray(response_list_2s_65min)/1000
+            request_array_2s = np.asarray(request_list_2s_65min) / 1000
+            response_array_2s = np.asarray(response_list_2s_65min) / 1000
             # Slice arrays at 10s intervals - resulted arrays have 390 data points.
             request_array_10s = request_array_2s[::5]
             response_array_10s = response_array_2s[::5]
@@ -122,13 +126,18 @@ class RegService():
                 hourly_results[cur_time]['performance_score'] = self.perf_score(request_array_10s, response_array_10s)
                 hourly_results[cur_time]['hourly_integrated_MW'] = self.Hr_int_reg_MW(request_array_2s)
                 hourly_results[cur_time]['mileage_ratio'] = mileage_ratio
-                hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = self._clearing_price_helper.clearing_prices[cur_time]
+                hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'] = \
+                self._clearing_price_helper.clearing_prices[cur_time]
                 hourly_results[cur_time]['Reg_Clearing_Price_Credit'] = self.Reg_clr_pr_credit(service_type,
-                                                                                               hourly_results[cur_time]['Regulation_Market_Clearing_Price(RMCP)'],
-                                                                                               hourly_results[cur_time]['performance_score'][0],
-                                                                                               hourly_results[cur_time]['hourly_integrated_MW'],
+                                                                                               hourly_results[cur_time][
+                                                                                                   'Regulation_Market_Clearing_Price(RMCP)'],
+                                                                                               hourly_results[cur_time][
+                                                                                                   'performance_score'][
+                                                                                                   0],
+                                                                                               hourly_results[cur_time][
+                                                                                                   'hourly_integrated_MW'],
                                                                                                mileage_ratio)
-            else: # There are no NaNs in request_array_10s
+            else:  # There are no NaNs in request_array_10s
                 pass
             # Move to the next hour.
             cur_time += one_hour
@@ -137,14 +146,14 @@ class RegService():
         ts_request = [r.ts_req for r in request_list_2s_tot]
         P_response = [r.P_service for r in response_list_2s_tot]
         P_togrid = [r.P_togrid for r in response_list_2s_tot]
-            
+
         # Save the responses to a csv
         results_df = pd.DataFrame({
             'DateTime': ts_request,
             'P_request': P_request,
             'P_response': P_response,
             'P_togrid': P_togrid
-            })
+        })
         # Calculate P_base
         results_df['P_base'] = results_df['P_togrid'] - results_df['P_response']
         # Add SoC if battery fleet
@@ -153,45 +162,46 @@ class RegService():
             results_df['SOC'] = SOC
         results_df_dir = join(dirname(abspath(__file__)), 'results', '')
         ensure_ddir(results_df_dir)
-        results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime('%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
+        results_df_filename = datetime.now().strftime('%Y%m%d') + '_' + ts_request[0].strftime(
+            '%B') + '_2sec_results_' + service_type + '_' + fleet_name + '.csv'
         results_df.to_csv(results_df_dir + results_df_filename)
 
         # Generate and save plot of the normalized request and response signals for the month
         print('     Plotting monthly response signal')
         plot_dir = join(dirname(abspath(__file__)), 'results', 'plots', '')
         ensure_ddir(plot_dir)
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_' +\
-                        ts_request[0].strftime('%B') +\
-                        '_2secnormsignals_' +\
-                        service_type +\
-                        '_' +\
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_' + \
+                        ts_request[0].strftime('%B') + \
+                        '_2secnormsignals_' + \
+                        service_type + \
+                        '_' + \
                         fleet_name + '.png'
         plt.figure(1)
-        plt.figure(figsize=(15,8))
+        plt.figure(figsize=(15, 8))
         plt.subplot(211)
-        if (not(all(pd.isnull(results_df['P_request'])))):
+        if (not (all(pd.isnull(results_df['P_request'])))):
             plt.plot(ts_request, P_request, label='P_request')
-        if (not(all(pd.isnull(results_df['P_response'])))):
+        if (not (all(pd.isnull(results_df['P_response'])))):
             plt.plot(ts_request, P_response, label='P_response')
-        if (not(all(pd.isnull(results_df['P_togrid'])))):
+        if (not (all(pd.isnull(results_df['P_togrid'])))):
             plt.plot(ts_request, P_togrid, label='P_togrid')
-        if (not(all(pd.isnull(results_df['P_base'])))):
+        if (not (all(pd.isnull(results_df['P_base'])))):
             plt.plot(ts_request, results_df.P_base, label='P_base')
         plt.legend(loc='best')
         plt.ylabel('Power (MW)')
         if 'battery' in fleet_name.lower():
-            if not(all(pd.isnull(results_df['SOC']))):
+            if not (all(pd.isnull(results_df['SOC']))):
                 plt.subplot(212)
                 plt.plot(ts_request, SOC)
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Date and Time')
         plt.savefig(plot_dir + plot_filename, bbox_inches='tight')
-        plt.close()      
+        plt.close()
 
         return hourly_results
 
     # Returns lists of requests and responses at 2s intervals.
-    def get_signal_lists(self, service_type, start_time, end_time):
+    def get_signal_lists(self, service_type, start_time, end_time, sim_step):
         # Note: If you would like to infer input filename from start_time, use the following
         #       method. However, since the input files are not in the same directory as this code,
         #       file path still needs to be specified.
@@ -208,26 +218,24 @@ class RegService():
         # Returns a Dictionary with datetime type keys.
         signals = self._historial_signal_helper.signals_in_range(start_time, end_time)
 
-        sim_step = timedelta(seconds=2)
-        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x,i in signals.items()]
+        #sim_step = timedelta(seconds=2)
+        reqrespitems = [self.request(x, sim_step, i * self._fleet.assigned_service_kW()) for x, i in signals.items()]
         requests = [x[0] for x in reqrespitems]
         responses = [x[1] for x in reqrespitems]
 
         return requests, responses
 
-
     # Method for retrieving device fleet's response to each individual request.
-    def request(self, ts, sim_step, p, q=0.0): # added input variables; what's the purpose of sim_step??
+    def request(self, ts, sim_step, p, q=0.0):  # added input variables; what's the purpose of sim_step??
         fleet_request = FleetRequest(ts=ts, sim_step=sim_step, p=p, q=0.0)
         print("Processing request at timestep %s" % ts)
         fleet_response = self.fleet.process_request(fleet_request)
-        #print(fleet_response.P_service)
+        # print(fleet_response.P_service)
         return fleet_request, fleet_response
-
 
     # Score the performance of device fleets for the hour (based on PJM Manual 12).
     # Take 65 min worth of 10s data (should contain 390 data values).
-    def perf_score (self, request_array, response_array):
+    def perf_score(self, request_array, response_array):
         max_corr_array = []
         max_index_array = []
         prec_score_array = []
@@ -246,15 +254,16 @@ class RegService():
             # If the regulation signal is nearly constant, then correlation score is calculated as:
             # Calculates "1 - absoluate of difference btw slope of request and response signals" (determined by linear regression).
             std_dev_x = np.std(x)
-            if std_dev_x < 0.01: # need to vet the threshold later, not specified in PJM manual.
+            if std_dev_x < 0.01:  # need to vet the threshold later, not specified in PJM manual.
                 axis = np.array(np.arange(30.))
-                coeff_x = np.polyfit(axis, x, 1) # linear regression when degree = 1.
+                coeff_x = np.polyfit(axis, x, 1)  # linear regression when degree = 1.
                 coeff_y = np.polyfit(axis, y, 1)
                 slope_x = coeff_x[0]
                 slope_y = coeff_y[0]
-                corr_score_val = max(0, 1 - abs(slope_x - slope_y)) # from PJM manual 12.
+                corr_score_val = max(0, 1 - abs(slope_x - slope_y))  # from PJM manual 12.
                 max_index_array = np.append(max_index_array, 0)
-                max_corr_array = np.append(max_corr_array, corr_score_val) # "r" cannot be calc'd for constant values in one or both arrays.
+                max_corr_array = np.append(max_corr_array,
+                                           corr_score_val)  # "r" cannot be calc'd for constant values in one or both arrays.
             else:
                 # Calculate correlation btw the 5-min input signal and thirty different 5-min response signals,
                 # each is delayed at an additional 10s than the previous one; store results.
@@ -279,7 +288,7 @@ class RegService():
                     #         print('corr_score:', corr_score)
                 # Locate the 10s moment(step) at which correlation score was maximum among the thirty calculated; store it.
                 # If corr_r=0 for all 31 combinations, then both correlation and delay scores for that 5min should be 0.
-                if sum(corr_score)==0:
+                if sum(corr_score) == 0:
                     max_index = 30
                 else:
                     max_index = np.where(corr_score == max(corr_score))[0][0]
@@ -317,7 +326,6 @@ class RegService():
         # plt.savefig(plot_dir + 'test_tradhour_' + datetime.now().strftime('%H-%M-%S') + '.png', bbox_inches='tight')
         # plt.close()
 
-
         # for debug use
         # print('delay_score:', delay_score_array)
         # print('max_index_array:', max_index_array)
@@ -335,7 +343,7 @@ class RegService():
         # plt.show()
 
         # Calculate the hourly overall Performance Score.
-        Perf_score = (Delay_score + Corr_score + Prec_score)/3
+        Perf_score = (Delay_score + Corr_score + Prec_score) / 3
 
         # for debug use
         # print('Delay_score:', Delay_score)
@@ -345,14 +353,12 @@ class RegService():
 
         return (Perf_score, Delay_score, Corr_score, Prec_score)
 
-
     # Based on PJM Manual 28 (need to verify definition, not found in manual).
-    def Hr_int_reg_MW (self, input_sig):
+    def Hr_int_reg_MW(self, input_sig):
         # Take one hour of 2s RegA data
         Hourly_Int_Reg_MW = np.absolute(input_sig).sum() * 2 / 3600
         # print(Hourly_Int_Reg_MW)
         return Hourly_Int_Reg_MW
-
 
     # Calculate an hourly value of "Regulation Market Clearing Price Credit" for the regulation service provided.
     # Based on PJM Manual 28.

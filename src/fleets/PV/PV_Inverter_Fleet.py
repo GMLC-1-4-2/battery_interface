@@ -191,15 +191,21 @@ class PVInverterFleet(FleetInterface):
     
     def forecast(self, requests):
 #        responses = []
-        ts = requests.ts_req
-        dt = requests.sim_step
-        p_req = requests.P_req
-        q_req = requests.Q_req
-#        for req in requests:
-        FleetResponse = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=True,WP=self.is_P_priority)
+        responses=[]
+
+        for req in requests:
+            ts = req.ts_req 
+            dt = int(req.sim_step.total_seconds()) 
+            p_req = req.P_req 
+            q_req = req.Q_req 
+            start_time = req.start_time
+
+#           for req in requests:
+            FleetResponse = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=True,WP=self.is_P_priority)
 #                res = FleetResponse
 #                responses.append(res)
-        return FleetResponse
+            responses.append(FleetResponse)             
+        return responses
     
     def change_config(self, fleet_config):
         """
@@ -415,8 +421,13 @@ class PVInverterFleet(FleetInterface):
      
 
         ts=self.datetime_from_utc_to_local(ts) #local time
+
     
-        time_step_minute=sim_step.total_seconds()/60
+        try:
+            time_step_minute=sim_step.total_seconds()/60
+        except: 
+            time_step_minute=5/60
+                
     
         
         P_rated=self.p_rated
@@ -624,15 +635,24 @@ class PVInverterFleet(FleetInterface):
     
             if indx==0:
                 time_step=now-Last_Time
+                
+
+#                print(time_step)
 #                print(now)
 #                print(Last_Time)
 #                print(time_step)
                 time_step=np.abs(time_step.total_seconds())
+                if time_step==0:
+                    time_step=5
                 h_times = np.arange(0.0, time_step, time_step/50)
             else:
+                
                 h_times = np.arange(0.0, time_step_minute*60, time_step_minute*60/50)
                 
+#                print(h_times)
+                
 #            print(h_times)
+            
     
     
             step_response = F_P.step(T=h_times)[1]
@@ -681,7 +701,7 @@ class PVInverterFleet(FleetInterface):
                 
         Device_Info=[P_grid,Q_grid,P_service,Q_service,E_t0,c,P_output,Q_output,P_grid_max,Q_grid_max,\
                      P_grid_min,Q_grid_min,P_service_max,Q_service_max,P_service_min,Q_service_min,del_t_hold,\
-                     t_restore,SP,N_req,Effeciency]
+                     t_restore,SP,N_req,Effeciency,sim_step]
         return Device_Info
     
     
@@ -906,7 +926,7 @@ class PVInverterFleet(FleetInterface):
             #[Time_,P_rec,Q_rec,P_req_,Q_req_,P_MPP,G_rec,T_rec]\
         [P_grid,Q_grid,P_service,Q_service,E_t0,c,P_output,Q_output,P_grid_max,Q_grid_max,\
              P_grid_min,Q_grid_min,P_service_max,Q_service_max,P_service_min,Q_service_min,del_t_hold,\
-             t_restore,SP,N_req,Effeciency]=self.Device_PV(ts,sim_step,Command_to_Device,return_forecast,WP)
+             t_restore,SP,N_req,Effeciency,sim_step]=self.Device_PV(ts,sim_step,Command_to_Device,return_forecast,WP)
       
             #print(P_Output)    
         SubFleetA_P_grid=P_grid*self.SubFleet_NumberOfUnits/1000
@@ -985,6 +1005,9 @@ class PVInverterFleet(FleetInterface):
         response.S_Rating=FleetA_NP_S_rating
         response.T_restore=Fleet_PV_t_restore
         response.P_base=Fleet_PV_P_grid_max[0]
+        response.sim_step=sim_step
+        response.Strike_price=0
+        response.SOC_cost='na'
         return response
 
 
@@ -1038,6 +1061,7 @@ class PVInverterFleet(FleetInterface):
         :return p_mod: modifyed real power based on FW21 function
         """
         f = self.grid.get_frequency(ts,location, start_time)
+        
         from os.path import join
         
         File_Path_Forecast = join(self.base_path , 'Forecast.npy')
@@ -1047,6 +1071,7 @@ class PVInverterFleet(FleetInterface):
         [P_pre,Q_Pre,P_Requested,Q_Requested,Last_Time]=np.load(File_Path_OperatingPoint)
         ts_local=self.datetime_from_utc_to_local(ts)
         T_Stamp=[ts_local.year,ts_local.month,ts_local.day,ts_local.hour,ts_local.minute,ts.second]
+        
  
         Current_Forecast_indx=self.Match_Time(Time_,T_Stamp)
         P_avl=Pmpp_AC[Current_Forecast_indx]/self.s_max
@@ -1056,14 +1081,17 @@ class PVInverterFleet(FleetInterface):
     
         if f<60-self.db_UF:
             P=min(P_pre+((60-self.db_UF)-f)/(60*self.k_UF),P_avl)
+            
         elif f>60+self.db_OF:
             P=max(P_pre-(f-(60+self.db_OF))/(60*self.k_OF),P_min)
+            
         else:
             """
             select the operating mode withing deadband range
             """
             P=P_avl*(1-self.FW_P_reserve)
             
+    
         dt = timedelta(hours=1)
         p_req = P*self.SubFleet_NumberOfUnits*self.s_max
         q_req = None

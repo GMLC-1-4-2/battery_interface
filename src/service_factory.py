@@ -23,6 +23,16 @@ def create_service(name, **kwargs):
 
         energy_market = EnergyMarketService()
         return energy_market
+    
+    elif name == 'PeakManagementService':
+        from services.peak_managment_service.peak_management_service import PeakManagementService
+
+        return PeakManagementService(sim_step=kwargs['sim_step'])
+
+    elif name == 'PeakManagementService':
+        from datetime import timedelta
+        from services.peak_managment_service.peak_management_service import PeakManagementService
+
+        return PeakManagementService(sim_step=timedelta(minutes=60))
 
     raise "There is no service with name: " + name
-
