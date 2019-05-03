@@ -46,6 +46,8 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
            fleet.is_autonomous = True
+        else:
+           fleet.is_autonomous = False
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
@@ -55,13 +57,22 @@ def create_fleet(name, grid_type=1, **kwargs):
         fleet = WaterHeaterFleet()
         if 'autonomous' in kwargs and kwargs['autonomous']:
            fleet.is_autonomous = True
+        else:
+           fleet.is_autonomous = False
         fleet.VV11_Enabled = False
         fleet.FW21_Enabled = True
         return fleet
 
     elif name == 'Electrolyzer':
         from fleets.electrolyzer_fleet.ey_fleet import ElectrolyzerFleet
-        fleet = ElectrolyzerFleet("", "config.ini", "Electrolyzer", True)
+        fleet = ElectrolyzerFleet(grid, "config.ini", "Electrolyzer", False)
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fleet.is_autonomous = True
+           fleet.is_P_priority = False
+        else:
+           fleet.is_autonomous = False
+        fleet.VV11_Enabled = False
+        fleet.FW21_Enabled = True
         return fleet
 
     elif name == 'FuelCell':
