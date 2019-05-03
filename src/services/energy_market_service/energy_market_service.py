@@ -334,33 +334,6 @@ class EnergyMarketService(object):
             responses.append(response)  
             ts += sim_step
             print('Processing dispatch request at time ts = %s' %ts)
-            print('P_req = %f kW' %request.P_req)
-            print('P_resp = %f kW' %response.P_service)
-        
-        '''
-        ts_request = [r.ts for r in responses]
-        p_togrid = [r.P_togrid for r in responses]
-        p_base = [r.P_base for r in responses]
-        p_service = [r.P_service for r in responses]
-        p_request = [r.P_req for r in requests]
-        
-        
-        title = 'Energy Market Service against ' + fleet_name      
-        plt.figure()
-        plt.subplot(211)
-        plt.title(title)
-        plt.plot(ts_request, p_base, label='P_Base')
-        plt.plot(ts_request, p_togrid, label='P_Togrid')
-        plt.ylabel('Active Power (kW)')
-        plt.legend()
-        
-        plt.subplot(212)
-        plt.plot(ts_request, p_request, label='P_Request')
-        plt.plot(ts_request, p_service, label='P_Service')
-        plt.xlabel('Time')
-        plt.ylabel('Active Power (kW)')
-        plt.legend()
-        '''
             
         request_list_1h = []
         for r in requests:
@@ -398,21 +371,30 @@ class EnergyMarketService(object):
         plot_filename = 'SimResults_EnergyMarket_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.png'
         plt.figure(1)
         plt.figure(figsize=(15, 8))
-        plt.subplot(211)
+        plt.subplot(311)
         if not(all(pd.isnull(df_1h['Request']))):
-            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request')
+            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request', linestyle = '-')
         if not(all(pd.isnull(df_1h['Response']))):
-            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response')
-        if not(all(pd.isnull(df_1h['P_togrid']))):
-            plt.plot(df_1h.Date_Time, df_1h.P_togrid, label='P_togrid')
-        if not(all(pd.isnull(df_1h['P_base']))):
-            plt.plot(df_1h.Date_Time, df_1h.P_base, label='P_base')
+            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response', linestyle = '--')
         plt.ylabel('Power (MW)')
-        plt.legend(loc='best')
+        plt.legend()
+            
+        plt.subplot(312)
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base + df_1h.Request, label='P_base + P_Request', linestyle = '-')       
+        if not(all(pd.isnull(df_1h['P_togrid']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_togrid, label='P_togrid', linestyle = '--')
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base, label='P_base', linestyle = '-.')
+        plt.ylabel('Power (MW)')
+        plt.legend()
+        if 'battery' is not fleet_name.lower():
+            plt.xlabel('Time')
+        
         if 'battery' in fleet_name.lower():
             if not(all(pd.isnull(df_1h['SoC']))):
-                plt.subplot(212)
-                plt.plot(df_1h.Date_Time, df_1h.SoC, label='SoC')
+                plt.subplot(313)
+                plt.plot(df_1h.Date_Time, df_1h.SoC, label='SoC', linestyle = '-')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
         plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
