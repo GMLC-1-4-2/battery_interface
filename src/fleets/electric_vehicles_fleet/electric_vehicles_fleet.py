@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 05/01/2019
+Last update: 05/03/2019
 Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
@@ -574,12 +574,12 @@ class ElectricVehiclesFleet(FleetInterface):
             response.C = total_capacity
             
             response.P_togrid_min = - max_power_demanded
-            response.P_togrid_max = - self.p_baseline
+            response.P_togrid_max = - power_controlled
             response.Q_togrid_max = 0
             response.Q_togrid_min = 0
             
-            response.P_service_min = 0
-            response.P_service_max = - (max_power_demanded - self.p_baseline)
+            response.P_service_min = - (max_power_demanded - self.p_baseline)
+            response.P_service_max = - (power_controlled - self.p_baseline) 
             response.Q_service_max = 0
             response.Q_service_min = 0
             
