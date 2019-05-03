@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 19 13:46:46 2019
+Description: Class to load a config file and process it
 
-Description: 
-
-Last update: 
+Last update: 05/01/2019
 Version: 1.0
 Author: afernandezcanosa@anl.gov
 """
 
 import pandas as pd
-
 
 class LoadConfig(object):
     
@@ -53,6 +50,9 @@ class LoadConfig(object):
 
     def get_run_baseline(self):
         return self.str_to_bool(self.config_file.get('Electric Vehicles', 'RunBaseline', fallback = False))
+    
+    def get_base_reference(self):
+        return self.str_to_bool(self.config_file.get('Electric Vehicles', 'RefMonteCarlo', fallback = False))
     
     def get_n_days_MC(self):
         return int(self.config_file.get('Electric Vehicles', 'NumberDaysBase', fallback = 10))
