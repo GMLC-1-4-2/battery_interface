@@ -31,12 +31,12 @@ class ArtificialInertiaService():
     def fleet(self, value):
         self.fleet_device = value
 
-    def request_loop(self, start_time):
+    def request_loop(self, start_time, sim_step):
         responses = []
 
         #inittime = parser.parse("2018-10-12 00:00:00")
         #delt = timedelta(seconds=2 / 60)
-        delt = timedelta(seconds= 60 / 60)
+        delt = sim_step
         cur_time = start_time
         end_time = cur_time + timedelta(seconds=149)
         while cur_time < end_time:
@@ -189,4 +189,3 @@ if __name__ == "__main__":
     # print(avg)
     # pickfreq = grid.get_frequency(parser.parse('2018-10-12 00:02:00'), 0)
     # print(pickfreq)
-
