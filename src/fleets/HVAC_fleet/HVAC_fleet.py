@@ -17,8 +17,11 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 ################################################################
 
 from configparser import ConfigParser
-import datetime
-from datetime import timedelta
+# import datetime
+# from datetime import timedelta
+
+from datetime import datetime, timedelta
+
 # This is the actual building thermal and HVAC models
 #import build_model as bm
 from fleets.HVAC_fleet.build_model import BuildingModel
@@ -32,7 +35,7 @@ from fleets.HVAC_fleet.build_model import building
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
 from fleets.HVAC_fleet.load_config import LoadConfig
-# from frequency_droop import FrequencyDroop
+from frequency_droop import FrequencyDroop
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -391,7 +394,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         """
         This function takes the fleet request and repackages it for the integral run function
         :param fleet_request: an instance of FleetRequest
-        :return fleet_response: an instance of FleetResponse
+        :return fleet_response: an instance of resp
         ## Follow the example of EV
         """
         ts = fleet_request.ts_req   # starting time
@@ -401,14 +404,14 @@ class HVACFleet(FleetInterface):   #FleetInterface
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        fleet_response = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
-        self.step += 1
+        resp = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
+        self.step += 1 # To advance the step by step in the disturbance file
 
-        return fleet_response
+        return resp
 
     # Example code for Frequency Watt Function
 
-    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):  #datetime.
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -418,9 +421,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
         """
         f = self.grid.get_frequency(ts,location)
         
-        if f < 60 - db_UF:
+        if (f < 60 - db_UF).any():
             p_mod = 0
-        elif f > 60 + db_OF:
+        elif (f > 60 + db_OF).any():
             p_mod = p_req
         else:
             p_mod = p_prev
@@ -432,11 +435,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
         This method returns the modified state of charge of each subfleet 
         due to frequency droop in the grid
         """        
-        
         charge_rate = p_fleet/(self.numHVAC*3.5)*0.1  # Heuristic soc change rate
-        SOC_update = initSOC + charge_rate
+        SOC_update = initSOC + [charge_rate]
         
-        if SOC_update > 1:
+        if np.asarray(SOC_update) > 1:
             p_fleet = 0
             SOC_update = initSOC
 
@@ -453,41 +455,43 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # run(self, P_req=[0], Q_req=[0], ts=datetime.utcnow(), del_t=timedelta(hours=1)):    
         
         # Give the code the capability to respond to None requests
+
+        resp = FleetResponse()
+
         if P_req == None:
             P_req = 0
         if Q_req == None:
             Q_req = 0      
 
-        FleetResponse.P_service = 0
-        FleetResponse.P_service_max = 0
-        FleetResponse.P_service_min = 0
-        FleetResponse.P_togrid = 0
-        FleetResponse.P_togrid_max = 0
-        FleetResponse.P_togrid_min = 0
-        FleetResponse.P_forecast = 0
-        FleetResponse.P_base = 0
-        FleetResponse.E = 0
-        FleetResponse.C = 0
-        FleetResponse.ts = ts
-        FleetResponse.sim_step = dt
-
+        resp.P_service = 0
+        resp.P_service_max = 0
+        resp.P_service_min = 0
+        resp.P_togrid = 0
+        resp.P_togrid_max = 0
+        resp.P_togrid_min = 0
+        resp.P_forecast = 0
+        resp.P_base = 0
+        resp.E = 0
+        resp.C = 0
+        resp.ts = ts
+        resp.sim_step = dt
 
         P_request_perHVAC = P_req / self.numHVAC # this is only for the first step
         #        print(P_request_perWH)
         
-        FleetResponse.Q_togrid = 'NA'
-        FleetResponse.Q_service = 'NA'
-        FleetResponse.Q_service_max = 'NA'
-        FleetResponse.Q_service_min = 'NA'
-        FleetResponse.Q_togrid_min = 'NA'  
-        FleetResponse.Q_togrid_max = 'NA'
+        resp.Q_togrid = 'NA'
+        resp.Q_service = 'NA'
+        resp.Q_service_max = 'NA'
+        resp.Q_service_min = 'NA'
+        resp.Q_togrid_min = 'NA'  
+        resp.Q_togrid_max = 'NA'
         Eloss = 0
         Edel = 0 
         
-        FleetResponse.Q_dot_up = 'NA'
-        FleetResponse.Q_dot_down = 'NA'
-        FleetResponse.P_dot_up = 0
-        FleetResponse.P_dot_down = 0
+        resp.Q_dot_up = 'NA'
+        resp.Q_dot_down = 'NA'
+        resp.P_dot_up = 0
+        resp.P_dot_down = 0
    
         # run through fleet once as a forecast just to get initial conditions
         # number = 0
@@ -576,49 +580,45 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.ServiceCallsAccepted[number] = response.ServiceCallsAccepted
             self.ServiceProvided[number] += response.Eservice
             
-            FleetResponse.P_togrid += response.Eused
-            FleetResponse.P_togrid_max += response.PusedMax
-            FleetResponse.P_togrid_min += response.PusedMin                
-            FleetResponse.P_service += response.Eservice      
-            FleetResponse.P_base += response.Pbase    
-            # FleetResponse.sim_step = response.sim_step       
+            resp.P_togrid += response.Eused
+            resp.P_togrid_max += response.PusedMax
+            resp.P_togrid_min += response.PusedMin                
+            resp.P_service += response.Eservice      
+            resp.P_base += response.Pbase    
+            # resp.sim_step = response.sim_step       
             number += 1  # go to next device
 
             # Available Energy stored at the end of the most recent timestep
-            # FleetResponse.E += response.Estored
-            FleetResponse.E = 0
-            FleetResponse.C += response.SOC / (self.numHVAC)
+            # resp.E += response.Estored
+            resp.E = 0
+            resp.C += response.SOC / (self.numHVAC)
 
             if P_req<=0:
-                FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+                resp.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
             else:
                 P_service_max0 += response.AvailableCapacityAdd
-                FleetResponse.P_service_max = -1.0*P_service_max0
+                resp.P_service_max = -1.0*P_service_max0
 
             
-        # FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
-        FleetResponse.P_dot = FleetResponse.P_togrid / dt
-        FleetResponse.P_service_min  = 0
+        # resp.P_dot_up = resp.P_togrid_max / ServiceRequest.Timestep.seconds
+        resp.P_dot = resp.P_togrid / dt
+        resp.P_service_min  = 0
         
-        # FleetResponse.Q_dot_down     = 0
-        FleetResponse.dT_hold_limit  = 'NA'
-        FleetResponse.T_restore      = 'NA'
-        FleetResponse.Strike_price   = 'NA'
-        FleetResponse.SOC_cost       = 'NA'
+        # resp.Q_dot_down     = 0
+        resp.dT_hold_limit  = 'NA'
+        resp.T_restore      = 'NA'
+        resp.Strike_price   = 'NA'
+        resp.SOC_cost       = 'NA'
 
-        
-
-        # TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*
-        
+        # TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*        
         """
         Modify the power and SOC of the different subfeets according 
         to the frequency droop regulation according to IEEE standard
         """
     
-
         if self.FW21_Enabled and self.is_autonomous:
-            power_ac = FleetResponse.P_service_max
-            p_prev = FleetResponse.P_togrid
+            power_ac = resp.P_service_max
+            p_prev = resp.P_togrid
             power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
             power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
 
@@ -653,7 +653,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.ave_Tin = Ttotal/self.numHVAC
         self.SOC_metric = SOCTotal/self.numHVAC
 
-        return FleetResponse 
+        return resp 
       
     #################################################   
     def forecast(self, requests):
@@ -935,7 +935,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #### Interpolate the time resolution of the disturbances
 def get_inputs(Qsolar_i10, Qsolar_mass10, temp_sol_W10, temp_sol_R10, timestep_s, ts):
         num_steps = 3600*48.0/timestep_s  
-        dt = datetime.datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S.%f')  #
+        dt = datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S')  # datetime.   .%f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec + timestep_s*num_steps/3600.0, num_steps)
@@ -1005,7 +1005,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         except IndexError:
             raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S.%f')
+        dt = datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S')  # datetime.  .%f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_s*num_steps/3600.0, num_steps)
