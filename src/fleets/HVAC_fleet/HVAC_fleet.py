@@ -155,16 +155,21 @@ class HVACFleet(FleetInterface):   #FleetInterface
         
         # Impact metrics of the fleet
         metrics = LC.get_impact_metrics_params()
-        # Aveage indoor temperature
+        # Aveage indoor temperature baseline
         self.ave_Tin = metrics[0]
+        # Aveage indoor temperature under grid service
+        self.ave_Tin = metrics[1]
         # Cylces in baseline
-        self.cycle_basee = metrics[1]
+        self.cycle_basee = metrics[2]
         # Cylces in grid operation
-        self.cycle_grid = metrics[2]
-        # Unmet hours of the fleet
-        self.unmet_hours = metrics[3]
+        self.cycle_grid = metrics[3]
+        # State of Charge of the battery equivalent model under baseline
+        self.SOCb_metric = metrics[4]
         # State of Charge of the battery equivalent model
-        self.SOC_metric = metrics[4]
+        self.SOC_metric = metrics[5]
+        # Unmet hours of the fleet
+        self.unmet_hours = metrics[6]
+        
                
         ########### initial indoor temperatures and SoC
         self.TinInitialMean = 23.67 #deg C
@@ -218,6 +223,11 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # generate distribution of initial HVAC fleet states. this means Rext, Rattic, Cmass,
         # profile for the yr for each building in fleet, this will be imported later, just get something reasonable here
         # random initial temperatures (total 4 states in the 4R4C Model)
+        self.TinInitialB=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
+        self.TwallInitialB=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
+        self.TmassInitialB=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
+        self.TatticInitialB=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
+
         self.TinInitial=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
         self.TwallInitial=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
         self.TmassInitial=np.random.normal(self.TinInitialMean, self.TinInitialStddev,self.numHVAC)
@@ -337,6 +347,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.IsAvailableAdd = np.random.randint(2, size=self.numHVAC+1)
         self.IsAvailableShed = np.random.randint(2, size=self.numHVAC+1)
 
+        self.elementOnB = np.random.randint(2, size=self.numHVAC)
         self.elementOn = np.random.randint(2, size=self.numHVAC)
 
         self.lockon = [self.minrun_ts+1 for x in range(self.numHVAC)]
@@ -353,6 +364,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
    
         self.SoCInit = [0.8 for y in range(self.numHVAC)]
         self.SOC = self.SoCInit
+        self.SOCb = self.SoCInit
 
         self.AvailableCapacityAddInit = [0 for y in range(self.numHVAC)]
         self.AvailableCapacityShedInit = [0 for y in range(self.numHVAC)]
@@ -369,18 +381,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.hvacs = [BuildingModel(self.Tamb[0], self.Tsol_W[0], self.QIHL_i[0], self.Qsolar_i[0], self.Tsol_R[0],
                                     self.QIHL_mass[0], self.Qsolar_mass[0], 0, self.Rext[number], 
                                     self.Rattic[number], self.Cmass[number], 0, self.MaxServiceCalls[number], self.dt,
-                                    self.IHL_fleet_ave, self.elementOn[number], self.lockon[number], self.lockoff[number], self.cycle_off_base[number], 
+                                    self.IHL_fleet_ave, self.elementOnB[number], self.elementOn[number], self.lockon[number], self.lockoff[number], self.cycle_off_base[number], 
                                     self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number]) for number in range(self.numHVAC)]
-
-    # Baseline simulations
-    # Todo: Only need run baseline in the first call of the grid service
-    # It will generate and save a baseline for one day simulation with correct time resolution
-
-    
-    # def process_request(self, ServiceRequest):
-        
-    #     response = self.ExecuteFleet(ServiceRequest)   #response        
-    #     return response     
     
     def get_time_of_the_day(self, ts):
         """ Method to calculate the time of the day in seconds to for the simulation of the feets """
@@ -503,6 +505,12 @@ class HVACFleet(FleetInterface):   #FleetInterface
         #################################      
         for hvac in self.hvacs: #loop through all HVACs
             TsetLast = self.TsetInitial[number]
+
+            TinLastB = self.TinInitialB[number]    
+            TwallLastB = self.TwallInitialB[number]
+            TmassLastB = self.TmassInitialB[number]
+            TatticLastB = self.TatticInitialB[number] 
+
             TinLast = self.TinInitial[number]    
             TwallLast = self.TwallInitial[number]
             TmassLast = self.TmassInitial[number]
@@ -510,32 +518,40 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
             if P_req<=0 and self.IsAvailableAdd[number] > 0 :
             # For step >=1, can use last step temperature...     execute   
-                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+                response = hvac.HVAC(TinLastB, TwallLastB, TmassLastB, TatticLastB, TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], P_request_perHVAC, dt, self.IHL_fleet_ave[self.step], 
-                                        self.elementOn[number], self.lockon[number], self.lockoff[number], 
+                                        self.elementOnB[number], self.elementOn[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
                 P_req =  P_req - response.Eservice
 
             elif P_req>0 and self.IsAvailableShed[number] > 0 :
             # For step >=1, can use last step temperature...                                
-                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+                response = hvac.HVAC(TinLastB, TwallLastB, TmassLastB, TatticLastB, TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], P_request_perHVAC, dt, self.IHL_fleet_ave[self.step], 
-                                        self.elementOn[number], self.lockon[number], self.lockoff[number], 
+                                        self.elementOnB[number], self.elementOn[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
                 P_req =  P_req - response.Eservice    
             # break
 
             else:        
-                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+                response = hvac.HVAC(TinLastB, TwallLastB, TmassLastB, TatticLastB, TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
-                                        self.Rext[number], self.Rattic[number], self.Cmass[number], 0, dt, self.IHL_fleet_ave[self.step], self.elementOn[number], 
-                                        self.lockon[number], self.lockoff[number], 
+                                        self.Rext[number], self.Rattic[number], self.Cmass[number], 0, dt, self.IHL_fleet_ave[self.step], 
+                                        self.elementOnB[number], self.elementOn[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
 
             # assign returned parameters to associated lists to be recorded
             self.TsetInitial[number] = response.Tset
+
+            self.TinInitialB[number] = response.TinB
+            self.TwallInitialB[number] = response.TwallB
+            self.TmassInitialB[number] = response.TmassB
+            self.TatticInitialB[number] = response.TatticB
+
+            self.elementOnB[number] = response.ElementOnB
+            
             self.TinInitial[number] = response.Tin
             self.TwallInitial[number] = response.Twall
             self.TmassInitial[number] = response.Tmass
@@ -550,6 +566,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.cycle_on_grid[number] = response.cycle_on_grid
             
             self.SOC[number] = response.SOC
+            self.SOCb[number] = response.SOC_b
             self.IsAvailableAdd[number] = response.IsAvailableAdd
             self.IsAvailableShed[number] = response.IsAvailableShed
             
@@ -650,10 +667,6 @@ class HVACFleet(FleetInterface):   #FleetInterface
         Ttotal = 0
         SOCTotal = 0
      
-        Ttotal = np.sum(self.TinInitial)
-            
-        SOCTotal = np.sum(self.SOC)
-
         self.cycle_basee = np.sum(self.cycle_off_base)
         self.cycle_basee += np.sum(self.cycle_on_base)
         self.cycle_grid = np.sum(self.cycle_off_grid)
@@ -663,8 +676,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
             if self.TinInitial[numberr]>=self.TsetInitial[numberr] + 2:  #assume 2F, self.deadband
                 self.unmet_hours += 1*self.sim_step/3600.0
 
-        self.ave_Tin = Ttotal/self.numHVAC
-        self.SOC_metric = SOCTotal/self.numHVAC
+        self.ave_TinB = np.average(self.TinInitialB)
+        self.ave_Tin = np.average(self.TinInitial)
+        self.SOCb_metric = np.average(self.SOCb)
+        self.SOC_metric = np.average(self.SOC)
 
         return resp 
       
@@ -682,11 +697,18 @@ class HVACFleet(FleetInterface):   #FleetInterface
         SOC = self.SOC 
 
         for number in range(self.numHVAC): #loop through all HVACs
+            TinRB = self.TinInitialB[number]
+            TwallRB = self.TwallInitialB[number]
+            TmassRB = self.TmassInitialB[number]
+            TatticRB = self.TatticInitialB[number]
+            elementOnRB = self.elementOnB[number]
+
             TinR = self.TinInitial[number]
             TwallR = self.TwallInitial[number]
             TmassR = self.TmassInitial[number]
             TatticR = self.TatticInitial[number]
 
+            SOC_bR = self.SOCb[number]
             SOCR = self.SOC[number]
 
             elementOnR = self.elementOn[number]
@@ -705,17 +727,26 @@ class HVACFleet(FleetInterface):   #FleetInterface
             q_req = req.Q_req
             res = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
 
-            responses.append(res)
+            return res
                     
         # reset the model
         for number in range(self.numHVAC): #loop through all HVACs
-            self.soc = SOCR 
+            self.SOC = SOCR 
+            self.SOCb = SOC_bR 
+
+            self.TinInitialB[number] = TinRB
+            self.TwallInitialB[number] = TwallRB
+            self.TmassInitialB[number] = TmassRB
+            self.TatticInitialB[number] = TatticRB
+
             self.TinInitial[number] = TinR
             self.TwallInitial[number] = TwallR
             self.TmassInitial[number] = TmassR
             self.TatticInitial[number] = TatticR
 
             self.elementOn[number] = elementOnR
+            self.elementOnB[number] = elementOnRB
+
             self.lockon[number] = lockonR
             self.lockoff[number] = lockoffR
             self.cycle_off_base[number] = cycle_offR
@@ -899,9 +930,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     
     def output_impact_metrics(self):   
         impact_metrics_DATA = [["Impact Metrics File"],
-                                ["ave_Tin", "Cycle_base", "Cycle_grid", "SOC_metric", "Unmet Hours"]]
+                                ["ave_Tin_base", "ave_Tin", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service", "Unmet Hours"]]
         
-        impact_metrics_DATA.append([str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
+        impact_metrics_DATA.append([str(self.ave_TinB), str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric), str(self.SOC_metric), str(self.unmet_hours)])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)

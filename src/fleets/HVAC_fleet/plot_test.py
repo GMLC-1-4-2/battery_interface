@@ -42,6 +42,7 @@ class Plots(object):
         plt.xlim([0,max(time) - time[0]])
         plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
         plt.ylabel('Service Power (kW)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+        plt.savefig('service.png')
     
     
     def power_to_grid(self,time, power_response, power_baseline, power_request, ts, dt, seconds_of_simulation):
@@ -56,32 +57,33 @@ class Plots(object):
         plt.xlim([0,max(time) - time[0]])
         plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
         plt.ylabel('Power (kW)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+        plt.savefig('P2G.png')
     
     
-    def energy_fleet(self,time, energy_stored, ts, dt, seconds_of_simulation):    
-        plt.figure(figsize = self.figs_props['fig_s'])
-        plt.title(self.get_plot_title(ts, dt, seconds_of_simulation),
-                  fontsize=self.figs_props['font_s'] + 1, fontweight=self.figs_props['font_w'])
-        plt.plot(time - time[0], energy_stored*1e-6, color = 'b', linewidth = self.figs_props['lw'])
-        plt.grid()
-        plt.xlim([0,max(time) - time[0]])
-        plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
-        plt.ylabel('Energy stored (GW.h)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+    # def energy_fleet(self,time, energy_stored, ts, dt, seconds_of_simulation):    
+    #     plt.figure(figsize = self.figs_props['fig_s'])
+    #     plt.title(self.get_plot_title(ts, dt, seconds_of_simulation),
+    #               fontsize=self.figs_props['font_s'] + 1, fontweight=self.figs_props['font_w'])
+    #     plt.plot(time - time[0], energy_stored*1e-6, color = 'b', linewidth = self.figs_props['lw'])
+    #     plt.grid()
+    #     plt.xlim([0,max(time) - time[0]])
+    #     plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+    #     plt.ylabel('Energy stored (GW.h)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
         
         
-    def state_of_charge(self, time, SOC_fleet_time, SOC_right_away, SOC_midnight, SOC_tcin, ts, dt, seconds_of_simulation):
-        plt.figure(figsize = self.figs_props['fig_s'])
-        plt.title(self.get_plot_title(ts, dt, seconds_of_simulation),
-                  fontsize=self.figs_props['font_s'] + 1, fontweight=self.figs_props['font_w'])
-        plt.plot(time - time[0], SOC_fleet_time*100, color = 'b', linewidth = self.figs_props['lw'], label = 'Fleet')
-        plt.plot(time - time[0], SOC_right_away*100, 'r--', linewidth = self.figs_props['lw'], label = 'Right-away')
-        plt.plot(time - time[0], SOC_midnight*100, 'k--', linewidth = self.figs_props['lw'], label = 'Midnight')
-        plt.plot(time - time[0], SOC_tcin*100, 'c--', linewidth = self.figs_props['lw'], label = 'TCIN')
-        plt.grid()
-        plt.legend(prop = self.figs_props['leg_prop'])
-        plt.xlim([0,max(time) - time[0]])
-        plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
-        plt.ylabel('SOC (%)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+    # def state_of_charge(self, time, SOC_fleet_time, SOC_right_away, SOC_midnight, SOC_tcin, ts, dt, seconds_of_simulation):
+    #     plt.figure(figsize = self.figs_props['fig_s'])
+    #     plt.title(self.get_plot_title(ts, dt, seconds_of_simulation),
+    #               fontsize=self.figs_props['font_s'] + 1, fontweight=self.figs_props['font_w'])
+    #     plt.plot(time - time[0], SOC_fleet_time*100, color = 'b', linewidth = self.figs_props['lw'], label = 'Fleet')
+    #     plt.plot(time - time[0], SOC_right_away*100, 'r--', linewidth = self.figs_props['lw'], label = 'Right-away')
+    #     plt.plot(time - time[0], SOC_midnight*100, 'k--', linewidth = self.figs_props['lw'], label = 'Midnight')
+    #     plt.plot(time - time[0], SOC_tcin*100, 'c--', linewidth = self.figs_props['lw'], label = 'TCIN')
+    #     plt.grid()
+    #     plt.legend(prop = self.figs_props['leg_prop'])
+    #     plt.xlim([0,max(time) - time[0]])
+    #     plt.xlabel('$\Delta t$ (sec)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
+    #     plt.ylabel('SOC (%)', fontsize = self.figs_props['font_s'], fontweight = self.figs_props['font_w'])
 
     def get_plot_title(self, ts, dt, seconds_of_simulation):
         title = 'Initial hour of request: {}:{}:{}'.format(ts.hour, ts.minute, ts.second) +\

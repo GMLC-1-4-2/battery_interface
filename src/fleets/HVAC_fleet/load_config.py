@@ -64,10 +64,13 @@ class LoadConfig(object):
         metrics = list()
         
         metrics.append(float(self.config_file.get('Impact Metrics', 'ave_Tin', fallback = 23)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'ave_TinB', fallback = 23)))
         metrics.append(float(self.config_file.get('Impact Metrics', 'CycleBase', fallback = 10)))
         metrics.append(float(self.config_file.get('Impact Metrics', 'CycleGrid', fallback = 10)))
-        metrics.append(float(self.config_file.get('Impact Metrics', 'UnmetHours', fallback = 1)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'SOCb_metric', fallback = 0.6)))
         metrics.append(float(self.config_file.get('Impact Metrics', 'SOC_metric', fallback = 0.6)))
+        metrics.append(float(self.config_file.get('Impact Metrics', 'UnmetHours', fallback = 0)))
+        
         # metrics.append(float(self.config_file.get('Impact Metrics', 'EnergyEfficiency', fallback = 1.0)))
         
         return metrics

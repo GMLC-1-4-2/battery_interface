@@ -55,34 +55,34 @@ for i in range(len(t)):
     req = FleetRequest(ts, sim_step, power_request[i], 0.)
     requests.append(req)
    
-print("SOC init = ", fleet_test.SOC)
-# Measure cpu time
-cpu_time = time.clock() 
-FORECAST = fleet_test.forecast(requests)
-cpu_time = (time.clock() - cpu_time)/len(t)
-# check that the state of charge do not change when calling the forecast method
-print("SOC check = ", fleet_test.SOC)
-print("CPU time per time step = %f [sec]" %cpu_time)
+# print("SOC init = ", fleet_test.SOC)
+# # Measure cpu time
+# cpu_time = time.clock() 
+# FORECAST = fleet_test.forecast(requests)
+# cpu_time = (time.clock() - cpu_time)/len(t)
+# # check that the state of charge do not change when calling the forecast method
+# print("SOC check = ", fleet_test.SOC)
+# print("CPU time per time step = %f [sec]" %cpu_time)
 
-power_service = []
-max_power_service = []
-power_response = []
-energy_stored = np.zeros([len(t),])
-for i in range(len(t)):  
-    power_service.append(FORECAST[i].P_service)
-    max_power_service.append(FORECAST[i].P_service_max)
-    power_response.append(FORECAST[i].P_togrid)
-    energy_stored[i] = FORECAST[i].E
+# power_service = []
+# max_power_service = []
+# power_response = []
+# energy_stored = np.zeros([len(t),])
+# for i in range(len(t)):  
+#     power_service.append(FORECAST[i].P_service)
+#     max_power_service.append(FORECAST[i].P_service_max)
+#     power_response.append(FORECAST[i].P_togrid)
+#     energy_stored[i] = FORECAST[i].E
  
-#fleet_test.output_impact_metrics()  
-#print("The impact metrics file has been produced: state of health of the batteries")
-print(pd.read_csv('impact_metrics.csv'))
+# #fleet_test.output_impact_metrics()  
+# #print("The impact metrics file has been produced: state of health of the batteries")
+# print(pd.read_csv('impact_metrics.csv'))
 
-plots = Plots()
+# plots = Plots()
     
-plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
-plots.power_to_grid(t, power_response, power_baseline, power_request, ts, dt, seconds_of_simulation)
-plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
+# plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
+# plots.power_to_grid(t, power_response, power_baseline, power_request, ts, dt, seconds_of_simulation)
+# plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
 
 ###############################################################################
 # Test 2: test process_request method
@@ -91,15 +91,19 @@ fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
 fleet_test.time = fleet_test.get_time_of_the_day(ts)
 
 # process the requests 
-SOC_time = np.zeros([fleet_test.N_SubFleets, len(t)])
+SOC_time = np.zeros(len(t))
+power_service = np.zeros(len(t))
+power_response = np.zeros(len(t))
+
 i = 0
 for req in requests:
     fleet_test.process_request(req)
     # The SOC change!
     SOC_time[:,i] = fleet_test.SOC
+    power_service[:,i] = fleet_test.P_service
+    power_response[:,i] = fleet_test.P_togrid
     i+=1
     
-SOC_fleet_time = np.mean(SOC_time, axis = 0)
-SOC_right_away = np.mean(SOC_time[[i for i,x in enumerate(fleet_test.monitor_strategy) if x=='right away']], axis = 0)
+plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
 
-plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, ts, dt, seconds_of_simulation)
+# plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, ts, dt, seconds_of_simulation)

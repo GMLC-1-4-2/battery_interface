@@ -20,10 +20,19 @@ class ACResponse:
         Constructor with default values
         """
         
+        self.TinB = 0
+        self.TwallB = 0
+        self.TmassB = 0
+        self.TatticB = 0
+        self.SOC_b = 0
+        self.ElementOnB = 0
+
         self.Tin = 0
         self.Twall = 0
         self.Tmass = 0
         self.Tattic = 0
+
+
         self.Tset = 0 
         self.Eused = 0 
         self.Pbase = 0

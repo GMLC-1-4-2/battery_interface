@@ -20,36 +20,37 @@ from fleets.HVAC_fleet.HVAC_fleet import HVACFleet
 dirname = os.path.dirname(__file__)
 
 # Time stamp to start the simulation
-ts = datetime(2018, 9, 20, 5, 0, 00, 000000)
+ts = datetime(2018, 7, 1, 12, 0, 00, 000000)
 
 # Parameters of the grid
 grid = GridInfo('Grid_Info_DATA_2.csv')
 
+dt = 1*60                                   # time step (in seconds)
+sim_step = timedelta(seconds = dt)
+
 # Instantiation of an object of the ElectricVehiclesFleet class
-fleet_test = HVACFleet(grid, ts)
+fleet_test = HVACFleet(grid, ts, sim_step)
 fleet_test.is_autonomous = False
 fleet_test.is_P_priority = True
 
-dt = 10*60                                   # time step (in seconds)
-sim_step = timedelta(seconds = dt)
-seconds_of_simulation = 4*3600              # (in seconds)
+seconds_of_simulation = 1*3600              # (in seconds)
 local_time = fleet_test.get_time_of_the_day(ts)
 t = np.arange(local_time,local_time+seconds_of_simulation,dt) # array of time in seconds 
 
 # Power requested (kW): test
-power_request = 50000*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
+power_request = 50*(1 + np.sin(2*np.pi*(t/seconds_of_simulation)))
 # power_request = np.zeros([len(t), ])
 
 # List of requests
 requests = []
 for i in range(len(t)):
-    req = FleetRequest(ts+i*sim_step, sim_step, ts, power_request[i], 0.)
+    req = FleetRequest(ts+i*sim_step, sim_step, ts, power_request[i], 0, 1)
     requests.append(req)
    
 print("SOC init = ", fleet_test.SOC)
 # Measure cpu time
 cpu_time = time.clock() 
-FORECAST = fleet_test.forecast(requests)
+request_r = fleet_test.process_request(requests)
 cpu_time = (time.clock() - cpu_time)/len(t)
 # check that the state of charge do not change when calling the forecast method
 print("SOC check = ", fleet_test.SOC)
@@ -60,10 +61,10 @@ max_power_service = []
 power_response = []
 energy_stored = np.zeros([len(t),])
 for i in range(len(t)):  
-    power_service.append(FORECAST[i].P_service)
-    max_power_service.append(FORECAST[i].P_service_max)
-    power_response.append(FORECAST[i].P_togrid)
-    energy_stored[i] = FORECAST[i].E
+    power_service.append(request_r.P_service)
+    # max_power_service.append(FORECAST[i].P_service_max)
+    # power_response.append(FORECAST[i].P_togrid)
+    # energy_stored[i] = FORECAST[i].E
     
 fleet_test.output_impact_metrics()  
 print("The impact metrics file has been produced: temperatures and cyclings")
@@ -71,4 +72,29 @@ print(pd.read_csv('impact_metrics.csv', error_bad_lines=False))
 
 plots = Plots()
 plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
-plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
+# plots.energy_fleet(t, energy_stored, ts, dt, seconds_of_simulation)
+
+
+###############################################################################
+# Test 2: test process_request method
+# Initialization of important variables in the constructor
+# fleet_test.initial_time = fleet_test.get_time_of_the_day(ts)
+# fleet_test.time = fleet_test.get_time_of_the_day(ts)
+
+# # process the requests 
+# SOC_time = np.zeros(len(t)+1)
+# power_service = np.zeros(len(t)+1)
+# power_response = np.zeros(len(t)+1)
+
+# i = 0
+# for req in requests:
+#     resp = fleet_test.process_request(req)
+#     # The SOC change!
+#     SOC_time[:,i] = resp.SOC
+#     power_service[:,i] = resp.P_service
+#     power_response[:,i] = resp.P_togrid
+#     i+=1
+    
+# plots.service_power(t, power_service, power_request, ts, dt, seconds_of_simulation)
+
+# plots.state_of_charge(t, SOC_fleet_time, SOC_right_away, ts, dt, seconds_of_simulation)
