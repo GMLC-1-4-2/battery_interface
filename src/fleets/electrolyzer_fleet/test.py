@@ -22,7 +22,7 @@ from matplotlib.pyplot import show, grid, subplots, rcParams
 base_path = dirname(abspath(__file__))
 
 
-rcParams.update({'font.size': 22})
+#rcParams.update({'font.size': 22})
 
 
 def fleet_test1(fleet, grid_dat):
@@ -116,7 +116,7 @@ def fleet_test2(fleet, grid_dat):
     fleet.is_P_priority = False
     ts = datetime.utcnow()
     dt = timedelta(seconds=1)
-    fleet_request = [FleetRequest(ts=(ts + i * dt), sim_step=dt, start_time=ts, p=v, q=0.) for i, v in enumerate(p_req)]
+    fleet_request = [FleetRequest(ts=(ts + i * dt), sim_step=dt, start_time=ts, p=None, q=None) for i, v in enumerate(p_req)]
 
     # Process the request
     P_service, soc, ne, Eff_charge, V, Ir, status, fleetsize, ts, f = \

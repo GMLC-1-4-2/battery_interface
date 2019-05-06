@@ -14,11 +14,10 @@ import configparser
 from numpy import polyfit, RankWarning, trapz, log10, exp
 from scipy.optimize import fsolve
 from pandas import read_csv
-from matplotlib.pyplot import figure, subplot2grid, show, grid, subplots
+from matplotlib.pyplot import figure, subplot2grid
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
-from fleet_response  import FleetResponse
-from frequency_droop import FrequencyDroop
+from fleet_response import FleetResponse
 from csv import writer
 from pandas.plotting import register_matplotlib_converters
 
@@ -179,9 +178,9 @@ class ElectrolyzerFleet(FleetInterface):
         return resp
 
     def forecast(self, requests):
-        soc_state, soc_state_age, state = self.soc, self.soc_age, self.inc
+        soc_state, soc_state_age, state = self.soc, self.soc_age, self.__inc
         resp = [self.run_ey_fleet(req.ts_req, req.sim_step, req.P_req, True, req.start_time) for req in requests]
-        self.soc, self.soc_age, self.inc = soc_state, soc_state_age, state
+        self.soc, self.soc_age, self.__inc = soc_state, soc_state_age, state
         return resp
 
     def run_ey_fleet(self, ts, sim_step, Preq, forecast=False, start_time=None):
@@ -208,8 +207,8 @@ class ElectrolyzerFleet(FleetInterface):
                 Pr = 1e3*Pl/self.ey_Ne
                 is_avail = 1
             # Only respond to negative power request
-            elif Preq is None or Preq > 0:
-                Pr = abs(self.ey_Pe_base)*1e3/self.ey_Ne
+            elif Preq is None or Preq > 0 or self.is_autonomous and self.FW21_Enabled:
+                Pr = abs(self.ey_Pmax_fleet)*1e3/self.ey_Ne
                 is_avail = 0                
             else:
                 # Check if Preq is within operational range in kW
@@ -265,6 +264,8 @@ class ElectrolyzerFleet(FleetInterface):
                                                    p_min=self.ey_Pmin_fleet,
                                                    ts=ts, start_time=start_time)
                 self.__P_pre = Preq
+            else:
+                self.__P_pre = P_tot*1e-3
             # Storage Tank
             # Number of moles in time i in the system of tanks
             self.moles += Qh2_m*1
@@ -297,32 +298,32 @@ class ElectrolyzerFleet(FleetInterface):
         # Responses
         resp.ts = ts
         resp.sim_step = sim_step
-        resp.C = None
-        resp.dT_hold_limit = None
+        resp.C = 0
+        resp.dT_hold_limit = 0
         resp.E = self.soc*1e2  # SoC in %
         resp.Eff_charge = eta_ch*1e2
-        resp.Eff_discharge = None
+        resp.Eff_discharge = 1.0
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = -self.__P_pre
+        resp.P_service = -self.__P_pre          # (kW)
         resp.P_service_max = 0
         resp.P_service_min = 0
-        resp.P_togrid = -P_tot*1e-3     # (kW)
+        resp.P_togrid = -P_tot*1e-3             # (kW)
         resp.P_togrid_max = -self.ey_Pmax_fleet
         resp.P_togrid_min = -self.ey_Pmin_fleet
-        resp.Q_dot_down = None
-        resp.Q_dot_up = None
-        resp.Q_service = None
-        resp.Q_service_max = None
-        resp.Q_service_min = None
+        resp.Q_dot_down = 0
+        resp.Q_dot_up = 0
+        resp.Q_service = 0
+        resp.Q_service_max = 0
+        resp.Q_service_min = 0
         resp.Q_togrid = 0
-        resp.Q_togrid_max = None
-        resp.Q_togrid_min = None
-        resp.T_restore = None
-        resp.P_base = -self.ey_Pmin_fleet
+        resp.Q_togrid_max = 0
+        resp.Q_togrid_min = 0
+        resp.T_restore = 0
+        resp.P_base = -self.ey_Pe_base
         resp.Q_base = 0
-        resp.Strike_price = None
-        resp.SOC_cost = None
+        resp.Strike_price = 0
+        resp.SOC_cost = 0
         resp.status = is_avail
         resp.V = V
         resp.Ir = Ir

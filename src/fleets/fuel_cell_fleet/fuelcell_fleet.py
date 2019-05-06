@@ -14,7 +14,7 @@ from datetime import datetime
 from numpy import polyfit, convolve, RankWarning, log, exp
 from pandas import read_csv
 from scipy.optimize import fsolve
-from matplotlib.pyplot import figure, subplot2grid, savefig
+from matplotlib.pyplot import figure, subplot2grid
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
@@ -263,11 +263,11 @@ class FuelCellFleet(FleetInterface):
         resp.C = None
         resp.dT_hold_limit = None
         resp.E = self.soc_ideal*1e2  # SoC in %
-        resp.Eff_charge = None
+        resp.Eff_charge = 1.0
         resp.Eff_discharge = eta_ds*1e2
         resp.P_dot_down = 0
         resp.P_dot_up = 0
-        resp.P_service = P_tot_age+self.fc_Pe_base
+        resp.P_service = P_tot_age
         resp.P_service_max = 0
         resp.P_service_min = 0
         resp.P_togrid = P_tot_age

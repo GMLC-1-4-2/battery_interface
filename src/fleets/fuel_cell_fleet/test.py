@@ -42,6 +42,7 @@ def fleet_test(fleet):
     for fr in fleet_request:
         fleet_response = fleet.process_request(fr)
         P_togrid.append(fleet_response.P_togrid)
+        print(P_togrid)
         Q_togrid.append(fleet_response.Q_togrid)
         soc.append(fleet_response.E)
         ne.append(fleet_response.ne)
