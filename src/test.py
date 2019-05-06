@@ -268,7 +268,7 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['ArtificialInertia']
+    services = ['Regulation']
     fleets = ['HVAC']
     start_time = parser.parse('2017-08-01 00:00:00')
 

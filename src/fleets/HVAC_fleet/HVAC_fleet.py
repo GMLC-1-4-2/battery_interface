@@ -51,7 +51,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, GridInfo, ts):  # add , sim_step later
+    def __init__(self, GridInfo, ts, s_step):  # add , sim_step later
         """
         for battery def __init__(self, GridInfo,**kwargs):
         old: (self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40)
@@ -82,19 +82,20 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.numHVAC = self.df_HVACModels['Total_HVACs'].sum()
 
         #INPUTS
-        self.shortcycle=5*60 # Shortcycle minimum time (minutes) that AC unit has to stay off before turning back on
+        self.shortcycle=3*60 # Shortcycle minimum time (minutes) that AC unit has to stay off before turning back on
         self.minrun=1*60 # minutes minimum runtime for unit
         self.Twb_assumed=16.666667  #assumed indoor wet bulb temperature
 
         
         " TODO: update this sim_step in main interface "
 
-        self.sim_step = 1 * 60 # 1 min in seconds
+        self.sim_step = s_step.total_seconds() #1 * 10 # in seconds
+        # self.sim_step = 10 #1 * 10 # in seconds
         
         self.shortcycle_ts=int(round(self.shortcycle/self.sim_step,0))  #number of time steps during short cycle timer
         self.minrun_ts=int(round(self.minrun/self.sim_step,0))
         self.Tset = 23.0 #Celsius  cooling set point
-        self.deadband=0.5 #Celsius cooling dead band
+        self.deadband = 2 #Celsius cooling dead band
 
                
         # #%% Frequency-watt parameters
@@ -173,8 +174,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.TsetInitialMean = 23.0 #deg C  convert from 80F+-4
         self.TsetInitialStddev = 1   #2.22 #deg C
         
-        self.minSOC = 0.1 # minimum SoC for aggregator to call for shed service
-        self.maxSOC = 0.9 # minimum SoC for aggregator to call for add service
+        self.minSOC = 0.0 # minimum SoC for aggregator to call for shed service
+        self.maxSOC = 1.0 # minimum SoC for aggregator to call for add service
         
         self.minCapacityAdd = 150 #W-hr, minimum add capacity to be eligible for add service
         self.minCapacityShed = 150 #W-hr, minimum shed capacity to be eligible for shed service
@@ -332,18 +333,19 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.AvailableCapacityShed = [0 for x in range(self.numHVAC)]
         self.ServiceCallsAccepted = [0 for x in range(self.numHVAC)]
         self.ServiceProvided = [0 for x in range(self.numHVAC)]
-        self.IsAvailableAdd = [0 for x in range(self.numHVAC+1)]
-        self.IsAvailableShed = [0 for x in range(self.numHVAC+1)]
 
-        self.elementOn = [0 for x in range(self.numHVAC)]
-        self.lockon = [0 for x in range(self.numHVAC)]
-        self.lockoff = [0 for x in range(self.numHVAC)]
+        self.IsAvailableAdd = np.random.randint(2, size=self.numHVAC+1)
+        self.IsAvailableShed = np.random.randint(2, size=self.numHVAC+1)
+
+        self.elementOn = np.random.randint(2, size=self.numHVAC)
+
+        self.lockon = [self.minrun_ts+1 for x in range(self.numHVAC)]
+        self.lockoff = [self.shortcycle_ts+1 for x in range(self.numHVAC)]
         self.cycle_off_base = [0 for x in range(self.numHVAC)]
         self.cycle_on_base = [0 for x in range(self.numHVAC)]
         self.cycle_off_grid = [0 for x in range(self.numHVAC)]
         self.cycle_on_grid = [0 for x in range(self.numHVAC)]
- 
-        
+
         # MaxServiceAddedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
         # MaxServiceShedPerTimeStep = [0 for y in range(ServiceRequest.Steps)]
 
@@ -355,20 +357,20 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.AvailableCapacityAddInit = [0 for y in range(self.numHVAC)]
         self.AvailableCapacityShedInit = [0 for y in range(self.numHVAC)]
 
-        self.IsAvailableAddInit = [1 for y in range(self.numHVAC+1)]
-        self.IsAvailableShedInit = [1 for y in range(self.numHVAC+1)]
+        self.IsAvailableAddInit = np.random.randint(2, size=self.numHVAC+1)
+        self.IsAvailableShedInit = np.random.randint(2, size=self.numHVAC+1)
         
         self.step = 0
-
-        P_req = 0
 
         ##############################################################################################################
  
         #    Initializing the building HVAC models
        
         self.hvacs = [BuildingModel(self.Tamb[0], self.Tsol_W[0], self.QIHL_i[0], self.Qsolar_i[0], self.Tsol_R[0],
-                                    self.QIHL_mass[0], self.Qsolar_mass[0], P_req, self.Rext[number], 
-                                    self.Rattic[number], self.Cmass[number], 0, self.MaxServiceCalls[number], self.dt) for number in range(self.numHVAC)]
+                                    self.QIHL_mass[0], self.Qsolar_mass[0], 0, self.Rext[number], 
+                                    self.Rattic[number], self.Cmass[number], 0, self.MaxServiceCalls[number], self.dt,
+                                    self.IHL_fleet_ave, self.elementOn[number], self.lockon[number], self.lockoff[number], self.cycle_off_base[number], 
+                                    self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number]) for number in range(self.numHVAC)]
 
     # Baseline simulations
     # Todo: Only need run baseline in the first call of the grid service
@@ -404,8 +406,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        resp = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
-        self.step += 1 # To advance the step by step in the disturbance file
+        resp = self.run(p_req, q_req, self.SOC, self.time, dt, ts)       
 
         return resp
 
@@ -438,7 +439,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         charge_rate = p_fleet/(self.numHVAC*3.5)*0.1  # Heuristic soc change rate
         SOC_update = initSOC + [charge_rate]
         
-        if np.asarray(SOC_update) > 1:
+        if max(SOC_update) > 1:
             p_fleet = 0
             SOC_update = initSOC
 
@@ -456,43 +457,19 @@ class HVACFleet(FleetInterface):   #FleetInterface
         
         # Give the code the capability to respond to None requests
 
-        resp = FleetResponse()
-
         if P_req == None:
             P_req = 0
         if Q_req == None:
             Q_req = 0      
 
-        resp.P_service = 0
-        resp.P_service_max = 0
-        resp.P_service_min = 0
-        resp.P_togrid = 0
-        resp.P_togrid_max = 0
-        resp.P_togrid_min = 0
-        resp.P_forecast = 0
-        resp.P_base = 0
-        resp.E = 0
-        resp.C = 0
-        resp.ts = ts
-        resp.sim_step = dt
+        P_togrid = 0
+        P_service = 0
+        P_base = 0
+        P_service_max = 0
 
         P_request_perHVAC = P_req / self.numHVAC # this is only for the first step
         #        print(P_request_perWH)
-        
-        resp.Q_togrid = 'NA'
-        resp.Q_service = 'NA'
-        resp.Q_service_max = 'NA'
-        resp.Q_service_min = 'NA'
-        resp.Q_togrid_min = 'NA'  
-        resp.Q_togrid_max = 'NA'
-        Eloss = 0
-        Edel = 0 
-        
-        resp.Q_dot_up = 'NA'
-        resp.Q_dot_down = 'NA'
-        resp.P_dot_up = 0
-        resp.P_dot_down = 0
-   
+  
         # run through fleet once as a forecast just to get initial conditions
         # number = 0
         # for h in hvacs:
@@ -502,7 +479,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
         #                self.Rattic[number], self.Cmass[number], P_request_perHVAC, ServiceRequest.Timestep, self.IHL_fleet_ave[0], elementOn[number][0], \
         #                self.lockon[number][0], self.lockoff[number][0], self.cycle_off_base[number][0], self.cycle_on_base[number][0], self.cycle_off_grid[number][0], self.cycle_on_grid[number][0]) #forecast = 1
         #     number += 1
+
         number = 0 # run through all the devices
+
         servsum = 0
         servmax = 0
         servmax2 = 0
@@ -514,9 +493,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
         for n in range(self.numHVAC):
-            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC and self.AvailableCapacityAdd[n] > self.minCapacityAdd:
+            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
                 NumDevicesToCall += 1
-            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC and self.AvailableCapacityShed[n] > self.minCapacityShed:
+            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
                 NumDevicesToCall += 1          
     
         P_request_perHVAC =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
@@ -530,8 +509,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
             TatticLast = self.TatticInitial[number] 
 
             if P_req<=0 and self.IsAvailableAdd[number] > 0 :
-            # For step >=1, can use last step temperature...        
-                response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+            # For step >=1, can use last step temperature...     execute   
+                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], P_request_perHVAC, dt, self.IHL_fleet_ave[self.step], 
                                         self.elementOn[number], self.lockon[number], self.lockoff[number], 
@@ -540,7 +519,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
             elif P_req>0 and self.IsAvailableShed[number] > 0 :
             # For step >=1, can use last step temperature...                                
-                response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], P_request_perHVAC, dt, self.IHL_fleet_ave[self.step], 
                                         self.elementOn[number], self.lockon[number], self.lockoff[number], 
@@ -549,7 +528,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             # break
 
             else:        
-                response = hvac.execute(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
+                response = hvac.HVAC(TinLast, TwallLast, TmassLast, TatticLast, TsetLast, self.Tamb[number][self.step], self.Tsol_W[number][self.step], 
                                         self.QIHL_i[number][self.step], self.Qsolar_i[self.step], self.Tsol_R[number][self.step], self.QIHL_mass[number][self.step], self.Qsolar_mass[self.step], 
                                         self.Rext[number], self.Rattic[number], self.Cmass[number], 0, dt, self.IHL_fleet_ave[self.step], self.elementOn[number], 
                                         self.lockon[number], self.lockoff[number], 
@@ -574,37 +553,75 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.IsAvailableAdd[number] = response.IsAvailableAdd
             self.IsAvailableShed[number] = response.IsAvailableShed
             
-            self.elementOn[number] = response.ElementOn
             self.AvailableCapacityAdd[number] = response.AvailableCapacityAdd 
             self.AvailableCapacityShed[number] = response.AvailableCapacityShed 
             self.ServiceCallsAccepted[number] = response.ServiceCallsAccepted
-            self.ServiceProvided[number] += response.Eservice
-            
-            resp.P_togrid += response.Eused
-            resp.P_togrid_max += response.PusedMax
-            resp.P_togrid_min += response.PusedMin                
-            resp.P_service += response.Eservice      
-            resp.P_base += response.Pbase    
-            # resp.sim_step = response.sim_step       
-            number += 1  # go to next device
 
-            # Available Energy stored at the end of the most recent timestep
-            # resp.E += response.Estored
-            resp.E = 0
-            resp.C += response.SOC / (self.numHVAC)
+            self.ServiceProvided[number] = response.Eservice
+            
+            P_togrid += response.Eused
+
+            # resp.P_togrid_max += response.PusedMax
+            # resp.P_togrid_min += response.PusedMin 
+
+            P_service += response.Eservice    
+
+            P_base += response.Pbase   
+
+            # resp.sim_step = response.sim_step       
+            number += 1  # go to next device            
 
             if P_req<=0:
-                resp.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+                P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
             else:
                 P_service_max0 += response.AvailableCapacityAdd
-                resp.P_service_max = -1.0*P_service_max0
+                P_service_max = -1.0*P_service_max0
 
-            
+        self.step += 1 # To advance the step by step in the disturbance file
+
+        # Output Fleet Response
+
+        resp = FleetResponse()
+
+        resp.P_service = []
+        resp.P_service_max = []
+        resp.P_service_min = []
+        resp.P_togrid = []
+        resp.P_togrid_max = []
+        resp.P_togrid_min = []
+        resp.P_forecast = []
+        resp.P_base = []
+        resp.E = []
+        resp.C = []
+        resp.ts = ts
+        resp.sim_step = dt    
         # resp.P_dot_up = resp.P_togrid_max / ServiceRequest.Timestep.seconds
+
+        resp.P_service_max = P_service_max
+        resp.P_service = P_service
+        resp.P_base = P_base
+        resp.P_togrid = P_togrid
+
+        # Available Energy stored at the end of the most recent timestep
+        # resp.E += response.Estored
+        resp.E = 0
+        resp.C += response.SOC / (self.numHVAC)
+
+        resp.Q_togrid = 'NA'
+        resp.Q_service = 'NA'
+        resp.Q_service_max = 'NA'
+        resp.Q_service_min = 'NA'
+        resp.Q_togrid_min = 'NA'  
+        resp.Q_togrid_max = 'NA'
+       
+        resp.Q_dot_up = 'NA'
+        resp.Q_dot_down = 'NA'
+        resp.P_dot_up = 0
+        resp.P_dot_down = 0
+
         resp.P_dot = resp.P_togrid / dt
         resp.P_service_min  = 0
-        
-        # resp.Q_dot_down     = 0
+
         resp.dT_hold_limit  = 'NA'
         resp.T_restore      = 'NA'
         resp.Strike_price   = 'NA'
@@ -622,32 +639,28 @@ class HVACFleet(FleetInterface):   #FleetInterface
             power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
             power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
 
-
-        
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
         # Restart time if it surpasses 24 hours
         if self.time > 24*3600:
             self.time = self.time - 24*3600
 
+        # Impact Metrics
         # Update the metrics
         Ttotal = 0
         SOCTotal = 0
-
-
-        
+     
         Ttotal = np.sum(self.TinInitial)
             
         SOCTotal = np.sum(self.SOC)
 
-        self.cycle_base = np.sum(self.cycle_off_base)
-        self.cycle_base = np.sum(self.cycle_on_base)
+        self.cycle_basee = np.sum(self.cycle_off_base)
+        self.cycle_basee += np.sum(self.cycle_on_base)
         self.cycle_grid = np.sum(self.cycle_off_grid)
-        self.cycle_grid = np.sum(self.cycle_on_grid)
-
+        self.cycle_grid += np.sum(self.cycle_on_grid)
 
         for numberr in range(self.numHVAC-1):    
-            if self.TinInitial[numberr]>=self.TsetInitial[numberr]+self.deadband:
+            if self.TinInitial[numberr]>=self.TsetInitial[numberr] + 2:  #assume 2F, self.deadband
                 self.unmet_hours += 1*self.sim_step/3600.0
 
         self.ave_Tin = Ttotal/self.numHVAC
@@ -888,7 +901,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         impact_metrics_DATA = [["Impact Metrics File"],
                                 ["ave_Tin", "Cycle_base", "Cycle_grid", "SOC_metric", "Unmet Hours"]]
         
-        impact_metrics_DATA.append(["HVAC Fleet", str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
+        impact_metrics_DATA.append([str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)

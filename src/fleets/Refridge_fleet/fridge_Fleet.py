@@ -17,8 +17,7 @@ sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 ################################################################
 
 from configparser import ConfigParser
-import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fleets.Refridge_fleet.case_model import CaseModel
 from fleets.Refridge_fleet.case_model import AC_RF
@@ -27,7 +26,7 @@ from fleets.Refridge_fleet.case_model import AC_RF
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
 from fleets.Refridge_fleet.load_config import LoadConfig
-# from frequency_droop import FrequencyDroop
+from frequency_droop import FrequencyDroop
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -338,7 +337,7 @@ class RFFleet(FleetInterface):   #FleetInterface
 
     # Example code for Frequency Watt Function
 
-    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
+    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -861,7 +860,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         except IndexError:
             raise IndexError("Error! Only allowed installation locations for now !!!")
 
-        dt = datetime.datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S.%f')
+        dt = datetime.strptime(str(start_time), '%Y-%m-%d %H:%M:%S') #.%f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
         new_time_list = np.linspace(start_time_dec, start_time_dec+timestep_s*num_steps/3600.0, num_steps)
