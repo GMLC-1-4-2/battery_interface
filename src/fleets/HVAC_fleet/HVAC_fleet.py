@@ -977,8 +977,10 @@ class HVACFleet(FleetInterface):   #FleetInterface
     the data to desired resolution by ignoring the actual month in the 'time' format.
     '''
     #### Interpolate the time resolution of the disturbances
+    # TODO extend the weather profile for peak management
+
 def get_inputs(Qsolar_i10, Qsolar_mass10, temp_sol_W10, temp_sol_R10, timestep_s, ts):
-        num_steps = 3600*48.0/timestep_s  
+        num_steps = 10*3600*48.0/timestep_s  
         dt = datetime.strptime(str(ts), '%Y-%m-%d %H:%M:%S')  # datetime.   .%f
         start_time_dec = dt.hour + dt.minute/60.0 + dt.second/3600.0
 
@@ -1041,7 +1043,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         loc["Denver"] = 4
         loc["Minneapolis"] = 5
 
-        num_steps = 3600*48.0/timestep_s   
+        num_steps = 10*3600*48.0/timestep_s   
 
         try:
             amb_temp_column = loc[climate_location]
