@@ -4,7 +4,7 @@ Created on June 2018
 For GMLC 1.4.2, generate the desired case thermal model 
 A simplified grey-box refrigerator (case) thermal model was developed, and parameters were trained based on measured data from the medium temperature supermarket CO2 refrigeration system
 
-Last update: 04/25/2019
+Last update: 05/07/2019
 Version: 1.0
 
 States 
@@ -84,8 +84,8 @@ def QMT(self, Tambient, SMT=13.36):
 
 class CaseModel():
         def __init__(self, Tamb = 25.0, Tset = 6, R_case=0.044077, R_food=0.004614, R_infil=0.008341, C_case=10200510, C_food=2844769, 
-                     C_air=111053.5, control_signal = 'none', service_calls_accepted = 0, max_service_calls = 20, time_step = 5*60, 
-                     Element_on = 0, lockon = 0, lockoff = 0, cycle_off_base = 0, 
+                     C_air=111053.5, time_step = 10, 
+                     Element_onB = 0, Element_on = 0, lockonB = 0, lockoffB = 0,  lockon = 0, lockoff = 0, cycle_off_base = 0, 
                      cycle_on_base = 0, cycle_off_grid = 0, cycle_on_grid = 0):
             # RF Characteristic Information           
             
@@ -102,8 +102,7 @@ class CaseModel():
 
             # Splitting coefficients for RF cooling
             self.Sp1=0.316882
-            
-            
+         
             self.dt = [time_step*1.0]   # in seconds discretization
 
             self.Twall = [23.33]
@@ -112,25 +111,22 @@ class CaseModel():
             self.Tim = [23.5]
             
             self.Tambient = [20.0]
-            self.max_service_calls = int(max_service_calls)
+           
             
             self.Tdeadband = 2
             self.Tmin = 4 # deg C
             self.Tmax = 8 # deg C            
+     
+        # def execute(self, Tair, Tfood, Tcase, Tset, Tamb, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal, timestep, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
+            # # (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
+            # #      service_calls_accepted, Element_on, self.max_service_calls, timestep, forecast_IHL, IsForecast)
+            # (response) = self.FRIDGE(Tair, Tfood, Tcase, Tset, Tamb, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal, 
+                 # timestep, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid)
             
-         
-            
-        def execute(self, Tair, Tfood, Tcase, Tset, Tamb, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal, timestep, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
-            # (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
-            #      service_calls_accepted, Element_on, self.max_service_calls, timestep, forecast_IHL, IsForecast)
-            (response) = self.FRIDGE(Tair, Tfood, Tcase, Tset, Tamb, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal, 
-                 timestep, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid)
-            
-            return response
+            # return response
     
-        def FRIDGE(self, Tair_last, Tfood_last, Tcase_last, Tset, Tamb_ts, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal_ts, 
-                 timestep, Element_on_ts, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
-   
+        def FRIDGE(self, Tair_lastB, Tfood_lastB, Tcase_lastB, Tair_last, Tfood_last, Tcase_last, Tset, Tamb_ts, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal_ts, 
+                 timestep, Element_on_tsB, Element_on_ts, lockonB, lockoffB, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
 
             #############################################################################
                     #        Baseline operation - Base Loads
@@ -150,48 +146,58 @@ class CaseModel():
 
             # Record control states          
             # switch on
-            if Tair_last > Tset + self.Tdeadband and Element_on_ts == 0 and max(lockon,lockoff) >= 5*60.0:
-                Element_on_ts = 1
+            if Tair_lastB > Tset + self.Tdeadband and lockoffB >= 3*60.0:  # and Element_on_tsB == 0 
+                Element_on_tsB = 1
                 Eused_baseline_ts = E_cool*1.000 # kW used
                 cycle_on_base += 1 #count cycles turning from off to on
-                lockon = 1*ts # start recording on period
+                # lockonB = 1*ts # start recording on period
+                lockoffB += 1*ts
 
             # switch off
-            elif Element_on_ts == 1 and Tair_last <= Tset - self.Tdeadband and max(lockon,lockoff) >= 2*60.0:
-                Eused_baseline_ts = 0 # kW used
-                Element_on_ts = 0
+            elif Tair_lastB <= (Tset - self.Tdeadband):
+                Eused_baseline_tsB = 0 # kW used
+                Element_on_tsB = 0
                 cycle_off_base += 1  # count cycles  turning from ON to OFF
-                lockoff = 1*ts # start recording off period
+                lockoffB = 1*ts # start recording off period
+				# lockonB = 0
 
-            Eused_baseline_ts = Element_on_ts * E_cool
-            if Element_on_ts:
-                lockon += 1*ts
             else:
-                lockoff += 1*ts # cumulating recording off period        
-       
+                Eused_baseline_ts = Element_on_tsB * E_cool
+                lockoffB += 1*ts
+			
+				# if Element_on_ts:
+					# lockonB += 1*ts
+				# else:
+					# lockoffB += 1*ts # cumulating recording off period         
             
-            # # Record baseline states
-            # # Evolution of 4 states, ts in seconds                
-                        
-            # dTin_baseline = ts/self.Cin*((Twall_last-Tlast)*2.0/Rwall+(Tattic_last-Tlast)/Rattic+
-            #          (Tmass_last-Tlast)/self.Rmass + QIHL_i_ts * self.C1 + Qsolar_i_ts*self.C3 -
-            #          Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*self.Sp3
-            
-            # dTmass_baseline = ts/Cmass*((Tlast-Tmass_last)/self.Rmass + QIHL_mass_ts*self.C1+
-            #            Qsolar_mass_ts*self.C3 - Element_on_ts*Capacity(AC,Tamb_ts)*self.C2)   #*(1-self.Sp3)
-            
-            # dTwall_baseline = ts/self.Cwall*((Tsol_w_ts - Twall_last)*2.0/Rwall+(Tlast -Twall_last)*2.0/Rwall)
-            
-            # dTattic_baseline = ts/self.Cattic*((Tsol_r_ts-Tattic_last)/self.Rroof + (Tlast - Tattic_last)/Rattic)
-                
-            # # Store for output metric data
-            # Tin__bts = Tlast + dTin_baseline   # Store the baseline indoor temperature            
+            # # Record baseline states                    
+            # Evolution of 3 states
+
+            dTair_baseline=((Tamb_ts - Tair_lastB)/R_infil + (Tfood_lastB-Tair_lastB)/R_food + (Tcase_lastB-Tair_lastB)/R_case - Element_on_tsB*self.C1*QMT(AC_RF, Tamb_ts)*self.Sp1)/C_air/ts #x1 is Tair
+            dTfood_baseline=((Tair_lastB - Tfood_lastB)/R_food)/C_food/ts #x2 is Tfood
+            dTcase_baseline=((Tair_lastB - Tcase_lastB)/R_case - Element_on_tsB*self.C1*QMT(AC_RF, Tamb_ts)*(1-self.Sp1))/C_case/ts                
+                            
+            Tair_bas = Tair_lastB + dTair_baseline 
+            Tfood_bas = Tfood_lastB + dTfood_baseline
+            Tcase_bas = Tcase_lastB + dTcase_baseline  
+
+            Element_on_bas = Element_on_tsB
+                                  
+#            dT_power_input = Eused_ts*timestep*60/(3.79*self.Capacity*4810) #timestep is in minutes so mult by 60 to get seconds
+
+    #        Calculate more parameters to be passed up
+    #       update SoC
+            SOC_b = (Tset + self.Tdeadband - Tair_bas)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))         
+            if SOC_b >= 1:
+                SOC_b = 1 
+            elif SOC_b <= 0:
+                SOC_b = 0
+          
 
             ###########################################################################          
                     # Modify operation based on control signal #
                     # Reduce loads
-                    
-                    
+    
             ###########################################################################          
                 #modify operation based on control signal 
                 # Assumed to work in Summer Cooling Only!
@@ -199,33 +205,33 @@ class CaseModel():
             service_calls_accepted_ts = 0
             
             # Reduce loads 
-            if control_signal_ts  > 0 and Tair_last < (Tset + self.Tdeadband) and Element_on_ts == 1 and max(lockon,lockoff) >= 2*60.0: #Element_on_ts = 1 requirement eliminates free rider situation
+            if control_signal_ts  > 0 and Tair_last < (Tset + self.Tdeadband) and Element_on_tsB == 1 and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
                 Eused_ts = 0 #make sure it stays off
                 Element_on_ts = 0
                 service_calls_accepted_ts += 1
                 cycle_off_grid += 1
                 lockoff = 1*ts # start recording on period
 
-
-            elif control_signal_ts  > 0 and Tair_last >= Tset + self.Tdeadband:
-                # don't change anything
-                Eused_ts = Eused_baseline_ts
+            # elif control_signal_ts  > 0 and Tair_last >= Tset + self.Tdeadband:
+                # # don't change anything
+                # Eused_ts = Eused_baseline_ts
                 
-            # Increase loads    
-            elif control_signal_ts  < 0 and Tair_last <= Tset - self.Tdeadband:
-                Eused_ts = 0 #make sure it stays off
-                Element_on_ts = 0
+            # # Increase loads    
+            # elif control_signal_ts  < 0 and Tair_last <= Tset - self.Tdeadband:
+                # Eused_ts = 0 #make sure it stays off
+                # Element_on_ts = 0
       
-            elif control_signal_ts  < 0 and Tair_last >= Tset - self.Tdeadband and Element_on_ts == 0 and max(lockon,lockoff) >= 5*60.0: #Element_on_ts = 0 requirement eliminates free rider situation
+            elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts == 0 and lockoff >= 3*60.0: #Element_on_ts = 0 requirement eliminates free rider situation
                 #make sure it stays on
                 Eused_ts = E_cool*1.000 #W used
                 Element_on_ts = 1
                 service_calls_accepted_ts += 1
                 cycle_on_grid += 1
-                lockon = 1*ts # start recording on period
+                lockoff += 1*ts # start recording on period
    
             else:#no changes
                 Eused_ts = Eused_baseline_ts
+                lockoff += 1*ts # cumulating recording off period 
             
             #calculate energy provided as a service, >0 is load add, <0 load shed
             # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
@@ -237,7 +243,7 @@ class CaseModel():
 #            else: # assumes HVAC can't meet the entire request so it just does as much as it can
 #                Eservice_ts = Eused_ts-Eused_baseline_ts
     
-            Eservice_ts = Eused_ts-Eused_baseline_ts          
+            Eservice_ts = Eused_baseline_ts - Eused_ts
             
             #could change this at some point based on signals
             Tset_ts = Tset    
@@ -258,10 +264,14 @@ class CaseModel():
     #        Calculate more parameters to be passed up
     #       update SoC
             SOC = (Tset + self.Tdeadband - Tair_ts)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))
+            if SOC >= 1:
+                SOC = 1 
+            elif SOC <= 0:
+                SOC = 0
      
-#            isAvailable_add_ts = 1 if max_service_calls > service_calls_accepted_ts  else 0
+#   isAvailable_add_ts = 1 if max_service_calls > service_calls_accepted_ts  else 0
 ######################################################################################        
-        #simple method to forecast availability for providing a service during next timestep
+#simple method to forecast availability for providing a service during next timestep
             
             Tair_Cf = Tair_ts
             Tfood_Cf = Tfood_ts
@@ -277,25 +287,34 @@ class CaseModel():
 #            Tattic_Cff = Tattic_Cf+dTatticCf
             
             Tair_forecast = Tair_Cff            
-            isAvailable_add_ts = 1 if Tair_forecast > (Tset - self.Tdeadband) and Element_on_ts == 0 > 0 else 0 #haven't exceeded max number of calls, plus it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
-            isAvailable_shed_ts = 1 if Tair_forecast < (Tset + self.Tdeadband) and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
+            isAvailable_add_ts = 1 if Tair_forecast > (Tset - self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts == 0 > 0 else 0 #haven't exceeded max number of calls, plus it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
+            isAvailable_shed_ts = 1 if Tair_forecast < (Tset + self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
 
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool
-
-            PusedMin_ts = 0       
-            
+           
             response = RFResponse()
         
             # Report baseline response
+            response.TairB = Tair_bas
+            response.TfoodB = Tfood_bas
+            response.TcaseB = Tcase_bas		
+
+            response.ElementOnB = Element_on_bas		
+            response.SOC_b = SOC_b		
+            response.Pbase = Eused_baseline_ts			
+
             response.Tair = Tair_ts
             response.Tfood = Tfood_ts
             response.Tcase = Tcase_ts
-            
+
+
             response.Tset = Tset_ts 
             response.Eused = Eused_ts 
-            response.Pbase = Eused_baseline_ts
 
+
+            response.lockoffB = lockoffB 
+            response.lockonB = lockonB 
             response.lockoff = lockoff 
             response.lockon = lockon 
             response.sim_step = timestep
@@ -305,7 +324,7 @@ class CaseModel():
 
             response.cycle_off_base = cycle_off_base 
             response.cycle_on_base = cycle_on_base
-            
+
             response.ElementOn = Element_on_ts
             response.Eservice = float(Eservice_ts)
             # response.Estored = Estored

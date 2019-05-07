@@ -4,7 +4,7 @@ Created on Mon Jan 29 15:07:49 2018
 For GMLC 1.4.2, fleet Virtual Battery Model for Commercail Refridgeration Systems
 Based on a valided RC case thermal model
 
-Last update: 04/25/2019
+Last update: 05/07/2019
 Version: 1.0
 
 @author: Jin Dong (ORNL), Teja Kuruganti (ORNL)
@@ -22,7 +22,6 @@ from datetime import datetime, timedelta
 from fleets.Refridge_fleet.case_model import CaseModel
 from fleets.Refridge_fleet.case_model import AC_RF
 
-
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
 from fleets.Refridge_fleet.load_config import LoadConfig
@@ -37,12 +36,11 @@ import scipy as sp
 import time
 import csv
 
-
 class RFFleet(FleetInterface):   #FleetInterface
     """
     This class implements FleetInterface so that it can communicate with a fleet
     """
-    def __init__(self, GridInfo, ts):  # add , sim_step later
+    def __init__(self, GridInfo, ts, s_step):  # add , sim_step later
         """
         for battery def __init__(self, GridInfo,**kwargs):
         old: (self, Steps = 100, Timestep = 10, P_request = 0, Q_request = 0, forecast = 0, StartHr = 40)
@@ -73,21 +71,19 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.numRF = self.df_RFModels['Total_RFs'].sum()
 
         #INPUTS
-        self.shortcycle=2*60 # Shortcycle minimum time (minutes) that unit has to stay off before turning back on
+        self.shortcycle=3*60 # Shortcycle minimum time (minutes) that unit has to stay off before turning back on
         self.minrun=1*60 # minutes minimum runtime for unit
 
-        
         " TODO: update this sim_step in main interface "
-
-        self.sim_step = 1 * 60 # 1 min in seconds
-        
+        self.sim_step = s_step.total_seconds() # load sim_step from main call
+		# self.sim_step = 1 * 60 # 1 min in seconds
+       
         self.shortcycle_ts=int(round(self.shortcycle/self.sim_step,0))  #number of time steps during short cycle timer
         self.minrun_ts=int(round(self.minrun/self.sim_step,0))
 
         self.Tset = 6.0 #Celsius  cooling set point
-        self.deadband=0.5 #Celsius cooling dead band
-
-               
+        self.deadband = 2 #Celsius cooling dead band
+            
         # #%% Frequency-watt parameters
         # FrequencyWatt='Frequency Watt'
         # self.db_UF=float(LC.get(FW,'db_UF'))
@@ -104,6 +100,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         # How to calculate effective fleet rating: this is going to be poorly
         # met because it does not consider random availability of the fleet. 
         # However this seems to be the best approximation
+		
         self.numRF = int(self.numRF)
         self.fleet_rating = (self.numRF * 5)  # unit power is 5 kw, approximate 25% can provide service   
 
@@ -145,17 +142,20 @@ class RFFleet(FleetInterface):   #FleetInterface
         
         # Impact metrics of the fleet
         metrics = LC.get_impact_metrics_params()
-        # Aveage indoor temperature
-        self.ave_Tair = metrics[0]
-        # Cylces in baseline
-        self.cycle_basee = metrics[1]
+        # Aveage indoor temperature baseline
+        self.ave_TairB = metrics[0]
+        # Aveage indoor temperature baseline
+        self.ave_Tair = metrics[1]
+		# Cylces in baseline
+        self.cycle_basee = metrics[2]
         # Cylces in grid operation
-        self.cycle_grid = metrics[2]
+        self.cycle_grid = metrics[3]
+		# State of Charge of the battery equivalent model
+        self.SOCb_metric = metrics[4]
+		# State of Charge of the battery equivalent model
+        self.SOC_metric = metrics[5]
         # Unmet hours of the fleet
-        self.unmet_hours = metrics[3]
-        # State of Charge of the battery equivalent model
-        self.SOC_metric = metrics[4]
-
+        self.unmet_hours = metrics[6]
        
         ########### initial indoor temperatures and SoC
         self.TairInitialMean = 5.5 #deg C
@@ -227,6 +227,10 @@ class RFFleet(FleetInterface):   #FleetInterface
 
         # generate distribution of initial Refridge fleet states. 
 
+        self.TairInitialB=np.random.normal(self.TairInitialMean, self.TairInitialStddev,self.numRF)
+        self.TfoodInitialB=np.random.normal(self.TfoodInitialMean, self.TfoodInitialStddev,self.numRF)
+        self.TcaseInitialB=np.random.normal(self.TcaseInitialMean, self.TcaseInitialStddev,self.numRF)
+		
         self.TairInitial=np.random.normal(self.TairInitialMean, self.TairInitialStddev,self.numRF)
         self.TfoodInitial=np.random.normal(self.TfoodInitialMean, self.TfoodInitialStddev,self.numRF)
         self.TcaseInitial=np.random.normal(self.TcaseInitialMean, self.TcaseInitialStddev,self.numRF)
@@ -234,10 +238,11 @@ class RFFleet(FleetInterface):   #FleetInterface
         # random Temperature setpoints
         self.TsetInitial=np.random.normal(self.TsetInitialMean, self.TsetInitialStddev,self.numRF)
         
-        # sampling from houses with different envelope efficiencies
+        # sampling from houses with different sizes of display cases
         self.R_case = [random.choice(self.R_caseMasterList) for n in range(self.numRF)]
         self.R_food = [random.choice(self.R_foodMasterList) for n in range(self.numRF)]
         self.R_infil = [random.choice(self.R_infilMasterList) for n in range(self.numRF)]
+		
         self.C_food = [random.choice(self.C_foodMasterList) for n in range(self.numRF)]
         self.C_air = [random.choice(self.C_airMasterList) for n in range(self.numRF)]
         self.C_case = [random.choice(self.C_caseMasterList) for n in range(self.numRF)]
@@ -261,12 +266,18 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.AvailableCapacityShed = [0 for x in range(self.numRF)]
         self.ServiceCallsAccepted = [0 for x in range(self.numRF)]
         self.ServiceProvided = [0 for x in range(self.numRF)]
-        self.IsAvailableAdd = [0 for x in range(self.numRF+1)]
-        self.IsAvailableShed = [0 for x in range(self.numRF+1)]
+ 	
+        self.IsAvailableAdd = np.random.randint(2, size=self.numRF+1)
+        self.IsAvailableShed = np.random.randint(2, size=self.numRF+1)
 
-        self.elementOn = [0 for x in range(self.numRF)]
-        self.lockon = [0 for x in range(self.numRF)]
-        self.lockoff = [0 for x in range(self.numRF)]
+        self.elementOnB = np.random.randint(2, size=self.numRF)
+        self.elementOn = np.random.randint(2, size=self.numRF)
+
+        self.lockonB = [self.minrun+1 for x in range(self.numRF)]
+        self.lockoffB = [self.shortcycle+1 for x in range(self.numRF)]
+        self.lockon = [self.minrun+1 for x in range(self.numRF)]
+        self.lockoff = [self.shortcycle+1 for x in range(self.numRF)]
+		
         self.cycle_off_base = [0 for x in range(self.numRF)]
         self.cycle_on_base = [0 for x in range(self.numRF)]
         self.cycle_off_grid = [0 for x in range(self.numRF)]
@@ -279,23 +290,24 @@ class RFFleet(FleetInterface):   #FleetInterface
    
         self.SoCInit = [0.8 for y in range(self.numRF)]
         self.SOC = self.SoCInit
+        self.SOCb = self.SoCInit
 
         self.AvailableCapacityAddInit = [0 for y in range(self.numRF)]
         self.AvailableCapacityShedInit = [0 for y in range(self.numRF)]
 
-        self.IsAvailableAddInit = [1 for y in range(self.numRF+1)]
-        self.IsAvailableShedInit = [1 for y in range(self.numRF+1)]
+        self.IsAvailableAddInit = np.random.randint(2, size=self.numRF+1)
+        self.IsAvailableShedInit = np.random.randint(2, size=self.numRF+1)
         
         self.step = 0
-
-        P_req = 0
 
         ##############################################################################################################
  
         #    Initializing the Refridge models
         #    Get the baseline power
         self.RFs = [CaseModel(self.Tamb[0], self.TsetInitial[number], self.R_case[number], self.R_food[number], self.R_infil[number],
-                                    self.C_case[number], self.C_food[number], self.C_air[number], P_req, 0, self.MaxServiceCalls[number], self.dt) for number in range(self.numRF)]
+                                    self.C_case[number], self.C_food[number], self.C_air[number], self.dt, 
+									self.elementOnB[number], self.elementOn[number], self.lockon[number], self.lockoff[number], self.cycle_off_base[number], 
+                                    self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number]) for number in range(self.numRF)]
 
     # Baseline simulations
     # Todo: Only need run baseline in the first call of the grid service
@@ -330,10 +342,9 @@ class RFFleet(FleetInterface):   #FleetInterface
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        fleet_response = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
-        self.step += 1
+        resp = self.run(p_req, q_req, self.SOC, self.time, dt, ts)
 
-        return fleet_response
+        return resp
 
     # Example code for Frequency Watt Function
 
@@ -347,9 +358,9 @@ class RFFleet(FleetInterface):   #FleetInterface
         """
         f = self.grid.get_frequency(ts,location)
         
-        if f < 60 - db_UF:
+        if (f < 60 - db_UF).any():
             p_mod = 0
-        elif f > 60 + db_OF:
+        elif (f > 60 + db_OF).any():
             p_mod = p_req
         else:
             p_mod = p_prev
@@ -387,37 +398,7 @@ class RFFleet(FleetInterface):   #FleetInterface
         if Q_req == None:
             Q_req = 0      
 
-        FleetResponse.P_service = 0
-        FleetResponse.P_service_max = 0
-        FleetResponse.P_service_min = 0
-        FleetResponse.P_togrid = 0
-        FleetResponse.P_togrid_max = 0
-        FleetResponse.P_togrid_min = 0
-        FleetResponse.P_forecast = 0
-        FleetResponse.P_base = 0
-        FleetResponse.E = 0
-        FleetResponse.C = 0
-        FleetResponse.ts = ts
-        FleetResponse.sim_step = dt
-
-
-        P_request_perRF = P_req / self.numRF # this is only for the first step
-        #        print(P_request_perWH)
-        
-        FleetResponse.Q_togrid = 'NA'
-        FleetResponse.Q_service = 'NA'
-        FleetResponse.Q_service_max = 'NA'
-        FleetResponse.Q_service_min = 'NA'
-        FleetResponse.Q_togrid_min = 'NA'  
-        FleetResponse.Q_togrid_max = 'NA'
-        Eloss = 0
-        Edel = 0 
-        
-        FleetResponse.Q_dot_up = 'NA'
-        FleetResponse.Q_dot_down = 'NA'
-        FleetResponse.P_dot_up = 0
-        FleetResponse.P_dot_down = 0
-   
+          
         # run through fleet once as a forecast just to get initial conditions
         
         number = 0 # run through all the devices
@@ -425,15 +406,26 @@ class RFFleet(FleetInterface):   #FleetInterface
         servmax = 0
         servmax2 = 0
         NumDevicesToCall = 0
+
+        p_togrid = 0
+        p_service = 0
+        p_base = 0
+        service_max = 0
+        service_min = 0
+
+
+
         # laststep = step - 1
 
     #  decision making about which RF to call on for service, check if available at last step, if so then 
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
+        P_request_perRF =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
+
         for n in range(self.numRF):
-            if P_request_perRF < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC and self.AvailableCapacityAdd[n] > self.minCapacityAdd:
+            if P_request_perRF < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
                 NumDevicesToCall += 1
-            elif P_request_perRF > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC and self.AvailableCapacityShed[n] > self.minCapacityShed:
+            elif P_request_perRF > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
                 NumDevicesToCall += 1          
     
         P_request_perRF =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
@@ -442,6 +434,10 @@ class RFFleet(FleetInterface):   #FleetInterface
         for rfdg in self.RFs: #loop through all RFs
             TsetLast = self.TsetInitial[number]
 
+            TairLastB = self.TairInitialB[number]    
+            TfoodLastB = self.TfoodInitialB[number]
+            TcaseLastB = self.TcaseInitialB[number]
+			
             TairLast = self.TairInitial[number]    
             TfoodLast = self.TfoodInitial[number]
             TcaseLast = self.TcaseInitial[number]
@@ -449,118 +445,169 @@ class RFFleet(FleetInterface):   #FleetInterface
 
             if P_req<=0 and self.IsAvailableAdd[number] > 0 :
             # For step >=1, can use last step temperature...        
-                response = rfdg.execute(TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
+                response = rfdg.FRIDGE(TairLastB, TfoodLastB, TcaseLastB, TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
                                         self.C_case[number], self.C_food[number], self.C_air[number], P_request_perRF, dt,  
-                                        self.elementOn[number], self.lockon[number], self.lockoff[number], 
+                                        self.elementOnB[number], self.elementOn[number], self.lockonB[number], self.lockoffB[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
                 P_req =  P_req - response.Eservice
 
             elif P_req>0 and self.IsAvailableShed[number] > 0 :
             # For step >=1, can use last step temperature...                                
-                response = rfdg.execute(TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
+                response = rfdg.FRIDGE(TairLastB, TfoodLastB, TcaseLastB, TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
                                         self.C_case[number], self.C_food[number], self.C_air[number], P_request_perRF, dt,  
-                                        self.elementOn[number], self.lockon[number], self.lockoff[number], 
+                                        self.elementOnB[number], self.elementOn[number], self.lockonB[number], self.lockoffB[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
                 P_req =  P_req - response.Eservice    
             # break
 
             else:        
-                response = rfdg.execute(TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
-                                        self.C_case[number], self.C_food[number], self.C_air[number], P_request_perRF, dt,  
-                                        self.elementOn[number], self.lockon[number], self.lockoff[number], 
+                response = rfdg.FRIDGE(TairLastB, TfoodLastB, TcaseLastB, TairLast, TfoodLast, TcaseLast, TsetLast, self.Tamb[number][self.step], self.R_case[number], self.R_food[number], self.R_infil[number],
+                                        self.C_case[number], self.C_food[number], self.C_air[number], 0, dt,  
+                                        self.elementOnB[number], self.elementOn[number], self.lockonB[number], self.lockoffB[number], self.lockon[number], self.lockoff[number], 
                                         self.cycle_off_base[number], self.cycle_on_base[number], self.cycle_off_grid[number], self.cycle_on_grid[number])
 
             # assign returned parameters to associated lists to be recorded
             self.TsetInitial[number] = response.Tset
+			
+            self.TairInitialB[number] = response.TairB
+            self.TfoodInitialB[number] = response.TfoodB
+            self.TcaseInitialB[number] = response.TcaseB 
+			
+            self.elementOnB[number] = response.ElementOnB
+
             self.TairInitial[number] = response.Tair
             self.TfoodInitial[number] = response.Tfood
             self.TcaseInitial[number] = response.Tcase            
 
             self.elementOn[number] = response.ElementOn
+            self.lockonB[number] = response.lockonB
+            self.lockoffB[number]  = response.lockoffB
             self.lockon[number] = response.lockon
             self.lockoff[number]  = response.lockoff
             self.cycle_off_base[number] = response.cycle_off_base
             self.cycle_on_base[number] = response.cycle_on_base
             self.cycle_off_grid[number] = response.cycle_off_grid
             self.cycle_on_grid[number] = response.cycle_on_grid
-            
+
             self.SOC[number] = response.SOC
+            self.SOCb[number] = response.SOC_b
             self.IsAvailableAdd[number] = response.IsAvailableAdd
             self.IsAvailableShed[number] = response.IsAvailableShed
-            
-            self.elementOn[number] = response.ElementOn
+
             self.AvailableCapacityAdd[number] = response.AvailableCapacityAdd 
             self.AvailableCapacityShed[number] = response.AvailableCapacityShed 
             self.ServiceCallsAccepted[number] = response.ServiceCallsAccepted
-            self.ServiceProvided[number] += response.Eservice
-            
-            FleetResponse.P_togrid += response.Eused
-            FleetResponse.P_togrid_max += response.PusedMax
-            FleetResponse.P_togrid_min += response.PusedMin                
-            FleetResponse.P_service += response.Eservice      
-            FleetResponse.P_base += response.Pbase    
+
+            self.ServiceProvided[number] = response.Eservice
+
+            p_togrid += response.Eused
+
+            # resp.P_togrid_max += response.PusedMax
+            # resp.P_togrid_min += response.PusedMin 
+
+            p_service += response.Eservice    
+
+            p_base += response.Pbase
+
             # FleetResponse.sim_step = response.sim_step       
             number += 1  # go to next device
 
-            # Available Energy stored at the end of the most recent timestep
-            # FleetResponse.E += response.Estored
-            FleetResponse.E = 0
-            FleetResponse.C += response.SOC / (self.numRF)
-            FleetResponse.P_service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+            if P_req>=0:
+                service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
+            else:
+                service_min += response.AvailableCapacityAdd
             
-        # FleetResponse.P_dot_up = FleetResponse.P_togrid_max / ServiceRequest.Timestep.seconds
-        FleetResponse.P_dot = FleetResponse.P_togrid / dt
-        FleetResponse.P_service_min  = 0
-        
-        # FleetResponse.Q_dot_down     = 0
-        FleetResponse.dT_hold_limit  = 'NA'
-        FleetResponse.T_restore      = 'NA'
-        FleetResponse.Strike_price   = 'NA'
-        FleetResponse.SOC_cost       = 'NA'
+        self.step += 1
+		
+		# Output Fleet Response
 
+        resp = FleetResponse()
+
+        # Positive Prequest means reducing power consumption
+
+        response.ts = ts
+        response.sim_step  = timedelta(seconds=dt)
+
+        resp.P_service = []
+        resp.P_service_max = []  # positive only?
+        resp.P_service_min = []
+        resp.P_togrid = []
+        resp.P_togrid_max = []
+        resp.P_togrid_min = []
+        resp.P_forecast = []
+        resp.P_base = []
+        resp.E = []
+        resp.C = []        
+            
+        # resp.P_dot_up = resp.P_togrid_max / ServiceRequest.Timestep.seconds
+
+        resp.P_service = -p_service
+        resp.P_service_max = service_max  # positive decrease loads
+        resp.P_service_min = service_min  # negative increase loasd
+
+        resp.P_base = p_base
+        resp.P_togrid = -p_togrid 
+        resp.P_togrid_max = -(p_base-service_max) 
+        resp.P_togrid_min = -(p_base-service_min)       
+
+        resp.E = 0
+        resp.C = 0 # response.SOC/(self.numRF)
+
+        resp.Q_togrid = 'NA'
+        resp.Q_service = 'NA'
+        resp.Q_service_max = 'NA'
+        resp.Q_service_min = 'NA'
+        resp.Q_togrid_min = 'NA'  
+        resp.Q_togrid_max = 'NA'
+
+        resp.Q_dot_up = 'NA'
+        resp.Q_dot_down = 'NA'
+        resp.P_dot_up = 0
+        resp.P_dot_down = 0
+
+        resp.dT_hold_limit  = 'NA'
+        resp.T_restore      = 'NA'
+        resp.Strike_price   = 'NA'
+        resp.SOC_cost       = 'NA'
+
+        # TotalServiceProvidedPerTimeStep[step] = -1.0*self.P_service   # per time step for all hvacs  -1.0*        
         """
         Modify the power and SOC of the different subfeets according 
         to the frequency droop regulation according to IEEE standard
-        """
-    
-
+        """    
         if self.FW21_Enabled and self.is_autonomous:
-            power_ac = FleetResponse.P_service_max
-            p_prev = FleetResponse.P_togrid
+            power_ac = resp.P_service_max
+            p_prev = resp.P_togrid
             power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
-            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)  
-        
-        # self.SOC = SOC_step
+            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
+
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
         # Restart time if it surpasses 24 hours
         if self.time > 24*3600:
             self.time = self.time - 24*3600
-        
+
+        # Impact Metrics
         # Update the metrics
         Ttotal = 0
         SOCTotal = 0
 
-
-        
-        Ttotal = np.sum(self.TairInitial)
-            
-        SOCTotal = np.sum(self.SOC)
-
-        self.cycle_base = np.sum(self.cycle_off_base)
-        self.cycle_base = np.sum(self.cycle_on_base)
+        self.cycle_basee = np.sum(self.cycle_off_base)
+        self.cycle_basee += np.sum(self.cycle_on_base)
         self.cycle_grid = np.sum(self.cycle_off_grid)
-        self.cycle_grid = np.sum(self.cycle_on_grid)
-
+        self.cycle_grid += np.sum(self.cycle_on_grid)
 
         for numberr in range(self.numRF-1):    
-            if self.TairInitial[numberr]>=self.TsetInitial[numberr]+self.deadband:
+            if self.TairInitial[numberr]>=self.TsetInitial[numberr] + 2:  #assume 2F, self.deadband
                 self.unmet_hours += 1*self.sim_step/3600.0
 
-        self.ave_Tair = Ttotal/self.numRF
-        self.SOC_metric = SOCTotal/self.numRF
-        return FleetResponse 
-      
+        self.ave_TairB = np.average(self.TairInitialB)
+        self.ave_Tair = np.average(self.TairInitial)
+        self.SOCb_metric = np.average(self.SOCb)
+        self.SOC_metric = np.average(self.SOC)
+
+        return resp 
+     
     #################################################   
     def forecast(self, requests):
         """
@@ -793,9 +840,9 @@ class RFFleet(FleetInterface):   #FleetInterface
     
     def output_impact_metrics(self):   
         impact_metrics_DATA = [["Impact Metrics File"],
-                                ["ave_Tair", "Cycle_base", "Cycle_grid", "SOC_metric", "Unmet Hours"]]
+                                ["ave_Tair_base", "ave_Tair", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service", "Unmet Hours"]]
         
-        impact_metrics_DATA.append(["Refridge Fleet", str(self.ave_Tair), str(self.cycle_basee), str(self.cycle_grid), str(self.SOC_metric), str(self.unmet_hours)])
+        impact_metrics_DATA.append([str(self.ave_TairB), str(self.ave_Tair), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric), str(self.SOC_metric), str(self.unmet_hours)])
 
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)
@@ -803,22 +850,22 @@ class RFFleet(FleetInterface):   #FleetInterface
 
     #     pass
 
-    # def change_config(self, fleet_config):
-    #     """
-    #     This function updates the fleet configuration settings programatically.
-    #     :param fleet_config: an instance of FleetConfig
-    #     """
+    def change_config(self, fleet_config):
+        """
+        This function updates the fleet configuration settings programatically.
+        :param fleet_config: an instance of FleetConfig
+        """
 
-    #     # change config
-    #     self.is_P_priority = fleet_config.is_P_priority
-    #     self.is_autonomous = fleet_config.is_autonomous
-    #     self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
-    #     self.fw_function.db_UF = self.FW_Param[0]
-    #     self.fw_function.db_OF = self.FW_Param[1]
-    #     self.fw_function.k_UF = self.FW_Param[2]
-    #     self.fw_function.k_OF = self.FW_Param[3]
-    #     self.autonomous_threshold = fleet_config.autonomous_threshold
-    #     self.Vset = fleet_config.v_thresholds
+        # change config
+        self.is_P_priority = fleet_config.is_P_priority
+        self.is_autonomous = fleet_config.is_autonomous
+        self.FW_Param = fleet_config.FW_Param # FW_Param=[db_UF,db_OF,k_UF,k_OF]
+        self.fw_function.db_UF = self.FW_Param[0]
+        self.fw_function.db_OF = self.FW_Param[1]
+        self.fw_function.k_UF = self.FW_Param[2]
+        self.fw_function.k_OF = self.FW_Param[3]
+        self.autonomous_threshold = fleet_config.autonomous_threshold
+        self.Vset = fleet_config.v_thresholds
 
     def assigned_service_kW(self):
         """ 
@@ -852,7 +899,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         loc["Denver"] = 4
         loc["Minneapolis"] = 5
 
-        num_steps = 3600*48.0/timestep_s   
+        num_steps = 10*3600*48.0/timestep_s   
 
         try:
             amb_temp_column = loc[climate_location]

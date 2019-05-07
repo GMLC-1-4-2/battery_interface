@@ -11,7 +11,7 @@ class FleetRequest:
     This class describes input fields required by fleets 
     """
     def __init__(self, ts=datetime.utcnow(),
-                 sim_step=timedelta(minutes=10),
+                 sim_step=timedelta(hours=1),
                  start_time=None,
                  p=None, q=None, steps=1):
         """

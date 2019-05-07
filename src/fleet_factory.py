@@ -108,8 +108,9 @@ def create_fleet(name, grid_type=1, **kwargs):
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
         ts = kwargs['start_time'] # Read it from kwargs dictionary
+        s_step = kwargs['sim_step'] # Read it from kwargs dictionary
 
-        fridge_fleet = RFFleet(grid, ts)
+        fridge_fleet = RFFleet(grid, ts, s_step)
         fridge_fleet.is_autonomous = False
         fridge_fleet.is_P_priority = True
         fridge_fleet.service_weight = kwargs['service_weight']

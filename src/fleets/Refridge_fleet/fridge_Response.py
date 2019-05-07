@@ -20,6 +20,12 @@ class RFResponse:
         Constructor with default values
         """
         
+        self.TairB = 0
+        self.TfoodB = 0
+        self.TcaseB = 0
+        self.ElementOnB = 0
+        self.SOC_b = 0
+
         self.Tair = 0
         self.Tfood = 0
         self.Tcase = 0
@@ -27,11 +33,25 @@ class RFResponse:
         self.Tset = 0 
         self.Eused = 0 
         self.Pbase = 0
+
+        self.lockoffB = 0
+        self.lockonB = 0 
+        self.lockoff = 0
+        self.lockon = 0
+        self.sim_step = 0
+
+        self.cycle_off_grid = 0
+        self.cycle_on_grid = 0
+
+        self.cycle_off_base = 0
+        self.cycle_on_base = 0
+
         self.PusedMax = 0
         self.PusedMin = 0
         self.ElementOn = 0
         self.Eservice = 0
         self.SOC = 0
+
         self.AvailableCapacityAdd = 0
         self.AvailableCapacityShed = 0
         self.ServiceCallsAccepted = 0

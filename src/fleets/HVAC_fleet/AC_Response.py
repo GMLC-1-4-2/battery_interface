@@ -37,8 +37,10 @@ class ACResponse:
         self.Eused = 0 
         self.Pbase = 0
 
+        self.lockoffB = 0
+        self.lockonB = 0 
         self.lockoff = 0
-        self.lockon = 0 
+        self.lockon = 0
         self.sim_step = 0
 
         self.cycle_off_grid = 0

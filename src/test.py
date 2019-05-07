@@ -22,7 +22,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     kwargs['sim_step'] = sim_step
     
     # Create test service
-    service = create_service(service_name,**kwargs)
+    service = create_service(service_name, **kwargs)
     if service is None:
         raise 'Could not create service with name ' + service_name
 
@@ -188,7 +188,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'DistributionVoltageService':
         service.sim_step = kwargs['sim_step']
-        fleet_responses, fleet_requests = service.request_loop()
+        fleet_responses, fleet_requests = service.request_loop(start_time=start_time)
 
     elif service_name == 'EnergyMarketService':
         fleet_requests, fleet_responses = service.request_loop(sim_step=sim_step)
@@ -263,15 +263,14 @@ def dynamic_time_step(service_name, fleet_name):
 # =======================  MAIN  ==========================
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService' 'EnergyMarketService', 'PeakManagementService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
     services = ['Regulation']
-    fleets = ['HVAC']
+    fleets = ['Refridge']
     start_time = parser.parse('2017-08-01 00:00:00')
-    #start_time = datetime.utcnow()
 
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
     metrics_calc_end_time = parser.parse('2017-08-01 00:02:00')  # the end of timeframe to calculate metrics

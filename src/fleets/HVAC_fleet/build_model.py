@@ -116,8 +116,8 @@ class BuildingModel():
     def __init__(self, Tamb = 25.0, Tsol_w = [25.0],QIHL_i = [0], Qsolar_i = [0], 
                     Tsol_r = [25.0], QIHL_mass = [0], Qsolar_mass = 0,  
                     control_signal = 'none', Rwall = 0.00852, Rattic = 0.034141, 
-                    Cmass = 29999128.0, service_calls_accepted = 0, max_service_calls = 20, time_step = 10, 
-                    forecast_IHL = 0, Element_onB = 0, Element_on = 0, lockon = 0, lockoff = 0, cycle_off_base = 0, 
+                    Cmass = 29999128.0, time_step = 10, 
+                    forecast_IHL = 0, Element_onB = 0, Element_on = 0, lockonB = 0, lockoffB = 0, lockon = 0, lockoff = 0, cycle_off_base = 0, 
                     cycle_on_base = 0, cycle_off_grid = 0, cycle_on_grid = 0):
         # Building Thermal Characteristic Information
     
@@ -185,7 +185,7 @@ class BuildingModel():
 
     def HVAC(self, TlastB, Twall_lastB, Tmass_lastB, Tattic_lastB, Tlast, Twall_last, Tmass_last, Tattic_last, Tset, Tamb_ts, Tsol_w_ts, 
                 QIHL_i_ts, Qsolar_i_ts, Tsol_r_ts, QIHL_mass_ts, Qsolar_mass_ts, Rwall, Rattic, Cmass, control_signal_ts, 
-                timestep, forecast_IHL, Element_on_tsB, Element_on_ts, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
+                timestep, forecast_IHL, Element_on_tsB, Element_on_ts, lockonB, lockoffB, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
 
 
         #############################################################################
@@ -206,27 +206,31 @@ class BuildingModel():
 
         # Record control states          
         # switch on
-        if TlastB > (Tset + self.Tdeadband) and Element_on_tsB == 0 and lockon >= 3*60.0:   #max(lockon,lockoff)
+        if TlastB > (Tset + self.Tdeadband) and lockoffB >= 3*60.0:   # and Element_on_tsB == 0 
             Element_on_tsB = 1
             Eused_baseline_ts = E_cool*1.000 # kW used
             cycle_on_base += 1 #count cycles turning from off to on
-            lockon = 1*ts # start recording on period
+            # lockonB = 1*ts # start recording on period
+            lockoffB += 1*ts
 
         # switch off
-        elif Element_on_tsB == 1 and (TlastB <= Tset - self.Tdeadband) and lockoff >= 1*60.0:
+        elif TlastB <= (Tset - self.Tdeadband):  #and Element_on_tsB == 1 and lockonB >= 1*60.0
             Eused_baseline_ts = 0 # kW used
             Element_on_tsB = 0
             cycle_off_base += 1  # count cycles  turning from ON to OFF
-            lockoff = 1*ts # start recording off period
+            lockoffB = 1*ts # start recording off period
+            # lockonB = 0
 
         # no change
         else:
             Eused_baseline_ts = Element_on_tsB * E_cool
 
-            if Element_on_tsB:
-                lockon += 1*ts
-            else:
-                lockoff += 1*ts # cumulating recording off period        
+            # lockonB += 1*ts
+            lockoffB += 1*ts # cumulating recording off period      
+            # if Element_on_tsB:
+            #     lockonB += 1*ts
+            # else:
+            #     lockoffB += 1*ts # cumulating recording off period   
 
         # Record baseline states
         # Evolution of 4 states, ts in seconds                
@@ -246,11 +250,14 @@ class BuildingModel():
         Tin__bas = TlastB + dTin_baseline   # Store the baseline indoor temperature    
         Twall_bas = Twall_lastB + dTwall_baseline
         Tmass_bas = Tmass_lastB + dTmass_baseline
-        Tattic_bas = Tattic_lastB + dTattic_baseline   
+        Tattic_bas = Tattic_lastB + dTattic_baseline
+
         Element_on_bas = Element_on_tsB      
 
         # update baseline SoC
-        SOC_b = (Tset + self.Tdeadband - Tin__bas)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))        
+        SOC_b = (Tset + self.Tdeadband - Tin__bas)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))  
+        SOC_b = 1 if SOC_b>=1 >0
+		SOC_b = 0 if SOC_b<=0 >0      
 
         ###########################################################################          
         # Modify operation based on control signal #
@@ -264,11 +271,12 @@ class BuildingModel():
         service_calls_accepted_ts = 0
         
         # Reduce loads 
-        if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_tsB == 1: #Element_on_ts = 1 requirement eliminates free rider situation   and lockoff >= 1*60.0
+        if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_tsB == 1 and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation  and lockoff >= 3*60.0
             Eused_ts = 0 #make sure it stays off
             Element_on_ts = 0
             service_calls_accepted_ts += 1
             cycle_off_grid += 1
+            # lockon = 1*ts
             lockoff = 1*ts # start recording on period
 
         # elif control_signal_ts  > 0 and Tlast >= Tset + self.Tdeadband:
@@ -280,21 +288,19 @@ class BuildingModel():
         #     Eused_ts = 0 #make sure it stays off
         #     Element_on_ts = 0
     
-        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0: #Element_on_ts = 0 requirement eliminates free rider situation   and lockon >= 3*60.0
+        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts == 0 and lockoff >= 3*60.0: #Element_on_ts = 0 requirement eliminates free rider situation   
             #make sure it stays on
             Eused_ts = E_cool*1.000 #W used
             Element_on_ts = 1
             service_calls_accepted_ts += 1
             cycle_on_grid += 1
-            lockon = 1*ts # start recording on period
+            lockoff += 1*ts # start recording on period
 
         else:#no changes
             Eused_ts = Eused_baseline_ts
 
-            if Element_on_ts:
-                lockon += 1*ts
-            else:
-                lockoff += 1*ts # cumulating recording off period 
+            # lockon += 1*ts
+            lockoff += 1*ts # cumulating recording off period   
         
         #calculate energy provided as a service, >0 is load add, <0 load shed
         # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
@@ -306,7 +312,7 @@ class BuildingModel():
 #            else: # assumes HVAC can't meet the entire request so it just does as much as it can
 #                Eservice_ts = Eused_ts-Eused_baseline_ts
 
-        Eservice_ts = Eused_ts-Eused_baseline_ts          
+        Eservice_ts = Eused_baseline_ts - Eused_ts # positive means reducing power consumption         
         
         #could change this at some point based on signals
         Tset_ts = Tset    
@@ -331,6 +337,8 @@ class BuildingModel():
 #        Calculate more parameters to be passed up
 #       update SoC
         SOC = (Tset + self.Tdeadband - Tin_ts)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))
+        SOC = 1 if SOC>=1 >0
+		SOC = 0 if SOC<=0 >0
     
 #            isAvailable_add_ts = 1 if max_service_calls > service_calls_accepted_ts  else 0
 ######################################################################################        
@@ -362,8 +370,8 @@ class BuildingModel():
 #            Tattic_Cff = Tattic_Cf+dTatticCf
         
         Tin_forecast = Tin_Cff            
-        isAvailable_add_ts = 1 if Tin_forecast > (Tset - self.Tdeadband) and Element_on_tsB == 0 > 0 else 0 #It isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
-        isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband) and Element_on_tsB > 0 > 0 else 0  #It is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
+        isAvailable_add_ts = 1 if Tin_forecast > (Tset - self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts == 0 > 0 else 0 #It isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
+        isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband) and Element_on_tsB > 0 and Element_on_ts > 0 > 0 else 0  #It is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
 
         Available_Capacity_Add = isAvailable_add_ts * E_cool
         Available_Capacity_Shed = isAvailable_shed_ts * E_cool
@@ -388,6 +396,8 @@ class BuildingModel():
         response.Tset = Tset_ts 
         
         response.Eused = Eused_ts
+        response.lockoffB = lockoffB 
+        response.lockonB = lockonB
         response.lockoff = lockoff 
         response.lockon = lockon 
         response.sim_step = timestep
