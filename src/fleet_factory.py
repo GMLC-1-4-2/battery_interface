@@ -82,24 +82,25 @@ def create_fleet(name, grid_type=1, **kwargs):
 
 
     elif name == 'HVAC':
-        from fleets.Refridge_fleet.fridge_Fleet import RFFleet
+        from fleets.HVAC_fleet.HVAC_fleet import HVACFleet
 
         # Time stamp to start the simulation
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
         ts = kwargs['start_time'] # Read it from kwargs dictionary
+        s_step = kwargs['sim_step']  # Read it from kwargs dictionary
 
-        fridge_fleet = RFFleet(grid, ts)
-        fridge_fleet.is_autonomous = False
-        fridge_fleet.is_P_priority = True
-        fridge_fleet.service_weight = kwargs['service_weight']
+        hvac_fleet = HVACFleet(grid, ts, s_step)
+        hvac_fleet.is_autonomous = False
+        hvac_fleet.is_P_priority = True
+        hvac_fleet.service_weight = kwargs['service_weight']
         if 'autonomous' in kwargs and kwargs['autonomous']:
-           fridge_fleet.is_autonomous = True
-        fridge_fleet.VV11_Enabled = False
-        fridge_fleet.FW21_Enabled = True
+           hvac_fleet.is_autonomous = True
+        hvac_fleet.VV11_Enabled = False
+        hvac_fleet.FW21_Enabled = True
 
-        return fridge_fleet
-        
+        return hvac_fleet
+
     elif name == 'Refridge':
         from fleets.Refridge_fleet.fridge_Fleet import RFFleet
 
@@ -107,8 +108,9 @@ def create_fleet(name, grid_type=1, **kwargs):
         # Please, ensure that the timestamp is the same timestamp passed at the
         # beginning of the service request
         ts = kwargs['start_time'] # Read it from kwargs dictionary
+        s_step = kwargs['sim_step']  # Read it from kwargs dictionary
 
-        fridge_fleet = RFFleet(grid, ts)
+        fridge_fleet = RFFleet(grid, ts, s_step)
         fridge_fleet.is_autonomous = False
         fridge_fleet.is_P_priority = True
         fridge_fleet.service_weight = kwargs['service_weight']
