@@ -423,9 +423,9 @@ class RFFleet(FleetInterface):   #FleetInterface
         P_request_perRF =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
 
         for n in range(self.numRF):
-            if P_request_perRF < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
+            if P_request_perRF < 0 and self.IsAvailableAdd[n] > 0:
                 NumDevicesToCall += 1
-            elif P_request_perRF > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
+            elif P_request_perRF > 0 and self.IsAvailableShed[n] > 0:
                 NumDevicesToCall += 1          
     
         P_request_perRF =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon

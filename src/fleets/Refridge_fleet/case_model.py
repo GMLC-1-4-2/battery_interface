@@ -288,7 +288,7 @@ class CaseModel():
             
             Tair_forecast = Tair_Cff            
             isAvailable_add_ts = 1 if Tair_forecast > (Tset - self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts == 0 > 0 else 0 #haven't exceeded max number of calls, plus it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
-            isAvailable_shed_ts = 1 if Tair_forecast < (Tset + self.Tdeadband) and Element_on_tsB == 0 and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
+            isAvailable_shed_ts = 1 if Tair_forecast < (Tset + self.Tdeadband) and Element_on_tsB > 0 and Element_on_ts > 0 > 0 else 0  #haven't exceeded max number of calls, plus it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
 
             Available_Capacity_Add = isAvailable_add_ts * E_cool
             Available_Capacity_Shed = isAvailable_shed_ts * E_cool
