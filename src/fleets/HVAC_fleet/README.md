@@ -27,7 +27,7 @@ This document provides the guidelines to use the `HVACFleet` class and describes
 | `self.run_baseline` |  `bool`|  `False` | If `True`, Run simulations to store baseline power and SOC are run. If `False`, the baseline power and SOC are maintained. |
 | `self.numHVAC`    | `int`|   200    | Number of total HVAC units in the fleet. The larger the number of the fleet, the better the results, but CPU time increases as the `numHVAC` does so.   |
 | `self.Tset`    | `real`|   23   | Average temperature setpoints across all the buildings in Celsius.  |
-| `self.deadband`    | `real`|   0.5   | Traditional thermostat deadbands in Celsius.  |
+| `self.deadband`    | `real`|   2   | Traditional thermostat deadbands in Celsius.  |
 | `self.dt`  | `int` | 10*60 | Default time step in seconds for `forecast` and `process_request` methods. |
 
 
@@ -65,7 +65,7 @@ from datetime import datetime
 ts = datetime(2018, 9, 20, 5, 0, 00, 000000)
 grid = GridInfo(os.path.join(dirname, 'data/Grid_Info_DATA_2.csv'))
 # Instantiation of the fleet
-fleet_test = HVACFleet(grid, ts)
+fleet_test = HVACFleet(grid, ts, sim_step)
 ```
 
 * Specify time step and simulation time:
