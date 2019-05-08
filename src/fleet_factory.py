@@ -81,7 +81,7 @@ def create_fleet(name, grid_type=1, **kwargs):
         return fleet
 
 
-        elif name == 'HVAC':
+    elif name == 'HVAC':
         from fleets.Refridge_fleet.fridge_Fleet import RFFleet
 
         # Time stamp to start the simulation
