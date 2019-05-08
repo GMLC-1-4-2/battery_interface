@@ -82,9 +82,42 @@ def create_fleet(name, grid_type=1, **kwargs):
 
 
     elif name == 'HVAC':
-        return None
+        from fleets.Refridge_fleet.fridge_Fleet import RFFleet
+
+        # Time stamp to start the simulation
+        # Please, ensure that the timestamp is the same timestamp passed at the
+        # beginning of the service request
+        ts = kwargs['start_time'] # Read it from kwargs dictionary
+
+        fridge_fleet = RFFleet(grid, ts)
+        fridge_fleet.is_autonomous = False
+        fridge_fleet.is_P_priority = True
+        fridge_fleet.service_weight = kwargs['service_weight']
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fridge_fleet.is_autonomous = True
+        fridge_fleet.VV11_Enabled = False
+        fridge_fleet.FW21_Enabled = True
+
+        return fridge_fleet
+        
     elif name == 'Refridge':
-        return None
+        from fleets.Refridge_fleet.fridge_Fleet import RFFleet
+
+        # Time stamp to start the simulation
+        # Please, ensure that the timestamp is the same timestamp passed at the
+        # beginning of the service request
+        ts = kwargs['start_time'] # Read it from kwargs dictionary
+
+        fridge_fleet = RFFleet(grid, ts)
+        fridge_fleet.is_autonomous = False
+        fridge_fleet.is_P_priority = True
+        fridge_fleet.service_weight = kwargs['service_weight']
+        if 'autonomous' in kwargs and kwargs['autonomous']:
+           fridge_fleet.is_autonomous = True
+        fridge_fleet.VV11_Enabled = False
+        fridge_fleet.FW21_Enabled = True
+
+        return fridge_fleet
 
 
     raise "There is no fleet with name: " + name
