@@ -115,7 +115,7 @@ class building:
 class BuildingModel():
     def __init__(self, Tamb = 25.0, Tsol_w = [25.0],QIHL_i = [0], Qsolar_i = [0], 
                     Tsol_r = [25.0], QIHL_mass = [0], Qsolar_mass = 0,  
-                    control_signal = 'none', Rwall = 0.00852, Rattic = 0.034141, 
+                    Rwall = 0.00852, Rattic = 0.034141, 
                     Cmass = 29999128.0, time_step = 10, 
                     forecast_IHL = 0, Element_onB = 0, Element_on = 0, lockonB = 0, lockoffB = 0, lockon = 0, lockoff = 0, cycle_off_base = 0, 
                     cycle_on_base = 0, cycle_off_grid = 0, cycle_on_grid = 0):
@@ -157,7 +157,7 @@ class BuildingModel():
         self.Tambient = [25.0]
         self.Tsol_roof = [25.0]
         self.Tsol_wall = [25.0] 
-        self.max_service_calls = int(max_service_calls)
+        # self.max_service_calls = int(max_service_calls)
         
         self.Tdeadband = 1
         self.Tmin = 22 # deg C
@@ -256,8 +256,11 @@ class BuildingModel():
 
         # update baseline SoC
         SOC_b = (Tset + self.Tdeadband - Tin__bas)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))  
-        SOC_b = 1 if SOC_b>=1 >0
-		SOC_b = 0 if SOC_b<=0 >0      
+
+        if SOC_b >= 1:
+            SOC_b = 1 
+        elif SOC_b <= 0:
+            SOC_b = 0      
 
         ###########################################################################          
         # Modify operation based on control signal #
@@ -337,8 +340,10 @@ class BuildingModel():
 #        Calculate more parameters to be passed up
 #       update SoC
         SOC = (Tset + self.Tdeadband - Tin_ts)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))
-        SOC = 1 if SOC>=1 >0
-		SOC = 0 if SOC<=0 >0
+        if SOC >= 1:
+            SOC = 1 
+        elif SOC <= 0:
+            SOC = 0
     
 #            isAvailable_add_ts = 1 if max_service_calls > service_calls_accepted_ts  else 0
 ######################################################################################        

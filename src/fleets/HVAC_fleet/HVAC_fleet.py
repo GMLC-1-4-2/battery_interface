@@ -499,9 +499,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
         for n in range(self.numHVAC):
-            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
+            if P_request_perHVAC < 0 and self.IsAvailableAdd[n] > 0:
                 NumDevicesToCall += 1
-            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
+            elif P_request_perHVAC > 0 and self.IsAvailableShed[n] > 0:
                 NumDevicesToCall += 1          
     
         P_request_perHVAC =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
@@ -634,7 +634,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         resp.P_togrid_min = -(p_base-service_min)       
 
         resp.E = 0
-        resp.C += response.SOC/(self.numHVAC)
+        resp.C = 0 # += response.SOC/(self.numHVAC)
 
         resp.Q_togrid = 'NA'
         resp.Q_service = 'NA'
