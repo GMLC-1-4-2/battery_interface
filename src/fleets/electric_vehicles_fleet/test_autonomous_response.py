@@ -1,22 +1,19 @@
 """
 Description: script to test the discretized autonomous response of the EV fleet.
-This script can be used to tweak the range of the deadbands for this or other discretized devices
+This script can be used to tweak the range of the deadbands for this or other "discrete (ON/OFF)" devices
 
 Last update: 03/18/2019
 Author: afernandezcanosa@anl.gov
 """
 from datetime import datetime, timedelta
 import numpy as np
-import os
 import matplotlib.pyplot as plt
-
 import sys
 from os.path import dirname, abspath
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
 from fleet_request import FleetRequest
 from grid_info_artificial_inertia import GridInfo
-
 from fleets.electric_vehicles_fleet.electric_vehicles_fleet import ElectricVehiclesFleet
 
 def main(ts, grid):
@@ -66,9 +63,9 @@ def main(ts, grid):
         
 if __name__ == "__main__":
     
-    dirname = os.path.dirname(__file__)
+    dirname = dirname(__file__)
     # Time stamp to start the simulation
-    ts = datetime(2018, 9, 20, 00, 0, 00, 000000)
+    ts = datetime(2018, 9, 20, 17, 0, 00, 000000)
     
     # Parameters of the grid (ARTIFICIAL INERTIA)
     grid = GridInfo('Grid_Info_data_artificial_inertia.csv')

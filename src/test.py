@@ -22,7 +22,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
     kwargs['sim_step'] = sim_step
     
     # Create test service
-    service = create_service(service_name)
+    service = create_service(service_name, **kwargs)
     if service is None:
         raise 'Could not create service with name ' + service_name
 
