@@ -163,7 +163,7 @@ class DistributionVoltageService:
         plt.legend(loc='lower right')
         
         data_folder=os.path.dirname(sys.modules['__main__'].__file__)
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse_' + self.fleet.Fleet_Name + '.png'
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse_' + self.fleet.__class__.__name__  + '.png'
         File_Path_fig = join(data_folder, 'integration_test','voltage_regulation',plot_filename)
 
         plt.savefig(File_Path_fig, bbox_inches='tight')
@@ -175,7 +175,7 @@ class DistributionVoltageService:
         ValueProvided=[]
         ValueEfficacy=[]
  
-        CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_' + self.fleet.Fleet_Name  + '.csv'
+        CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_' + self.fleet.__class__.__name__ + '.csv'
 
         data_folder=os.path.dirname(sys.modules['__main__'].__file__)
         File_Path_CSV = join(data_folder, 'integration_test','Voltage_Regulation',CSV_FileName)
