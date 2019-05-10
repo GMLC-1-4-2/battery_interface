@@ -371,10 +371,10 @@ class RFFleet(FleetInterface):   #FleetInterface
         """
         This method returns the modified state of charge of each subfleet 
         due to frequency droop in the grid
-        """        
-        
-        charge_rate = p_fleet/(self.numRF*3.5)*0.1  # Heuristic soc change rate
-        SOC_update = initSOC + charge_rate
+        """      
+     
+        charge_rate = p_fleet/(self.numRF*5.5)*0.1  # Heuristic soc change rate
+        SOC_update = np.mean(initSOC) + charge_rate
         
         if SOC_update > 1:
             p_fleet = 0
@@ -582,7 +582,7 @@ class RFFleet(FleetInterface):   #FleetInterface
             power_ac = resp.P_service_max
             p_prev = resp.P_togrid
             power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
-            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
+            power_fleet_step, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
 
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
@@ -902,7 +902,7 @@ def get_daily_conditions(climate_location,  timestep_s, start_time):
         loc["Denver"] = 4
         loc["Minneapolis"] = 5
 
-        num_steps = 10*3600*48.0/timestep_s   
+        num_steps = 10*3600*24.0/timestep_s   
 
         try:
             amb_temp_column = loc[climate_location]

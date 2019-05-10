@@ -207,7 +207,7 @@ class BuildingModel():
 
         # Record control states          
         # switch on
-        if TlastB > (Tset + self.Tdeadband) and lockoffB >= 3*60.0:   # and Element_on_tsB == 0 
+        if TlastB > (Tset + self.Tdeadband) and Element_on_tsB == 0 and lockoffB >= 3*60.0:   # and Element_on_tsB == 0 
             Element_on_tsB = 1
             Eused_baseline_ts = E_cool*1.000 # kW used
             cycle_on_base += 1 #count cycles turning from off to on
@@ -215,7 +215,7 @@ class BuildingModel():
             lockoffB += 1*ts
 
         # switch off
-        elif TlastB <= (Tset - self.Tdeadband):  #and Element_on_tsB == 1 and lockonB >= 1*60.0
+        elif TlastB <= (Tset - self.Tdeadband) and Element_on_tsB == 1:  #and lockonB >= 1*60.0
             Eused_baseline_ts = 0 # kW used
             Element_on_tsB = 0
             cycle_off_base += 1  # count cycles  turning from ON to OFF

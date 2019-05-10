@@ -263,13 +263,13 @@ def dynamic_time_step(service_name, fleet_name):
 # =======================  MAIN  ==========================
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService','PeakManagementService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['DistributionVoltageService']
-    fleets = ['ElectricVehicle']
+    services = ['Regulation']
+    fleets = ['Refridge']
     start_time = parser.parse('2017-08-01 00:00:00')
 
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics
