@@ -87,12 +87,14 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'Reserve':
         monthtimes = dict({
-            'January': ["2017-01-08 00:00:00", "2017-01-08 23:59:59"],
+            # 'January': ["2017-01-08 00:00:00", "2017-01-08 23:59:59"],
             # 'February': ["2017-02-01 00:00:00", "2017-02-28 23:59:59"],
             # 'March': ["2017-03-01 00:00:00", "2017-03-31 23:59:59"],
             # 'April': ["2017-04-01 00:00:00", "2017-04-30 23:59:59"],
             # 'May': ["2017-05-01 00:00:00", "2017-05-31 23:59:59"],
             # 'June': ["2017-06-01 00:00:00", "2017-06-30 23:59:59"],
+             'June': ["2017-06-07 00:00:00", "2017-06-07 23:59:59"],
+            # 'June': ["2017-06-07 00:00:00", "2017-06-08 23:59:59"],
             # 'July': ["2017-07-01 00:00:00", "2017-07-31 23:59:59"],
             # 'August': ["2017-08-01 00:00:00", "2017-08-31 23:59:59"],
             # 'September': ["2017-09-01 00:00:00", "2017-09-30 23:59:59"],
@@ -119,7 +121,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         else:
             annual_signals = pd.DataFrame(columns=['Date_Time', 'Request', 'Response'])
 
-        previous_event_end = pd.Timestamp('01/01/2017 00:00:00')
+        previous_event_end = pd.Timestamp('05/01/2017 00:00:00')
         for month in monthtimes.keys():
             print('Starting ' + str(month) + ' at ' + datetime.now().strftime('%H:%M:%S'))
             start_time = parser.parse(monthtimes[month][0])
@@ -144,30 +146,7 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
         file_dir = join(dirname(abspath(__file__)), 'integration_test', 'reserve_service')
         all_results.to_csv(join(file_dir,
                                 datetime.now().strftime('%Y%m%d') + '_event_results_reserve_' + assigned_fleet_name + '.csv'))
-        print('Plotting annual signals and SOC (if necessary)')
-        plot_dir = file_dir
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_annual_signals_' + assigned_fleet_name + '.png'
-        plt.figure(1)
-        plt.figure(figsize=(15, 8))
-        plt.subplot(211)
-        if not(all(pd.isnull(annual_signals['Request']))):
-            plt.plot(annual_signals.Date_Time, annual_signals.Request, label='P_Request')
-        if not(all(pd.isnull(annual_signals['Response']))):
-            plt.plot(annual_signals.Date_Time, annual_signals.Response, label='P_Response')
-        if not(all(pd.isnull(annual_signals['P_togrid']))):
-            plt.plot(annual_signals.Date_Time, annual_signals.P_togrid, label='P_togrid')
-        if not(all(pd.isnull(annual_signals['P_base']))):
-            plt.plot(annual_signals.Date_Time, annual_signals.P_base, label='P_base')
-        plt.ylabel('Power (MW)')
-        plt.legend(loc='best')
-        if 'battery' in assigned_fleet_name.lower():
-            if not(all(pd.isnull(annual_signals['SoC']))):
-                plt.subplot(212)
-                plt.plot(annual_signals.Date_Time, annual_signals.SoC, label='SoC')
-                plt.ylabel('SoC (%)')
-                plt.xlabel('Time')
-        plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
-        plt.close()
+
         print('Saving .csv of annual signals and SOC (if necessary)')
         annual_signals.to_csv(
             join(file_dir,
@@ -268,7 +247,7 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['DistributionVoltageService']
+    services = ['Reserve']
     fleets = ['ElectricVehicle']
     start_time = parser.parse('2017-08-01 00:00:00')
 
@@ -279,7 +258,7 @@ if __name__ == '__main__':
         'start_time': start_time,
         'metrics_calc_start_time': metrics_calc_start_time,
         'metrics_calc_end_time': metrics_calc_end_time,
-        'service_weight': 0.75
+        'service_weight': 0.35
     }
     service_types = []
 
@@ -297,3 +276,4 @@ if __name__ == '__main__':
             else:
                 for service_type in service_types:
                     integration_test(service, fleet, service_type, **kwargs)
+                    
