@@ -7,11 +7,13 @@ import sys
 from dateutil import parser
 from datetime import datetime, timedelta
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from os.path import dirname, abspath, join
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 
+from utils import ensure_ddir
 from fleet_request import FleetRequest
 
 
@@ -332,33 +334,72 @@ class EnergyMarketService(object):
             responses.append(response)  
             ts += sim_step
             print('Processing dispatch request at time ts = %s' %ts)
-            print('P_req = %f kW' %request.P_req)
-            print('P_resp = %f kW' %response.P_service)
+            
+        request_list_1h = []
+        for r in requests:
+            if r.P_req is not None:
+                request_list_1h.append((r.ts_req, r.P_req / 1000))
+            else:
+                request_list_1h.append((r.ts_req, r.P_req))
+        request_df_1h = pd.DataFrame(request_list_1h, columns=['Date_Time', 'Request'])
         
-        
-        ts_request = [r.ts for r in responses]
-        p_togrid = [r.P_togrid for r in responses]
-        p_base = [r.P_base for r in responses]
-        p_service = [r.P_service for r in responses]
-        p_request = [r.P_req for r in requests]
-        
-        
-        title = 'Energy Market Service against ' + fleet_name      
-        plt.figure()
-        plt.subplot(211)
-        plt.title(title)
-        plt.plot(ts_request, p_base, label='P_Base')
-        plt.plot(ts_request, p_togrid, label='P_Togrid')
-        plt.ylabel('Active Power (kW)')
-        plt.legend()
-        
-        plt.subplot(212)
-        plt.plot(ts_request, p_request, label='P_Request')
-        plt.plot(ts_request, p_service, label='P_Service')
-        plt.xlabel('Time')
-        plt.ylabel('Active Power (kW)')
+        if 'battery' in fleet_name.lower():
+            # Include battery SoC in response list for plotting purposes
+            response_list_1h = [(r.ts, r.P_service / 1000, r.P_togrid, r.P_base, r.soc) for r in responses]
+            response_df_1h = pd.DataFrame(response_list_1h, columns=['Date_Time', 'Response', 'P_togrid', 'P_base', 'SoC'])
+        else:
+            
+            response_list_1h = [(r.ts, np.nan if r.P_service is None else r.P_service / 1000, r.P_togrid, r.P_base) for r in responses]
+            response_df_1h = pd.DataFrame(response_list_1h, columns=['Date_Time', 'Response', 'P_togrid','P_base'])
+
+        # This merges/aligns the requests and responses dataframes based on their time stamp 
+        # into a single dataframe
+        df_1h = pd.merge(
+            left=request_df_1h,
+            right=response_df_1h,
+            how='left',
+            left_on='Date_Time',
+            right_on='Date_Time')
+
+        df_1h['P_togrid'] = df_1h['P_togrid'] / 1000
+        df_1h['P_base'] = df_1h['P_base'] / 1000
+
+        # Plot entire analysis period results and save plot to file
+        # We want the plot to cover the entire df_1h dataframe
+        plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'energy_market_service')
+        ensure_ddir(plot_dir)
+        plot_filename = 'SimResults_EnergyMarket_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.png'
+        plt.figure(1)
+        plt.figure(figsize=(15, 8))
+        plt.subplot(311)
+        if not(all(pd.isnull(df_1h['Request']))):
+            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request', linestyle = '-')
+        if not(all(pd.isnull(df_1h['Response']))):
+            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response', linestyle = '--')
+        plt.ylabel('Power (MW)')
         plt.legend()
             
+        plt.subplot(312)
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base + df_1h.Request, label='P_base + P_Request', linestyle = '-')       
+        if not(all(pd.isnull(df_1h['P_togrid']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_togrid, label='P_togrid', linestyle = '--')
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base, label='P_base', linestyle = '-.')
+        plt.ylabel('Power (MW)')
+        plt.legend()
+        if 'battery' is not fleet_name.lower():
+            plt.xlabel('Time')
+        
+        if 'battery' in fleet_name.lower():
+            if not(all(pd.isnull(df_1h['SoC']))):
+                plt.subplot(313)
+                plt.plot(df_1h.Date_Time, df_1h.SoC, label='SoC', linestyle = '-')
+                plt.ylabel('SoC (%)')
+                plt.xlabel('Time')
+        plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
+        plt.close()
+    
         return requests, responses
   
     def request(self, ts, sim_step, start_time, p, q=0.0):
