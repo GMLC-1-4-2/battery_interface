@@ -3,7 +3,7 @@
 Description: It contains the interface to interact with the fleet of electric 
 vehicles: ElectricVehiclesFleet
 
-Last update: 05/03/2019
+Last update: 05/09/2019
 Version: 1.01
 Author: afernandezcanosa@anl.gov
 """
@@ -854,7 +854,7 @@ class ElectricVehiclesFleet(FleetInterface):
                                                       'SOC_mean_TCIN', 'SOC_std_TCIN'])   
         
         df_soc[['SOC_std_RightAway', 'SOC_std_Midnight', 'SOC_std_TCIN']] = \
-        df_soc[['SOC_std_RightAway', 'SOC_std_Midnight', 'SOC_std_TCIN']].replace(0,0.02)
+        df_soc[['SOC_std_RightAway', 'SOC_std_Midnight', 'SOC_std_TCIN']].replace(0,1e-4)
 
         # Dataframe to import the baseline power with the aim to provide service power
         data_power = {'time': np.linspace(0,2*sim_time-1,2*sim_time),
