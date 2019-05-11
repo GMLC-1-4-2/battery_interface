@@ -207,7 +207,7 @@ class BuildingModel():
 
         # Record control states          
         # switch on
-        if TlastB > (Tset + self.Tdeadband) and Element_on_tsB == 0 and lockoffB >= 3*60.0:   # and Element_on_tsB == 0 
+        if TlastB > (Tset + self.Tdeadband) and Element_on_tsB == 0 and lockoffB >= 2*60.0:   # and Element_on_tsB == 0 
             Element_on_tsB = 1
             Eused_baseline_ts = E_cool*1.000 # kW used
             cycle_on_base += 1 #count cycles turning from off to on
@@ -292,7 +292,7 @@ class BuildingModel():
         #     Eused_ts = 0 #make sure it stays off
         #     Element_on_ts = 0
     
-        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 3*60.0: #Element_on_ts = 0 requirement eliminates free rider situation   
+        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 2*60.0: #Element_on_ts = 0 requirement eliminates free rider situation   
             #make sure it stays on
             Eused_ts = E_cool*1.000 #W used
             Element_on_ts = 1
@@ -374,11 +374,22 @@ class BuildingModel():
 #            Twall_Cff = Twall_Cf + dTwallCf
 #            Tattic_Cff = Tattic_Cf+dTatticCf
         
-        Tin_forecast = Tin_Cff            
-        isAvailable_add_ts = 1 if Tin_forecast > (Tset - self.Tdeadband)-1  > 0 else 0 #It isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
-        # and Element_on_ts == 0  and Element_on_tsB == 0
-        isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband)+1  > 0 else 0  #It is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
-        # and Element_on_ts > 0 and Element_on_tsB > 0
+        Tin_forecast = Tin_Cff     
+
+        if Tin_forecast >= (Tset - self.Tdeadband)-1 and Element_on_tsB == 0:  # and lockoffB >= 3*60.0
+            isAvailable_add_ts = 1
+        else:
+            isAvailable_add_ts = 0
+
+        if Tin_forecast <= (Tset + self.Tdeadband)+1 and Element_on_tsB > 0:
+            isAvailable_shed_ts = 1
+        else:
+            isAvailable_shed_ts = 0
+
+        # isAvailable_add_ts = 1 if Tin_forecast > (Tset - self.Tdeadband)-1  > 0 else 0 #It isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
+        # # and Element_on_ts == 0  and Element_on_tsB == 0
+        # isAvailable_shed_ts = 1 if Tin_forecast < (Tset + self.Tdeadband)+1  > 0 else 0  #It is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
+        # # and Element_on_ts > 0 and Element_on_tsB > 0
 
         Available_Capacity_Add = isAvailable_add_ts * E_cool
         Available_Capacity_Shed = isAvailable_shed_ts * E_cool

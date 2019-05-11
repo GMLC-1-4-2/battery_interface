@@ -268,8 +268,8 @@ if __name__ == '__main__':
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['Regulation']
-    fleets = ['Refridge']
+    services = ['PeakManagementService']
+    fleets = ['HVAC']
     start_time = parser.parse('2017-08-01 00:00:00')
 
     metrics_calc_start_time = parser.parse('2017-08-01 00:01:00')  # the beginning of timeframe to calculate metrics

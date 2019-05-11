@@ -518,7 +518,7 @@ class RFFleet(FleetInterface):   #FleetInterface
             if P_req>=0:
                 service_max += response.AvailableCapacityShed # NOTE THIS ASSUMES THE MAX SERVICE IS LOAD SHED
             else:
-                service_min += response.AvailableCapacityAdd
+                service_min += response.AvailableCapacityAdd  # NOTE THIS ASSUMES THE MIN SERVICE IS LOAD ADD
             
         self.step += 1
 		

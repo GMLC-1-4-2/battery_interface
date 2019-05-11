@@ -159,7 +159,7 @@ class CaseModel():
         #     cycle_defrost_off 
         # else:            
         # switch on
-        if Tair_lastB > Tset + self.Tdeadband and lockoffB >= 3*60.0 and Element_on_tsB == 0 :  # and Element_on_tsB == 0 
+        if Tair_lastB > Tset + self.Tdeadband and lockoffB >= 2*60.0 and Element_on_tsB == 0 :  # and Element_on_tsB == 0 
             Element_on_tsB = 1
             Eused_baseline_ts = E_cool*1.000 # kW used
             cycle_on_base += 1 #count cycles turning from off to on
@@ -230,11 +230,8 @@ class CaseModel():
             # Eused_ts = Eused_baseline_ts
             
         # # Increase loads    
-        # elif control_signal_ts  < 0 and Tair_last <= Tset - self.Tdeadband:
-            # Eused_ts = 0 #make sure it stays off
-            # Element_on_ts = 0
-    
-        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 3*60.0: #Element_on_ts = 0 requirement eliminates free rider situation  
+   
+        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 2*60.0: #Element_on_ts = 0 requirement eliminates free rider situation  
             #make sure it stays on
             Eused_ts = E_cool*1.000 #W used
             Element_on_ts = 1
@@ -300,7 +297,7 @@ class CaseModel():
         
         Tair_forecast = Tair_Cff      
 
-        if Tair_forecast >= (Tset - self.Tdeadband)-1 and Element_on_tsB == 0 and lockoffB >= 3*60.0:
+        if Tair_forecast >= (Tset - self.Tdeadband)-1 and Element_on_tsB == 0:  # and lockoffB >= 3*60.0
             isAvailable_add_ts = 1
         else:
             isAvailable_add_ts = 0
