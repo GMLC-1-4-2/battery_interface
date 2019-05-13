@@ -13,12 +13,10 @@ X = [Tair Tfood Tcase]'
 Control 
 u = [Qac_i]
 
-<<<<<<< HEAD
-=======
+
 If defrost considered, every 4 hours, turn off refrigeration part for 50 min
 For defrost in MT case, no electrical heating is needed, only need to keep the fan on 400 W.    
 
->>>>>>> d9b29628059a9b56beb7edd4ce84982173ce68d5
 @author: Jin Dong, Borui Cui, Jian Sun, Jeffrey Munk, Teja Kuruganti
 ORNL
 ""
