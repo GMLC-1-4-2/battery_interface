@@ -175,8 +175,8 @@ class PVInverterFleet(FleetInterface):
             else:
                 q_req = fleet_request.Q_req
             fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
-#        print('p req',p_req)
-#        print('p to grid',fleet_response.P_togrid)
+#        print('  Pmax = ' +repr(int(fleet_response.P_togrid_max)) + '  pgrid = ' +repr(int(fleet_response.P_togrid)) +'  Pservice = ' +repr(int(fleet_response.P_service))) 
+        
         self.write_csv(fleet_response,dt)
         return fleet_response
 
@@ -592,7 +592,7 @@ class PVInverterFleet(FleetInterface):
             
             #P_Max=P_Source_Max-P_Load
             try:
-                P_Command=P_req[indx]
+                P_Command=P_Source_Max+P_req[indx]
             except IndexError:
                 P_Command=P_Source_Max
                     
@@ -601,7 +601,7 @@ class PVInverterFleet(FleetInterface):
             except IndexError:
                 Q_Command=0
                 
-               
+#            print('P_req[indx] = '+repr(int(P_req[indx]))+' P_Source_Max = '+repr(int(P_Source_Max))+' P_Command = '+repr(int(P_Command)))   
                 
     
     
@@ -617,6 +617,8 @@ class PVInverterFleet(FleetInterface):
             else:
                 if P_Requested>P_grid_max[indx]:
                     P_Output_Traget=P_grid_max[indx]
+                elif P_Requested<0:
+                    P_Output_Traget=0
                 else:
                     P_Output_Traget=P_grid_min[indx]
                 #P_Output=P_Output_Traget
@@ -1008,6 +1010,8 @@ class PVInverterFleet(FleetInterface):
         response.sim_step=sim_step
         response.Strike_price=0
         response.SOC_cost='na'
+        
+        
         return response
 
 
