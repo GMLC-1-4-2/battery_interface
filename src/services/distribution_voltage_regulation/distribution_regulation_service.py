@@ -58,13 +58,13 @@ class DistributionVoltageService:
         #self.starttime = self.config.get(config_header, 'starttime')
         #self.endtime = self.config.get(config_header, 'endtime')
 
-        self.sim_step = timedelta(seconds=30)
+        #self.sim_step = timedelta(seconds=30)
         
 
     def request_loop(self, sensitivity_P = 0.0001, 
                      sensitivity_Q = 0.0005,
-                     starttime = parser.parse("2017-08-01 16:00:00"),
-                     endtime = parser.parse("2017-08-01 17:00:00")):
+                     start_time = parser.parse("2017-08-01 16:00:00"),
+                     end_time = parser.parse("2017-08-01 17:00:00")):
         # Sensitivity_P, Sensitivity_Q are values depending on feeder characteristics
         # We can use dummy value to conduct test
         #sensitivity_P = 0.001
@@ -73,11 +73,15 @@ class DistributionVoltageService:
         assigned_service_kVar=self._fleet.assigned_service_kW()
 
 
-        cur_time = starttime
-        end_time = endtime
+        cur_time = start_time
+        #end_time = endtime
+
         delt = self.sim_step
         volt = self.drive_cycle["voltage"]
         time  = self.drive_cycle["time"]
+        List_Time = list(time.values)
+        dts = maya.parse(start_time).datetime() - maya.parse(List_Time[0]).datetime()
+        dts = (dts).total_seconds()
         Vupper = self.Vupper
         Vlower = self.Vlower
         responses = []
@@ -85,13 +89,11 @@ class DistributionVoltageService:
         while cur_time < end_time:
             # normal operation
 
-          
-            List_Time=list(time.values)
             
             for n in range(len(list(time.values))):
 
                 dta = maya.parse(List_Time[n]).datetime()  
-                dtb = maya.parse(cur_time).datetime()  
+                dtb = maya.parse(cur_time).datetime() - timedelta(seconds = dts)
                 if dta==dtb:
                     index=n
               
@@ -161,8 +163,8 @@ class DistributionVoltageService:
         plt.legend(loc='lower right')
         
         data_folder=os.path.dirname(sys.modules['__main__'].__file__)
-        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse'  + '.png'
-        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
+        plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_FleetResponse_' + self.fleet.__class__.__name__  + '.png'
+        File_Path_fig = join(data_folder, 'integration_test','voltage_regulation',plot_filename)
 
         plt.savefig(File_Path_fig, bbox_inches='tight')
 #        File_Path_fig = os.path.join(self.base_path , 'VR_Fleet_Response.png')
@@ -173,7 +175,7 @@ class DistributionVoltageService:
         ValueProvided=[]
         ValueEfficacy=[]
  
-        CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_'  + '.csv'
+        CSV_FileName=datetime.now().strftime('%Y%m%d') + '_Voltage_Regulation_' + self.fleet.__class__.__name__ + '.csv'
 
         data_folder=os.path.dirname(sys.modules['__main__'].__file__)
         File_Path_CSV = join(data_folder, 'integration_test','Voltage_Regulation',CSV_FileName)
@@ -207,7 +209,7 @@ class DistributionVoltageService:
         axs[2].set_ylabel('%')
         plot_filename = datetime.now().strftime('%Y%m%d') + '_VoltageRegulation_ServiceMetrics'  + '.png'
         
-        File_Path_fig = join(data_folder, 'integration_test','Voltage_Regulation',plot_filename)
+        File_Path_fig = join(data_folder, 'integration_test','voltage_regulation',plot_filename)
         plt.savefig(File_Path_fig, bbox_inches='tight')
 
         
@@ -228,6 +230,8 @@ class DistributionVoltageService:
             Prequest=0.0000001
         if Qrequest==0:
             Qrequest=0.0000001
+        if isinstance(Q0, str) or Q0 == None:
+            Q0 = 0
         service_efficacy = (P0/Prequest*100 + Q0/Qrequest*100)/2 # in %
         value_provided = P0*price_P + Q0*price_Q
         value_efficacy = value_provided*100/(Prequest*price_P+Qrequest*price_Q)
