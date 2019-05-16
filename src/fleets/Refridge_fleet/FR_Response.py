@@ -10,7 +10,7 @@ Creating the Fleet Interface
 from datetime import datetime
 
 
-class ACResponse:
+class FRResponse:
     """
     This class describes 1-timestep output of a HVAC
     """
@@ -20,10 +20,8 @@ class ACResponse:
         Constructor with default values
         """
         
-        self.Tin = 0
-        self.Twall = 0
-        self.Tmass = 0
-        self.Tattic = 0
+        self.Tair = 0
+        self.Tfood = 0
         self.Tset = 0 
         self.Eused = 0 
         self.PusedMax = 0

@@ -13,6 +13,10 @@ X = [Tair Tfood Tcase]'
 Control 
 u = [Qac_i]
 
+=======
+If defrost considered, every 4 hours, turn off refrigeration part for 50 min
+For defrost in MT case, no electrical heating is needed, only need to keep the fan on 400 W.    
+
 @author: Jin Dong, Borui Cui, Jian Sun, Jeffrey Munk, Teja Kuruganti
 ORNL
 ""
@@ -88,7 +92,9 @@ class CaseModel():
                     Element_onB = 0, Element_on = 0, lockonB = 0, lockoffB = 0,  lockon = 0, lockoff = 0, cycle_off_base = 0, 
                     cycle_on_base = 0, cycle_off_grid = 0, cycle_on_grid = 0):
         # RF Characteristic Information           
-        
+
+        # , cycle_defrost = 0
+
         
         self.Rcase=0.044077
         self.Rfood=0.004614
@@ -125,6 +131,10 @@ class CaseModel():
         
         # return response
 
+
+        # , cycle_defrost
+
+
     def FRIDGE(self, Tair_lastB, Tfood_lastB, Tcase_lastB, Tair_last, Tfood_last, Tcase_last, Tset, Tamb_ts, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal_ts, 
                 timestep, Element_on_tsB, Element_on_ts, lockonB, lockoffB, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
 
@@ -141,12 +151,22 @@ class CaseModel():
         # estimate on what the maximum power usage could be
         E_cool= 1e-3*WMT(AC_RF, Tamb_ts)     # power consumpstion in kW
         Eused_baseline_ts = 0
+
+        E_fan = 0.4                          # fan power consumption during defrost
         # PusedMax_ts = 1e-3*Capacity(AC,Tamb_ts)*EIR(AC,Tamb_ts)   # max instant power (EIR or COP is changing)         
         # Element_on_ts = 0        
 
-        # Record control states          
+        # Record control states  
+        # if cycle_defrost >= 50*60:
+        #     Element_on_tsB == 0 
+        #     Eused_baseline_ts = E_fan
+        #     lockoffB += 1*ts
+        #     cycle_defrost += 1*ts
+        #     cycle_defrost_off 
+        # else:            
         # switch on
-        if Tair_lastB > Tset + self.Tdeadband and lockoffB >= 3*60.0:  # and Element_on_tsB == 0 
+        if Tair_lastB > Tset + self.Tdeadband and lockoffB >= 2*60.0 and Element_on_tsB == 0 :  # and Element_on_tsB == 0 
+
             Element_on_tsB = 1
             Eused_baseline_ts = E_cool*1.000 # kW used
             cycle_on_base += 1 #count cycles turning from off to on
@@ -154,7 +174,9 @@ class CaseModel():
             lockoffB += 1*ts
 
         # switch off
-        elif Tair_lastB <= (Tset - self.Tdeadband):
+
+        elif Tair_lastB <= (Tset - self.Tdeadband) and Element_on_tsB == 1 :
+
             Eused_baseline_tsB = 0 # kW used
             Element_on_tsB = 0
             cycle_off_base += 1  # count cycles  turning from ON to OFF
@@ -217,11 +239,10 @@ class CaseModel():
             # Eused_ts = Eused_baseline_ts
             
         # # Increase loads    
-        # elif control_signal_ts  < 0 and Tair_last <= Tset - self.Tdeadband:
-            # Eused_ts = 0 #make sure it stays off
-            # Element_on_ts = 0
-    
-        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 3*60.0: #Element_on_ts = 0 requirement eliminates free rider situation  
+
+   
+        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 2*60.0: #Element_on_ts = 0 requirement eliminates free rider situation  
+
             #make sure it stays on
             Eused_ts = E_cool*1.000 #W used
             Element_on_ts = 1
@@ -287,14 +308,26 @@ class CaseModel():
         
         Tair_forecast = Tair_Cff      
 
-        isAvailable_add_ts = 1 if Tair_forecast > (Tset - self.Tdeadband)-2 > 0 else 0 # it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
-        #  and Element_on_ts == 0
-        isAvailable_shed_ts = 1 if Tair_forecast < (Tset + self.Tdeadband)+2 > 0 else 0 # it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
-        # and Element_on_ts > 0
 
+        if Tair_forecast >= (Tset - self.Tdeadband)-1 and Element_on_tsB == 0:  # and lockoffB >= 3*60.0
+            isAvailable_add_ts = 1
+        else:
+            isAvailable_add_ts = 0
+
+        if Tair_forecast <= (Tset + self.Tdeadband)+1 and Element_on_tsB > 0:
+            isAvailable_shed_ts = 1
+        else:
+            isAvailable_shed_ts = 0
+
+        # it isn't expected that the element would already be on due to the forecast temperature being below Tset- Tdeadband but are still expected to be below Tmax
+        #  and Element_on_ts == 0
+        # it is expected that the element would already be on due to the forecast temperature being below Tset + Tdeadband but are still expected to be above Tmin
+        # and Element_on_ts > 0        
+        
         Available_Capacity_Add = isAvailable_add_ts * E_cool
         Available_Capacity_Shed = isAvailable_shed_ts * E_cool
         
+
         response = RFResponse()
     
         # Report baseline response
@@ -346,4 +379,3 @@ if __name__ == '__main__':
 #    
 #    
 #    
-
