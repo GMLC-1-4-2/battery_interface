@@ -10,7 +10,7 @@ import sys
 from os.path import dirname, abspath, join
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
 ################################################################
-
+sys.path.insert(0,'C:\\battery_interface_jmaguire\\src\\fleets\\water_heater_fleet')
 from configparser import ConfigParser
 # import datetime
 # from datetime import timedelta
@@ -26,7 +26,6 @@ from frequency_droop import FrequencyDroop
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import random
 import pandas as pd
 import scipy as sp
 import time
@@ -182,11 +181,11 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             if self.TtankInitial[x] > self.TsetInitial[x]:
                 self.TtankInitial[x] = self.TsetInitial[x]
 
-        Capacity = [random.choice(self.CapacityMasterList) for n in range(self.numWH)]
+        Capacity = [np.random.choice(self.CapacityMasterList) for n in range(self.numWH)]
 #        Capacity_fleet_ave = sum(Capacity)/self.numWH
-        self.Type = [random.choice(self.TypeMasterList) for n in range(self.numWH)]
-        Location = [random.choice(self.LocationMasterList) for n in range(self.numWH)]
-        self.MaxServiceCalls = [random.choice(self.MaxServiceCallMasterList) for n in range(self.numWH)]
+        self.Type = [np.random.choice(self.TypeMasterList) for n in range(self.numWH)]
+        Location = [np.random.choice(self.LocationMasterList) for n in range(self.numWH)]
+        self.MaxServiceCalls = [np.random.choice(self.MaxServiceCallMasterList) for n in range(self.numWH)]
         
         climate_location = 'Denver' # only allowable climate for now since the pre-run water draw profile generator has only been run for this climate
         #10 different profiles for each number of bedrooms, bedrooms can be 1-5, gives 50 different draw profiles, can shift profiles by 0-364 days,gives 365*50 = 18250 different water draw profiles for each climate
@@ -196,13 +195,16 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.hot_draw =[]
         self.mixed_draw = []
         self.draw = []
-        for a in range(self.numWH):             
+        input_param = [0] * self.numWH
+
+        for a in range(self.numWH):
             if a <= (self.MaxNumAnnualConditions-1): #if self.numWH > MaxNumAnnualConditions just start reusing older conditions to save computational time
-                numbeds = random.randint(1, 5) 
-                shift = random.randint(0, 364)
-                unit = random.randint(0, 9)
+                numbeds = np.random.randint(1, 5) 
+                shift = np.random.randint(0, 364)
+                unit = np.random.randint(0, 9)
+                input_param[a] = [a,numbeds,shift,unit]
                 (tamb, rhamb, tmains, hotdraw, mixeddraw) = get_annual_conditions(climate_location,  Location[a], shift, numbeds, unit, self.dt, self.ts)
-    #            print('tamb',tamb)
+                
         
                 self.Tamb.append(tamb)#have a Tamb for each step for each water heater being simulated 
                 self.RHamb.append(rhamb)
@@ -210,7 +212,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 self.hot_draw.append(hotdraw)
                 self.mixed_draw.append(mixeddraw)
                 self.draw.append(hotdraw + 0.3 * mixeddraw)#0.3 is so you don't need to know the exact hot/cold mixture for mixed draws, just assume 70% hot is needed for mixed
-    #            print('len Tamb',len(Tamb[0]))
+                
     
             else: #start re-using conditions
                 self.Tamb.append(self.Tamb[a % self.MaxNumAnnualConditions][:])
@@ -219,6 +221,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 self.hot_draw.append(self.hot_draw[a % self.MaxNumAnnualConditions][:])
                 self.mixed_draw.append(self.mixed_draw[a % self.MaxNumAnnualConditions][:])
                 self.draw.append(self.hot_draw[a-self.MaxNumAnnualConditions][:] + 0.3 *self. mixed_draw[a-self.MaxNumAnnualConditions][:])
+        
         # print('len Tamb',len(Tamb[0]), len(Tamb))
         # print('len hotdraw',len(hot_draw[0]), len(hot_draw))
         # print('Tamb',Tamb)
@@ -227,7 +230,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.draw_fleet_ave = draw_fleet/self.numWH  # this averages all rows, where each row is a WH, so gives the fleet average of hot draw at each step
         
         
-        self.MaxServiceCalls = [random.choice(self.MaxServiceCallMasterList) for n in range(self.numWH)]
+        self.MaxServiceCalls = [np.random.choice(self.MaxServiceCallMasterList) for n in range(self.numWH)]
         self.AvailableCapacityAdd = [0 for x in range(self.numWH)]
         self.AvailableCapacityShed = [0 for x in range(self.numWH)]
         self.ServiceCallsAccepted = [0 for x in range(self.numWH)]
@@ -341,21 +344,20 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         # run(self, P_req=[0], Q_req=[0], ts=datetime.utcnow(), del_t=timedelta(hours=1)):    
         
         # Give the code the capability to respond to None requests
-        
-        
+
         if P_req == None:
             P_req = 0
         if Q_req == None:
-            Q_req = 0      
+            Q_req = 0
         
         P_togrid = 0
         P_service = 0
         P_base = 0
         P_service_max = 0
 
-        P_request_perWH = P_req / self.numWH # this is only for the first step
+        self.P_request_perWH = P_req / self.numWH # this is only for the first step
 
-        number = 0 # run through all the devices
+        number = 0 #index for running through all the water heaters
 
         NumDevicesToCall = 0
         P_service_max0 = 0
@@ -364,30 +366,34 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
     #  check for SoC > self.minSOC and Soc < self.maxSOC
 
         for n in range(self.numWH):
-            if P_request_perWH < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
+            if self.P_request_perWH < 0 and self.IsAvailableAdd[n] > 0 and self.SOC[n] < self.maxSOC:
                 NumDevicesToCall += 1
-            elif P_request_perWH > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
+            elif self.P_request_perWH > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
                 NumDevicesToCall += 1          
     
-        P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
-
+        self.P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
+        
+        #create a .csv outputfile with each water heater's metrics
+        outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
+        self.outputfile = open(outputfilename,"w")
+        self.outputfile.write("Timestep,")
+        for n in range(self.numWH):
+            self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
+        self.outputfile.write("\n")
+        self.outputfile.write(str(ts) + ",")
         #################################      
         for wh in self.whs: #loop through all water heaters
-            #create a .csv outputfile with each water heater's metrics
-            outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
-            self.outputfile = open(outputfilename,"w")
-            self.outputfile.write("Timestep,")
+            
             if P_req <= 0 and self.IsAvailableAdd[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
 
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
             else:        
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
-            self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
-            self.outputfile.write("\n")
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
+            
             # assign returned parameters to associated lists to be recorded
             self.TtankInitial[number] = response.Ttank
             
@@ -410,6 +416,9 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             P_service += response.Eservice    
 
             P_base += response.Pbase   
+            
+            self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
+
 
             # resp.sim_step = response.sim_step       
             number += 1  # go to next device            
@@ -419,7 +428,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             else:
                 P_service_max0 += response.AvailableCapacityAdd
                 P_service_max = -1.0*P_service_max0
-
+            
+        self.outputfile.write("\n")
         self.step += 1 # To advance the step by step in the disturbance file
 
         # Output Fleet Response
@@ -516,7 +526,6 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         :return res: list of service responses
         """
         responses = []
-        SOC = self.SOC 
 
         for number in range(self.numWH): #loop through all HVACs
             TinRB = self.TinInitialB[number]
@@ -583,16 +592,14 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         Method to run baseline simulation and store power level and SOC of 
         the sub fleets.
         """
-        n_days_base = 1  # Only consider 1 day simulation, self.n_days_base
-        sim_time = 24*3600 # one day in seconds
+        self.n_days_base = 1  # Only consider 1 day simulation, self.n_days_base
+        sim_time = self.n_days_base * self.sim_step
         
         print("Running day-ahead baseline simulation ...")       
         print("Running baseline right away charging strategy ...")
-        baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min = self.run_baseline_right_away(n_days_base, sim_time)
+        baseline_soc, baseline_power, baseline_cycles, baseline_Ttank = self.run_baseline_right_away(self.n_days_base, sim_time)
                        
         print("Exported baseline soc, Temperatures, power and HVAC cycles ...")
-        
-        path = join(self.base_path,'data')
         
         # Already saved inside the right away function
         # baseline_soc.to_csv(join(path, r'SOC_baseline.csv'), index = False)
@@ -603,150 +610,25 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         print("Exported")
 
     def run_baseline_right_away(self, n_days_base, sim_time):
-        """ Method to run baseline with 1-day ahead simulation strategy """
+        #Run a baseline simulation with (P_request = None)
+        
+        #initialize df for baseline results
         baseline_power = np.zeros([sim_time, ])
         baseline_cycles = np.zeros([sim_time, ])
-        baseline_Tin = np.zeros([sim_time, ])
-        baseline_std_Tin = np.zeros([sim_time, ])
-        baseline_Tin_max = np.zeros([sim_time, ])
-        baseline_Tin_min = np.zeros([sim_time, ])
-        baseline_soc = np.zeros([sim_time, ])   
-        baseline_std_soc = np.zeros([sim_time, ]) 
-
-        EIRrated = 0.31019
-        Qrated=14600
-
-        # inputs and outputs path
-        inputs_file='./fleets/HVAC_fleet/data_file/LasVegas_HighCDD.csv'
-        bldg_file='./fleets/HVAC_fleet/data_file/normal_building_para.xlsx'
-        save_dir='./fleets/HVAC_fleet/data_file/baseline'
-
-
-        #read in weather data and increase resolution to match time step of simulation
-        inputs=pd.read_csv(inputs_file, sep=',',skipfooter=48,engine='python')
-        inputs[c.COL_DATETIME]=pd.to_datetime(inputs[c.COL_DATETIME])
-        inputs=inputs.set_index(c.COL_DATETIME)
-        inputs_ts=inputs.resample(str(self.sim_step)+'T').interpolate()
-       
-        for day in range(n_days_base):
-            print("Day %i" %(day+1))
-            
-            #initialize dataframes
-            timeB = np.array(np.arange(0,60*60*24,self.sim_step))
-            plot_timeB = np.array(np.arange(0,24,self.sim_step/3600))
-
-            Tin=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            Tmass=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            Twall=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            Tattic=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            ACstatus=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            dTin=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            dTmass=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            dTwall=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            dTattic=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            Power=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            cycles=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            SOC=pd.DataFrame(data=0,index=timeB,columns=range(0,self.numWH))
-            
-            num_homes = self.numWH            
-            
-            #Load building characteristics from file
-            df_bldg=pd.DataFrame.from_csv(bldg_file,sep=',')
-            
-            #Initialize Temperatures and assign building and AC characteristics
-            b=[0]*num_homes
-            ac=[0]*num_homes
-
-            for i in range(0,num_homes):
-                b[i]=building(df_bldg.T_in[i],df_bldg.T_mass[i],df_bldg.T_wall[i],df_bldg.T_attic[i],df_bldg.Rwall[i],df_bldg.Rattic[i],df_bldg.Rwin[i],df_bldg.SHGC[i],df_bldg.Cwall[i],df_bldg.Cin[i],df_bldg.C1[i],df_bldg.C2[i],df_bldg.C3[i],df_bldg.Cattic[i],df_bldg.Rroof[i],df_bldg.Cmass[i],df_bldg.Rmass[i],df_bldg.Sp1[i],df_bldg.Sp2[i],df_bldg.Sp3[i],df_bldg.Qrated[i],df_bldg.EIRrated[i],df_bldg.TinWB[i],df_bldg.Initial_On[i])
-                Tin.iloc[0,i]=b[i].T_in
-                Tmass.iloc[0,i]=b[i].T_mass
-                Twall.iloc[0,i]=b[i].T_wall
-                Tattic.iloc[0,i]=b[i].T_attic
-
-                ac[i]=AC(df_bldg.Qrated[i],df_bldg.EIRrated[i])
-            
-            #Main simulation loop    
-            for i in range(0,int(1440*60/self.sim_step)):
-                for j in range(0,num_homes):                    
-                    
-                    if i>0:   #initialize AC status for each timestep to prior state
-                        ACstatus.iloc[i,j]=ACstatus.iloc[i-1,j]
-                    else:     #Set AC status based on file input for first timestep
-                        ACstatus.iloc[i,j]=b[j].Initial_On
-                    if Tin.iloc[i,j]>=self.Tset+self.deadband and ACstatus.iloc[max(i-self.shortcycle_ts,0):i,j].sum()==0:  #if temp is above deadband and unit has not run in past duration corresponding to short cycle timer turn on unit
-                        ACstatus.iloc[i,j]=1.0
-                    if Tin.iloc[i,j]<=self.Tset-self.deadband:    #if temperature is below bottom deadband, turn off unit
-                        ACstatus.iloc[i,j]=0.0
-                    #count cycles
-                    if i>0 and ACstatus.iloc[i-1,j]==1.0 and ACstatus.iloc[i,j]==0.0:
-                        cycles.iloc[i,j]=1.0
-                        
-                    #calculate power use for each AC based on status
-                    Power.iloc[i,j]=ACstatus.iloc[i,j]*Capacity(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)*EIR(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)
-                    
-                    # calculate SOC for each AC
-                    SOC.iloc[i,j] = (self.Tset+self.deadband - Tin.iloc[i,j])/(2*self.deadband)
-
-                    #building model dT calculations
-                    ts = self.sim_step
-                    dTin.iloc[i,j]=ts*1.0/b[j].Cin*((Twall.iloc[i,j]-Tin.iloc[i,j])*2.0/b[j].Rwall
-                            +(Tattic.iloc[i,j]-Tin.iloc[i,j])/b[j].Rattic
-                            +(Tmass.iloc[i,j]-Tin.iloc[i,j])/b[j].Rmass+inputs_ts[c.COL_QIHL][i]*b[j].C1*b[j].Sp1
-                            +inputs_ts[c.COL_RADWIN][i]*b[j].SHGC*25.76*b[j].C3*b[j].Sp3
-                            -ACstatus.iloc[i,j]*Capacity(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)*SHR(inputs_ts[c.COL_TOUT][i],Tin.iloc[i,j],b[j].TinWB)*b[j].C2*b[j].Sp2
-                            +(inputs_ts[c.COL_TOUT][i]-Tin.iloc[i,j])/b[j].Rwin)
-                    dTmass.iloc[i,j]=ts*1.0/b[j].Cmass*((Tin.iloc[i,j]-Tmass.iloc[i,j])/b[j].Rmass
-                            +inputs_ts[c.COL_QIHL][i]*b[j].C1*(1-b[j].Sp1)
-                            +inputs_ts[c.COL_RADWIN][i]*b[j].SHGC*25.76*b[j].C3*(1-b[j].Sp3)
-                            -ACstatus.iloc[i,j]*Capacity(ac[j],inputs_ts[c.COL_TOUT][i],b[j].TinWB)*SHR(inputs_ts[c.COL_TOUT][i],Tin.iloc[i,j],b[j].TinWB)*b[j].C2*(1-b[j].Sp2))
-                    dTwall.iloc[i,j]=ts*1.0/b[j].Cwall*((inputs_ts['Tsolw'].iloc[i]-Twall.iloc[i,j])*2.0/b[j].Rwall
-                            +(Tin.iloc[i,j]-Twall.iloc[i,j])*2.0/b[j].Rwall)
-                    dTattic.iloc[i,j]=ts*1.0/b[j].Cattic*((inputs_ts['Tsolr'].iloc[i]-Tattic.iloc[i,j])/b[j].Rroof
-                                +(Tin.iloc[i,j]-Tattic.iloc[i,j])/b[j].Rattic)
-                    
-                    #calculate temperatures for next time step
-                    if i<(1440*60/ts-1):
-                        Tin.iloc[i+1,j]=Tin.iloc[i,j]+dTin.iloc[i,j]
-                        Tmass.iloc[i+1,j]=Tmass.iloc[i,j]+dTmass.iloc[i,j]
-                        Tattic.iloc[i+1,j]=Tattic.iloc[i,j]+dTattic.iloc[i,j]
-                        Twall.iloc[i+1,j]=Twall.iloc[i,j]+dTwall.iloc[i,j]
-
-            # calculate peak power and plot data
-            PeakPower=Power.sum(axis=1).max()*1.0 # plot out the peak power in kW
-            Plot_Power=np.full(len(plot_timeB),PeakPower/1000.0)
-            fig,ax = plt.subplots(2,1,figsize=(6,8),sharey='row')
-            p1=ax[0].plot(plot_timeB,Power.sum(axis=1)/1000.0,color='blue',linestyle='solid',label='Baseline')
-            ax[0].plot(plot_timeB,Plot_Power,color='black',linestyle='--',label='Targeted Power')
-            ax[0].set_ylabel('Total Power (kW)')
-            ax[1].set_ylabel('Indoor Temperature ($^\circ$C)')
-            ax[1].set_xlabel('Hour of Day')
-            p2=ax[1].plot(plot_timeB,Tin.mean(axis=1),color='blue',linestyle='solid',label='Baseline Avg')
-            p3=ax[1].plot(plot_timeB,Tin.max(axis=1),color='blue',linestyle='dotted',label='Baseline Min/Max')
-            p4=ax[1].plot(plot_timeB,Tin.min(axis=1),color='blue',linestyle='dotted',label='_nolegend_')
-            
-            # Saves baseline data to csv
-            #ToDo: needs cut the whole day simulation to compare only segment with providing grid services
-            # But, that requires the simulation steps information.
-
-            Power.to_csv(str(save_dir)+'\\Power_base'+'.csv')
-            Tin.to_csv(str(save_dir)+'\\Tin_base'+'.csv')
-            SOC.to_csv(str(save_dir)+'\\SOC_base'+'.csv')
-            cycles.to_csv(str(save_dir)+'\\Cycles_base'+'.csv')
-            
-            # return values
-            baseline_power = Power.sum(axis = 1)
-            baseline_cycles = cycles.sum(axis = 1)
-
-            baseline_soc = SOC.mean(axis = 1)
-            baseline_std_soc = SOC.std(axis = 1)
-
-            baseline_Tin = Tin.mean(axis = 1)
-            baseline_std_Tin = Tin.std(axis = 1)
-            baseline_Tin_max = Tin.max(axis=1)
-            baseline_Tin_min = Tin.min(axis=1)
-                    
-        return baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min
+        baseline_Ttank = np.zeros([sim_time, ])
+        baseline_soc = np.zeros([sim_time, ])
+        
+        #main simulation loop
+        for i in range(sim_time):
+            for j in self.numWH:
+                response = wh.execute(self.TtankInitial[j], self.TsetInitial[j], self.Tamb[j][0], self.RHamb[j][0], self.Tmains[j][0], self.draw[j][0], None, self.Type, self.dt, self.draw_fleet_ave[0])
+                self.TtankInitial[number] = response.Ttank
+                baseline_power.iloc[i,j] = response.Eused_ts
+                baseline_cycles.iloc[i,j] = response.cycles_b
+                baseline_Ttank.iloc[i,j] = response.Ttank_b
+                baseline_soc.iloc[i,j] = response.SOC_b
+                
+        return baseline_soc, baseline_power, baseline_cycles, baseline_Ttank
     
     
     def output_impact_metrics(self):   
@@ -810,7 +692,7 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
     start_hr = (start_day-1) * 24. + start_hour
     
     num_steps_per_hr = int(np.ceil((60./float(timestep_min))))# how many hourly steps do you need to take if timestep is in minutes
-    num_steps = 1 * 24 * 60 #TODO: what if someone wants to simulate longer than a month, or the simulation wraps over the end of the year?
+    num_steps = 10 * 24 * 60 #TODO: what if someone wants to simulate longer than a month, or the simulation wraps over the end of the year?
     num_hrs = int(np.ceil(float(num_steps) / float(num_steps_per_hr)))
     num_mins = int(np.ceil(float(num_steps) * float(timestep_min )))
 #        print('num_mins',num_mins)

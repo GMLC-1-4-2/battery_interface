@@ -21,8 +21,8 @@ def main():
     #Test case: Run a forecast for the day of July 26th
     #Configure the simulation to be run. Need to set the number of timesteps, start time, and the length of the timestep (in minutes)
     Steps = 24 #num steps in simulation, if greater than 1 assuming a forecast is being requested
-    Timestep = 60 #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
-    allowable_timesteps = [0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]
+    Timestep = 1 / 60. #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
+    allowable_timesteps = [1 / 60.,0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]
     if Timestep not in allowable_timesteps:
         print("Timestep must be a divisor of 60")
         return
@@ -77,7 +77,7 @@ def main():
 #        Call fleet
     
     #creating service request object
-    ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request, Steps, forecast) # ts,dt,Power[T],0.0)
+    ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request)
 
     # initializing fleet
     fleet = WaterHeaterFleet(grid,StartTime,Timestep)
@@ -90,7 +90,6 @@ def main():
         
     #for x in range(len(FleetResponse)):
     #    for y in range FleetResponse[0].AvailableCapacityAdd:
-    a=1
 ############################################################################
     #Plotting load add/shed responses
     '''

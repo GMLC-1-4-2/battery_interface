@@ -33,12 +33,13 @@ class WaterHeater():
         dT_loss = Eloss_ts*(timestep)/(3.79*self.Capacity*4810) #3.79 kg/gal of water, 4810 is J/kgK heat capacity of water, timestep units are minutes
         Edel_ts = hot_draw_ts[0] * 4180 * 3.79 * (Tlast-float(Tmains_ts[0]))
         Element_on_ts = 0
-        
+        cycles_b = 0
         if Tlast < Tset - self.Tdeadband:
             Eused_baseline_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
             dT_power_input = (Eused_baseline_ts*timestep)/(3.79*self.Capacity*4810)
             Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
+            cycles_b = 1
             if Ttank_ts > Tset:
                 Eused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep
                 Ttank_ts = Tset
@@ -97,7 +98,11 @@ class WaterHeater():
         
         dT_power_input = (Eused_ts*timestep)/(3.79*self.Capacity*4810)
         Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw
-    
+        
+        cycles = 0
+        if Eused_ts > 0 and Eused_baseline_ts == 0:
+            cycles = 1
+        
 #        Calculate more parameters to be passed up
         SOC = (Ttank_ts - self.Tmin)/(self.Tmax - self.Tmin)
         Estored = (Ttank_ts - self.Tmin) * self.Capacity * 62.4 * (1 / 7.48) / 3412.14
@@ -145,6 +150,8 @@ class WaterHeater():
         response.IsAvailableAdd = isAvailable_add_ts
         response.IsAvailableShed = isAvailable_shed_ts
         response.Pbase = Pbase
+        response.cycles = cycles
+        response.cycles_b = cycles_b
         
         return response
             
