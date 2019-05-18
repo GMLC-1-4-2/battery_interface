@@ -4,5 +4,3 @@ numpy
 scipy
 matplotlib
 pandas
-colorama
-termcolor
