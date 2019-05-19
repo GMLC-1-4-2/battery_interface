@@ -19,7 +19,9 @@ sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
 from csv import writer
+import csv
 from grid_info_artificial_inertia import GridInfo
+from utils import ensure_ddir
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
 if sys.version_info >= (3,6,7):
@@ -376,6 +378,14 @@ class ElectrolyzerFleet(FleetInterface):
             write.writerows(self.metrics)
             print("Impact metrics file has been created"+"\t"*5+" [OKAY]\n")
 
+    def output_impact_metrics(self, service_name):        
+        metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
+        ensure_ddir(metrics_dir)
+        metrics_filename = 'ImpactMetrics_' + service_name + '_Electrolyzer' + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        with open(join(metrics_dir, metrics_filename), 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(self.metrics)     
+        
     def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.1, ts=datetime.utcnow(), location=0, start_time=None):
         f = self.grid.get_frequency(ts, location, start_time)
         P_pre = -p_pre / self.ey_Pmax_fleet
