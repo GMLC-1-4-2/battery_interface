@@ -66,7 +66,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.base_path = dirname(abspath(__file__))
         
         #Input data for water heaters (probably should be moved to config.ini)
-        self.numWH = 10 #number of water heaters to be simulated to represent the entire fleet
+        self.numWH = 100 #number of water heaters to be simulated to represent the entire fleet
         self.Fleet_size_represented = max(self.numWH, 1e5)#size of the fleet that is represented by self.numWH
 #        addshedTimestep NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
         #self.MaxNumAnnualConditions = 20 #max # of annual conditions to calculate, if more WHs than this just reuse some of the conditions and water draw profiles
@@ -386,18 +386,20 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
         self.outputfile.write("\n")
         self.outputfile.write(str(ts) + ",")
-        #################################      
+        #################################  
         for wh in self.whs: #loop through all water heaters
             
-            if P_req <= 0 and self.IsAvailableAdd[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
+            if P_req < 0 and self.IsAvailableAdd[number] > 0:
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
+                P_service += response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
-                #print('P_req = {}'.format(P_req))
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
+                P_service += response.Eservice
             else:        
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
+                a=1
                 #print('P_req = {}'.format(P_req))
             # assign returned parameters to associated lists to be recorded
             self.TtankInitial[number] = response.Ttank
@@ -413,14 +415,15 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
 
             self.ServiceProvided[number] = response.Eservice
             
-            P_togrid += response.Eused
+            P_togrid -= response.Eused
 
             # resp.P_togrid_max += response.PusedMax
             # resp.P_togrid_min += response.PusedMin 
 
-            P_service += response.Eservice    
+            #P_service -= (response.Eservice - response.Eused)   
+            
 
-            P_base += response.Pbase
+            P_base -= response.Pbase
             
             self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
 
@@ -434,9 +437,6 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 P_service_max0 += response.AvailableCapacityAdd
                 P_service_max = -1.0*P_service_max0
             
-        #print('P_togrid = {}'.format(P_togrid))
-        print('P_service = {}'.format(P_service))
-        print('P_base = {}'.format(P_base))
         tempoutput.write("{},{},\n".format(P_base,P_service))
         self.outputfile.write("\n")
         self.step += 1 # To advance the step by step in the disturbance file
@@ -535,36 +535,24 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
     def forecast(self, requests):
         """
         This function repackages the list of fleet requests passed to it into the interal run function.
-        Inorder for this to be a forecast, and therfore not change the state variables of the fleet, the 
+        In order for this to be a forecast, and therfore not change the state variables of the fleet, the 
         fleets state variables are saved before calling the run function and then the states are restored
         to their initial values after the forecast simulation is complete.
         :param fleet_requests: list of fleet requests
         :return res: list of service responses
         """
         responses = []
-
+        
         for number in range(self.numWH): #loop through all HVACs
-            TinRB = self.TinInitialB[number]
-            TwallRB = self.TwallInitialB[number]
-            TmassRB = self.TmassInitialB[number]
-            TatticRB = self.TatticInitialB[number]
-            elementOnRB = self.elementOnB[number]
-
-            TinR = self.TinInitial[number]
-            TwallR = self.TwallInitial[number]
-            TmassR = self.TmassInitial[number]
-            TatticR = self.TatticInitial[number]
-
-            SOC_bR = self.SOCb[number]
-            SOCR = self.SOC[number]
-
-            elementOnR = self.elementOn[number]
-            lockonR = self.lockon[number]
-            lockoffR = self.lockoff[number]
-            cycle_offR = self.cycle_off_base[number]
-            cycle_on_baseR = self.cycle_on_base[number]
-            cycle_off_gridR = self.cycle_off_grid[number]
-            cycle_on_gridR = self.cycle_on_grid[number]
+            TtankInitial[number] = self.TtankInitial[number]
+            TsetInitial[number] = self.TsetInitial[number]
+            Tamb[number] = self.Tamb[number][0]
+            RHamb[number] = self.RHamb[number][0]
+            Tmains[number] = self.Tmains[number][0]
+            draw[number] = self.draw[number][0]
+            Type[number] = self.Type
+            draw_fleet_ave[number] = self.draw_fleet_ave[0]
+            SOC[number] = self.SOC[number]
 
         # Iterate and process each request in fleet_requests
         for req in requests:
@@ -578,28 +566,15 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                     
         # reset the model
         for number in range(self.numWH): #loop through all HVACs
-            self.SOC = SOCR 
-            self.SOCb = SOC_bR 
-
-            self.TinInitialB[number] = TinRB
-            self.TwallInitialB[number] = TwallRB
-            self.TmassInitialB[number] = TmassRB
-            self.TatticInitialB[number] = TatticRB
-
-            self.TinInitial[number] = TinR
-            self.TwallInitial[number] = TwallR
-            self.TmassInitial[number] = TmassR
-            self.TatticInitial[number] = TatticR
-
-            self.elementOn[number] = elementOnR
-            self.elementOnB[number] = elementOnRB
-
-            self.lockon[number] = lockonR
-            self.lockoff[number] = lockoffR
-            self.cycle_off_base[number] = cycle_offR
-            self.cycle_on_base[number] = cycle_on_baseR
-            self.cycle_off_grid[number] = cycle_off_gridR
-            self.cycle_on_grid[number] = cycle_on_gridR
+            self.TtankInitial[number] = TtankInitial[number]
+            self.TsetInitial[number] = TsetInitial[number]
+            self.Tamb[number][0] = Tamb[number]
+            self.RHamb[number][0] = RHamb[number]
+            self.Tmains[number][0] = Tmains[number]
+            self.draw[number][0] = draw[number]
+            self.Type = Type[number]
+            self.draw_fleet_ave[0] = draw_fleet_ave[number]
+            self.SOC[number] = SOC[number]
 
         return responses
  

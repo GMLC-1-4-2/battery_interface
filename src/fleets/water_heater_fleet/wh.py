@@ -86,12 +86,21 @@ class WaterHeater():
         #calculate energy provided as a service, >0 is load add, <0 load shed
         # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
 #        print('Available',abs(Eused_ts-Eused_baseline_ts), 'requested',control_signal_ts)
+        '''
         if abs(Eused_ts-Eused_baseline_ts) > abs(control_signal_ts): 
             Eservice_ts = control_signal_ts
             Eused_ts = control_signal_ts + Eused_baseline_ts
             Element_on_ts = control_signal_ts/(Eused_ts-Eused_baseline_ts)
         else: # assumes WH can't meet the entire request so it just does as much as it can
             Eservice_ts = Eused_ts-Eused_baseline_ts
+        '''
+        if control_signal_ts != 0:
+            Eservice_ts = control_signal_ts
+            Eused_ts = control_signal_ts + Eused_baseline_ts
+            Element_on_ts = control_signal_ts/(Eused_ts-Eused_baseline_ts)
+        else:
+            Eservice_ts = 0
+        
         #could change this at some point based on signals
         Tset_ts = Tset
         
