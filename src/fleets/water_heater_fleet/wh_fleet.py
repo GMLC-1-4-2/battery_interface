@@ -377,6 +377,11 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
         self.outputfile = open(outputfilename,"w")
         self.outputfile.write("Timestep,")
+        
+        tempoutputname = join(self.base_path,"WH_P_outputs.csv")
+        tempoutput = open(tempoutputname,"w")
+        tempoutput.write("P_base,P_service,\n")
+        
         for n in range(self.numWH):
             self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
         self.outputfile.write("\n")
@@ -387,13 +392,13 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             if P_req <= 0 and self.IsAvailableAdd[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
-
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
+                #print('P_req = {}'.format(P_req))
                 P_req =  P_req - response.Eservice
             else:        
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0])
-            
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
+                #print('P_req = {}'.format(P_req))
             # assign returned parameters to associated lists to be recorded
             self.TtankInitial[number] = response.Ttank
             
@@ -415,7 +420,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
 
             P_service += response.Eservice    
 
-            P_base += response.Pbase   
+            P_base += response.Pbase
             
             self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
 
@@ -429,6 +434,10 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 P_service_max0 += response.AvailableCapacityAdd
                 P_service_max = -1.0*P_service_max0
             
+        #print('P_togrid = {}'.format(P_togrid))
+        print('P_service = {}'.format(P_service))
+        print('P_base = {}'.format(P_base))
+        tempoutput.write("{},{},\n".format(P_base,P_service))
         self.outputfile.write("\n")
         self.step += 1 # To advance the step by step in the disturbance file
 
@@ -448,12 +457,16 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         resp.C = []
         resp.ts = ts
         resp.sim_step = dt    
+        
         # resp.P_dot_up = resp.P_togrid_max / ServiceRequest.Timestep.seconds
 
         resp.P_service_max = P_service_max
         resp.P_service = P_service
         resp.P_base = P_base
         resp.P_togrid = P_togrid
+        
+        #print("Pbase = {}".format(resp.P_base))
+        #print("Ptogrid = {}".format(resp.P_togrid))
 
         # Available Energy stored at the end of the most recent timestep
         # resp.E += response.Estored
@@ -509,7 +522,10 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.cycle_grid = np.sum(self.cycle_off_grid)
         self.cycle_grid += np.sum(self.cycle_on_grid)
         '''
-        for number in range(self.numWH-1):    
+
+       
+        
+        for number in range(self.numWH):    
             if response.Ttank<=self.TsetInitial[number] - 10 :  #assume 10F deadband (consistent with wh.py)
                 self.unmet_hours += 1*self.sim_step/3600.0
 
@@ -792,8 +808,9 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
     agghotflow = 0.0
     aggmixflow = 0.0
     nbr = n_br - 1 #go back to starting index at zero for python internal calcs
+    lineidx = 0
     for line in draw_profile_file:
-        if linenum > start_hr*60 and linenum <= start_hr*60+ num_mins: #this linenum is in min
+        if linenum > start_hr * 60 and linenum <= start_hr * 60 + num_mins: #this linenum is in min
             
             items = line.strip().split(',')
             hot_flow = 0.0
@@ -816,11 +833,12 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
                 mixed_flow += b_draw
             agghotflow += hot_flow
             aggmixflow += mixed_flow
-#                aggregate whenever the linenum is a multiple of timestep_min. Each increment in lineum represents one minute. Timestep_min is the number of minutes per timestep
+            
+#               aggregate whenever the linenum is a multiple of timestep_min. Each increment in lineum represents one minute. Timestep_min is the number of minutes per timestep
             if timestep_min >= 1: # aggregate if timesteps are >= 1 minute
                 if linenum % timestep_min == 0: 
-                    hot_draw[offset] = agghotflow
-                    mixed_draw[offset] = aggmixflow
+                    hot_draw[lineidx] = agghotflow
+                    mixed_draw[lineidx] = aggmixflow
                     agghotflow = 0
                     aggmixflow = 0
                     draw_idx += 1
@@ -833,11 +851,16 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
                 for c in range(min(steps_per_min,num_steps)): #repeat for however many steps there are in a minute 
 #                        hot_draw = np.append(hot_draw,hot_flow)
 #                        mixed_draw = np.append(mixed_draw,mixed_flow)
-                    hot_draw[offset + c] = hot_flow #assume hot_draw = 0 up until draw_idx timestep
-                    mixed_draw[offset + c] = mixed_flow
+                    hot_draw[lineidx + c] = hot_flow #assume hot_draw = 0 up until draw_idx timestep
+                    mixed_draw[lineidx + c] = mixed_flow
                     c += 1
 #                    print('len hot_draw', len(hot_draw))    
+            else:
+                hot_draw[lineidx] = agghotflow
+                mixed_draw[lineidx] = aggmixflow
+            lineidx += 1
         linenum += 1
+        
 #            if draw_idx >= steps_per_year:
 #                draw_idx = 0
     draw_profile_file.close()

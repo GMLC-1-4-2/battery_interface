@@ -62,7 +62,6 @@ class WaterHeater():
         
   ###########################################################################          
         #modify operation based on control signal 
-        #TODO: temporary code for integration testing while I figure out where to track max service calls
         max_service_calls = 100000000000
         service_calls_accepted_ts = 0
         
