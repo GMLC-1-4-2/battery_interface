@@ -16,6 +16,7 @@ import collections
 from scipy import signal
 import numpy as np
 from datetime import datetime, timedelta
+from utils import ensure_ddir
 
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
@@ -138,7 +139,8 @@ class PVInverterFleet(FleetInterface):
         self.Vnom=float(self.config.get(GridNominalCondition,'Vnom'))
         self.fnom=float(self.config.get(GridNominalCondition,'fnom'))
         
-
+        # Energy impacts of providing the grid service
+        self.energy_impacts = 0.
 
 
         # Load config info with default values if there is no such config parameter in the config file
@@ -177,16 +179,28 @@ class PVInverterFleet(FleetInterface):
             fleet_response = self.Run_Fleet(ts=ts,sim_step=dt,P_req=p_req, Q_req=q_req, return_forecast=False,WP=self.is_P_priority)
 #        print('  Pmax = ' +repr(int(fleet_response.P_togrid_max)) + '  pgrid = ' +repr(int(fleet_response.P_togrid)) +'  Pservice = ' +repr(int(fleet_response.P_service))) 
         
-        self.write_csv(fleet_response,dt)
+#        self.write_csv(fleet_response,dt)
         return fleet_response
 
     
-    def write_csv(self,fleet_response,dt):
+    def output_impact_metrics(self,service_name):
         import csv
 
-        with open('impact_metris.csv', mode='a',newline='') as impact_metris:
-            impact_metris_writer = csv.writer(impact_metris)
-            impact_metris_writer.writerow([fleet_response.ts, fleet_response.P_service*dt.total_seconds()/3600])
+
+        '''    
+        with open('impact_metrics.csv', mode='a',newline='') as impact_metrics:
+            impact_metrics_writer = csv.writer(impact_metrics)
+            impact_metrics_writer.writerow([fleet_response.ts, fleet_response.P_service*dt.total_seconds()/3600])
+        '''
+        impact_metrics_DATA = [["Impact Metrics File"]]
+        impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
+        
+        metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
+        ensure_ddir(metrics_dir)
+        metrics_filename = 'ImpactMetrics_' + service_name + '_PV' + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        with open(join(metrics_dir, metrics_filename), 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(impact_metrics_DATA)     
 
     
     def forecast(self, requests):
@@ -1011,6 +1025,7 @@ class PVInverterFleet(FleetInterface):
         response.Strike_price=0
         response.SOC_cost='na'
         
+        self.energy_impacts += abs(response.P_service)*(int(sim_step.total_seconds())/3600)
         
         return response
 

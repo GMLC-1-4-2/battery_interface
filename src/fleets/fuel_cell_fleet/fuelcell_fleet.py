@@ -19,7 +19,9 @@ sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 from csv import writer
+import csv
 from grid_info_artificial_inertia import GridInfo
+from utils import ensure_ddir
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
 if sys.version_info >= (3,6,7):
@@ -279,6 +281,14 @@ class FuelCellFleet(FleetInterface):
             write = writer(out)
             write.writerows(self.metrics)
             print("Impact metrics created has been created"+"\t"*5+" [OKAY]\n")
+
+    def output_impact_metrics(self, service_name):        
+        metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
+        ensure_ddir(metrics_dir)
+        metrics_filename = 'ImpactMetrics_' + service_name + '_FuelCell' + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        with open(join(metrics_dir, metrics_filename), 'w') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerows(self.metrics)     
 
     def assigned_service_kW(self):
         return self.fc_ser_wght*self.fleet_rating

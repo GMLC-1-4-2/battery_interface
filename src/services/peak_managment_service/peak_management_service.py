@@ -44,7 +44,7 @@ class PeakManagementService:
         self.capacity_scaling_factor = float(self.config.get(config_header, 'capacity_scaling_factor', fallback=1.0))
         self.f_reduction = float(self.config.get(config_header, 'f_reduction', fallback=0.1))
         self.drive_cycle_file = self.config.get(config_header, 'drive_cycle_file',
-                                                fallback='drive.cycle.summer.peaky.csv')
+                                                fallback='drive.cycle.summer.broad.csv')
         self.drive_cycle_file = join(self.base_path, 'data', self.drive_cycle_file)
 
         # Establish a default simulation timestep (will always be 1-hour as far as I know)...
@@ -83,7 +83,7 @@ class PeakManagementService:
         '''
         # TODO:  Initialize something to hold stats
 
-    def request_loop(self, start_time,fleet_name="PVInverterFleet"):
+    def request_loop(self, start_time, service_name, fleet_name="PVInverterFleet"):
         cycle = 24
         ndx_start = 0
         ndx_end = ndx_start + cycle
@@ -176,26 +176,36 @@ class PeakManagementService:
 
         # Plot entire analysis period results and save plot to file
         # We want the plot to cover the entire df_1h dataframe
-        plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', 'peak_management_service')
+        plot_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
         ensure_ddir(plot_dir)
         plot_filename = 'SimResults_PeakManagement_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.png'
         plt.figure(1)
         plt.figure(figsize=(15, 8))
-        plt.subplot(211)
+        plt.subplot(311)
         if not(all(pd.isnull(df_1h['Request']))):
-            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request')
+            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request', linestyle = '-')
         if not(all(pd.isnull(df_1h['Response']))):
-            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response')
-        if not(all(pd.isnull(df_1h['P_togrid']))):
-            plt.plot(df_1h.Date_Time, df_1h.P_togrid, label='P_togrid')
-        if not(all(pd.isnull(df_1h['P_base']))):
-            plt.plot(df_1h.Date_Time, df_1h.P_base, label='P_base')
+            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response', linestyle = '--')
         plt.ylabel('Power (MW)')
-        plt.legend(loc='best')
+        plt.legend()
+        
+        plt.subplot(312)
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base + df_1h.Request, label='P_base + P_Request', linestyle = '-')       
+        if not(all(pd.isnull(df_1h['P_togrid']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_togrid, label='P_togrid', linestyle = '--')
+        if not(all(pd.isnull(df_1h['P_base']))):
+            plt.plot(df_1h.Date_Time, df_1h.P_base, label='P_base', linestyle = '-.')
+        plt.ylabel('Power (MW)')
+        plt.legend()
+        
+        if 'battery' is not fleet_name.lower():
+            plt.xlabel('Time')
+        
         if 'battery' in fleet_name.lower():
             if not(all(pd.isnull(df_1h['SoC']))):
-                plt.subplot(212)
-                plt.plot(df_1h.Date_Time, df_1h.SoC, label='SoC')
+                plt.subplot(313)
+                plt.plot(df_1h.Date_Time, df_1h.SoC, label='SoC', linestyle = '-')
                 plt.ylabel('SoC (%)')
                 plt.xlabel('Time')
         plt.savefig(join(plot_dir, plot_filename), bbox_inches='tight')
@@ -203,10 +213,15 @@ class PeakManagementService:
         
         # compute and report metrics to csv
         perf_metrics = pd.DataFrame(columns=['Service_efficacy'])
-        perf_metrics['Service_efficacy'] = pd.Series(min(1,abs(df_1h.Response).sum()/abs(df_1h.Request).sum()))
+        temp_df_1h = df_1h.dropna()
+        perf_metrics['Service_efficacy'] = pd.Series(min(1,abs(temp_df_1h.Response).sum()/abs(temp_df_1h.Request).sum()))
         metrics_filename = 'Performance_PeakManagement_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
         perf_metrics.to_csv(join(plot_dir, metrics_filename) )
         
+        # report results to csv
+        results_filename = 'Results_PeakManagement_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        df_1h.to_csv(join(plot_dir, results_filename) )
+
     def process_stats(self, dh_1h):
         pass
         # TODO:  Aggregate up the fleet's performance stats and...do what?  Print them?  Write them to a file?

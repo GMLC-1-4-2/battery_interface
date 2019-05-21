@@ -45,6 +45,7 @@ import pandas as pd
 import scipy as sp
 import time
 import csv
+from utils import ensure_ddir
 
 class HVACFleet(FleetInterface):   #FleetInterface
     """
@@ -937,13 +938,16 @@ class HVACFleet(FleetInterface):   #FleetInterface
         return baseline_soc, baseline_std_soc, baseline_power, baseline_cycles, baseline_Tin, baseline_std_Tin, baseline_Tin_max, baseline_Tin_min
     
     
-    def output_impact_metrics(self):   
+    def output_impact_metrics(self, service_name):   
         impact_metrics_DATA = [["Impact Metrics File"],
                                 ["ave_Tin_base", "ave_Tin", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service", "Unmet Hours"]]
         
         impact_metrics_DATA.append([str(self.ave_TinB), str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric), str(self.SOC_metric), str(self.unmet_hours)])
 
-        with open('impact_metrics.csv', 'w') as csvfile:
+        metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
+        ensure_ddir(metrics_dir)
+        metrics_filename = 'ImpactMetrics_' + service_name + '_HVAC' + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        with open(join(metrics_dir, metrics_filename), 'w') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(impact_metrics_DATA)     
 
