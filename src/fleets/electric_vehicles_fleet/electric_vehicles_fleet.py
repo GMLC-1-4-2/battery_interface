@@ -597,9 +597,12 @@ class ElectricVehiclesFleet(FleetInterface):
 
             response.dT_hold_limit = None
             response.T_restore     = None
-    
-            response.Strike_price = None
-            response.SOC_cost     = None
+            
+            # TODO: Get SOC_cost and Strike_price API variables not constant over time
+            response.SOC_cost     = 0.2
+            # TODO: Conversion from SOC_cost to Strike_price from "Estimating a DER Device's Strike Price Corresponding..."
+            delta_t = 1
+            response.Strike_price = 0.5*(response.SOC_cost*delta_t/response.C)*response.C
             
             self.SOC = SOC_step
             self.time = t + dt

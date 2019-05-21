@@ -57,11 +57,15 @@ class EnergyMarketService(object):
         p_service_max = np.array([forecast_base[i].P_service_max for i in range(hrs)])   
         p_service_min = np.array([forecast_base[i].P_service_min for i in range(hrs)])  
         p_service = np.array([forecast_base[i].P_service for i in range(hrs)])
+        strike_price = np.array([forecast_base[i].Strike_price for i in range(hrs)])
 
         rt = np.multiply.outer(e_in*0.01, e_out*0.01)*100
         np.fill_diagonal(rt, 0)
+        
+        strike_price = (strike_price*np.ones([hrs,hrs])).T
+        print(strike_price)
  
-        return (rt, p_service_max, p_service_min, p_service)
+        return (rt, p_service_max, p_service_min, p_service, strike_price)
     
     def dispatch_algorithm(self):
         """ 
@@ -70,7 +74,7 @@ class EnergyMarketService(object):
             2. Run the dispatch algorithm to generate P_opt (optimal power profile)
             3. Return P_req = P_opt
         """
-        rt, p_service_max, p_service_min, p_service = self.get_forecast_api_variables()
+        rt, p_service_max, p_service_min, p_service, strike = self.get_forecast_api_variables()
 
         #Constants
         INF = 999999
@@ -96,7 +100,7 @@ class EnergyMarketService(object):
         charged = np.genfromtxt(join(self.base_path, 'ChargeStateOffHourly.csv'), delimiter=',')
         
         # Read price elasitity (strike price) file
-        strike = np.genfromtxt(join(self.base_path, 'StrikePriceHourly.csv'), delimiter=',')
+#        strike = np.genfromtxt(join(self.base_path, 'StrikePriceHourly.csv'), delimiter=',')
         
         # Construct profit table: profit = -price(charge) + eff(i,j)*price(discharge)
         # Fill profit matrix with NaNs
