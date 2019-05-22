@@ -74,6 +74,7 @@ class EnergyMarketService(object):
             2. Run the dispatch algorithm to generate P_opt (optimal power profile)
             3. Return P_req = P_opt
         """
+        # Needed API variables: roundtrip efficiency, p_services, strike prices
         rt, p_service_max, p_service_min, p_service, strike = self.get_forecast_api_variables()
 
         #Constants
@@ -82,10 +83,8 @@ class EnergyMarketService(object):
         nChg = 2  #Number of timesteps required to charge or discharge (< timesteps/2)
         tFull = 500 #tFull=tRestore, Time when system must have full charge 
         
-#        nChg_temp = math.floor (max (capacity/p_service_max))
-        
         # Read prices
-        price = np.genfromtxt(join(self.base_path, 'CAISOApr2016Hourly.csv'), delimiter=',')
+        self.price = np.genfromtxt(join(self.base_path, 'CAISOApr2016Hourly.csv'), delimiter=',')
 
         """
         Read round trip eff and strike for pairs of charge & discharge hours
@@ -94,32 +93,21 @@ class EnergyMarketService(object):
         elements below the diagonal are for dicharge in timestep i and charge in j
         """
         eff = rt
-        #eff = np.genfromtxt('roundtrip_efficiency_electric_vehicle.csv', delimiter = ',' )
         
         #Read charge state - for this implementation just use state at period 0
         charged = np.genfromtxt(join(self.base_path, 'ChargeStateOffHourly.csv'), delimiter=',')
         
-        # Read price elasitity (strike price) file
-#        strike = np.genfromtxt(join(self.base_path, 'StrikePriceHourly.csv'), delimiter=',')
-        
         # Construct profit table: profit = -price(charge) + eff(i,j)*price(discharge)
         # Fill profit matrix with NaNs
         profit = np.full([timesteps, timesteps], np.nan)
-        #
         """
         Profit depends upon order of charge and discharge 
         if charge period i < discharge period j it must be discharged at midnight 
         if charge period i > discharge period j it must be charged at midnight
-        """
-        
-     #   for i in range(timesteps):
-      #      xxxx = capacity/p_service_max
-                #print(i, j, profit[i,j], price[i], eff[i,j])
-    
-        
+        """      
         for i in range(timesteps):
             for j in range(timesteps):
-                profit[i,j] = -price[i] + eff[i,j]*price[j]
+                profit[i,j] = -self.price[i] + eff[i,j]*self.price[j]
                 #print(i, j, profit[i,j], price[i], eff[i,j])
         
         # Construct value table: value = profit - strike(i,j)
@@ -214,7 +202,7 @@ class EnergyMarketService(object):
                 charged[stopT] = 1
             return(chargeMax + startT, dischargeMax + startT, maxValue, charged[stopT])
             
-        plotCurve(price, 'CAISO Price Mar 2016', 'time', '$/MWh')
+        plotCurve(self.price, 'CAISO Price Mar 2016', 'time', '$/MWh')
         plotHeatMap(eff, 'Discharge time', 'Charge time', 'Round Trip efficiency (%)')
         plotHeatMap(strike, 'Discharge time', 'Charge time', 'Strike price-elasticity ($/MWh)')
         plotHeatMap(profit, 'Discharge time', 'Charge time', 'Energy arbitrage profit ($/MWh)')
@@ -302,9 +290,9 @@ class EnergyMarketService(object):
         # Return charge time (t1), discharge time (t2), and the request in kW
         return chargeMax, dischargeMax, Preq  
     
-    def request_loop(self, start_time = parser.parse("2017-01-01 00:00:00"),
+    def request_loop(self, start_time = parser.parse("2016-04-01 00:00:00"),
                      sim_step = timedelta(minutes=5),
-                     end_time = parser.parse("2017-01-01 23:59:59")):
+                     end_time = parser.parse("2016-04-01 23:59:59")):
         """
         Method to run the request generated from the dispatch algorithm to see
         how in practice this is tracked
@@ -375,13 +363,20 @@ class EnergyMarketService(object):
         plot_filename = 'SimResults_EnergyMarket_' + fleet_name + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.png'
         plt.figure(1)
         plt.figure(figsize=(15, 8))
-        plt.subplot(311)
+        ax1 = plt.subplot(311)
         if not(all(pd.isnull(df_1h['Request']))):
-            plt.plot(df_1h.Date_Time, df_1h.Request, label='P_Request', linestyle = '-')
+            l1, = ax1.plot(df_1h.Date_Time, df_1h.Request,
+                           label='P_Request', linestyle = '-')
         if not(all(pd.isnull(df_1h['Response']))):
-            plt.plot(df_1h.Date_Time, df_1h.Response, label='P_Response', linestyle = '--')
-        plt.ylabel('Power (MW)')
-        plt.legend()
+            l2, = ax1.plot(df_1h.Date_Time, df_1h.Response,
+                           label='P_Response', linestyle = '--')
+        ax1.set_ylabel('Power (MW)')
+        ax2 = ax1.twinx()
+        l3, = ax2.plot(pd.date_range(start_time, periods=24, freq = 'H').tolist(), self.price,
+                       label = 'Price ($/MWh)', linestyle = '-.', color = 'red')
+        ax2.set_ylabel('Price ($/MWh)', color='r')
+        ax2.tick_params('y', colors='r')
+        plt.legend(handles=[l1, l2, l3])
             
         plt.subplot(312)
         if not(all(pd.isnull(df_1h['P_base']))):
