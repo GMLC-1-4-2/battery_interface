@@ -51,7 +51,8 @@ def fleet_test1(fleet):
         ts.append(fleet_response.ts)
 
     # Generate the impact metrics file
-    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')))
+    # To dump all metrics, set optional parameter out_all as True. Default is False
+    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')), out_all=True)
 
     # Plot the results
     fig1, y1 = subplots(figsize=(20, 12))
@@ -116,11 +117,10 @@ def fleet_test2(fleet):
         P_service_max.append(fleet_response.P_service_max)
         P_service_min.append(fleet_response.P_service_min)
         ts.append(fleet_response.ts)
-        print("P_togrid Rx", P_togrid[len(P_togrid)-1])
-        print("P_service Rx", P_service[len(P_service) - 1])
 
     # Generate the impact metrics file
-    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')))
+    # To dump all metrics, set optional parameter out_all as True. Default is False
+    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')), out_all=True)
 
     # Plot the results
     fig1, y1 = subplots(figsize=(20, 12))
@@ -151,6 +151,6 @@ if __name__ == '__main__':
 
     grid_dat = GridInfo('Grid_Info_data_artificial_inertia.csv')
     fleet = FuelCellFleet(grid_dat, "config.ini", "FuelCell")
-    fleet_test2(fleet)
+    fleet_test1(fleet)
 
 

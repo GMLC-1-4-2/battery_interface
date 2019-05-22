@@ -13,19 +13,19 @@ from warnings import simplefilter, filterwarnings, warn
 import configparser
 from numpy import polyfit, RankWarning, trapz, log10, exp, ndarray
 from scipy.optimize import fsolve
-from pandas import read_csv
+from pandas import read_csv, DataFrame, ExcelWriter
 from matplotlib.pyplot import figure, subplot2grid
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
-from csv import writer
+from time import time
 from grid_info_artificial_inertia import GridInfo
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
-if sys.version_info >= (3,6,7):
+if sys.version_info >= (3, 6, 7):
     from pandas.plotting import register_matplotlib_converters
     register_matplotlib_converters()
-    
+
 
 class ElectrolyzerFleet(FleetInterface):
     """
@@ -35,8 +35,8 @@ class ElectrolyzerFleet(FleetInterface):
     def __init__(self, grid_info, mdl_config="config.ini", mdl_type="Electrolyzer", **kwargs):
         """
         :param GridInfo: GridInfo object derived from the GridInfo Class
-        :param mdl_config: File location for config.ini
-        :param mdl_config: Model parameters to be loaded from config.ini
+        :param mdl_type: Model parameters to be loaded from config.ini
+        :param p_req_load: Use instantaneous power request. Default is None.
         :param kwargs:
         """
 
@@ -137,6 +137,7 @@ class ElectrolyzerFleet(FleetInterface):
         self.lka_h2 = self.__Phi = self.__dmdot_dt = 0.0
         self.__eta_ch = self.__Qh2_out = 0.0
         self.__inc = 0
+        self.__metrics = []
 
         # THIS NEEDS TO BE MODFIED BASED ON FLEET P OUTPUT
         self.fleet_rating = self.ey_Ne*self.ey_E_size
@@ -171,10 +172,6 @@ class ElectrolyzerFleet(FleetInterface):
 
         # Fit the base power profile for Electrolyzer
         self.p = self.fit_pdat(self.ey_pbase, 5*60)
-
-        # Output metrics dataframe -- TO BE CHANGED TO PANDAS DF
-        self.metrics = [['ts', 'V_ideal', 'V_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age',
-                         'Lka_H2', 'nch', 'P_togrid', 'P_service', 'f']]
 
     def process_request(self, fleet_request):
         resp = self.run_ey_fleet(fleet_request.ts_req, fleet_request.sim_step,
@@ -254,16 +251,13 @@ class ElectrolyzerFleet(FleetInterface):
         resp.Q_base = 0
         resp.Strike_price = 0
         resp.SOC_cost = 0
-        resp.dmdot = self.__dmdot_dt
-        resp.moles = self.moles
-        resp.P_tank = self.P_tank
 
         # Impact metrics
         if not forecast:
-            self.metrics.append([str(ts), str(self.__V), str(self.__V_age), str(self.__ne),
-                                 str(self.__ne_age), str(resp.E), str(self.soc_age*1e2),
-                                 str(self.lka_h2), str(resp.Eff_charge), str(resp.P_togrid),
-                                 str(resp.P_service), str(self.f)])
+            self.__metrics.append({"ts": ts, "V": self.__V, "V_age": self.__V_age,
+                                   "ne_age": self.__ne_age, "SOC": resp.E, "SOC_age": self.soc_age,
+                                   "lka_h2": self.lka_h2, "Eff_charge": resp.Eff_charge,
+                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service, "f": self.f})
 
         # Print SoC status every 5 secs.
         if self.__inc % 5000 == 0:
@@ -328,22 +322,20 @@ class ElectrolyzerFleet(FleetInterface):
 
     def __soc_calc(self):
         # Storage Tank
+        # Number of moles in time i in the system of tanks
 
         # Compute hydrogen leakage from tank
         self.__Phi = self.ey_Phi_0 * exp(
             -self.ey_E_phi / (self.ey_R * 1e-3) / (self.ey_T + 273.15))  # (mol s^-1 m^-1 MPa^-0.5)
-        
         # fugacity
         f = self.P_tank * 1e-6 * exp(self.P_tank * 1e-6 * self.ey_b / (self.ey_R * 1e-3) / (self.ey_T + 273.15))
         J = self.__Phi / self.ey_len * 2 * f ** 0.5  # (g m^-2 s^-1)
-
+        #lk_H2 = J * self.ey_At  # (g/s)
         # total hydrogen lost in time t (g)
         self.lka_h2 += J * self.ey_At * 1
         self.__dmdot_dt = self.__Qh2_m - self.__Qh2_out
-        
         # Number of moles in at given instant in the system of tanks
         self.moles += self.__dmdot_dt*1
-        
         # Number of moles in at given instant in the system of tanks w/ aging and leakage
         self.moles_age += self.__Qh2_m_age * 1 - self.lka_h2 / 2 * 1
 
@@ -364,17 +356,37 @@ class ElectrolyzerFleet(FleetInterface):
         else:
             return ValueError('%s is not Boolean. Please set True/False in config.ini' % b_in)
 
-    def output_metrics2(self, filename):
+    def output_metrics(self, filename, out_all=False):
         base_path = dirname(abspath(__file__))
-        self.__metrics.to_csv(join(base_path, str(filename)+'.csv'), sep=',', encoding='utf-8')
-        print("Impact metrics file has been created" + "\t" * 5 + " [OKAY]\n")
+        __data_dump = {}
+        __strt = time()
 
-    def output_metrics(self, filename):
-        base_path = dirname(abspath(__file__))
-        with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
-            write = writer(out)
-            write.writerows(self.metrics)
-            print("Impact metrics file has been created"+"\t"*5+" [OKAY]\n")
+        def calc_stat(df):
+            return [df.max(), df.min(), df.mean()]
+
+        for i, res in enumerate(self.__metrics):
+            __data_dump[i] = {"ts": res["ts"], "V": res["V"], "V_age": res["V_age"], "ne_age": res["ne_age"],
+                              "SOC": res["SOC"], "SOC_age": res["SOC_age"], "lka_h2": res["lka_h2"],
+                              "Eff_charge": res["Eff_charge"], "P_togrid": res["P_togrid"],
+                              "P_service": res["P_service"], "f": res["f"]}
+        __df1 = DataFrame.from_dict(__data_dump, "index")
+        __df2 = DataFrame({"Stat": ['max', 'min', 'mean'],
+                           "V": calc_stat(__df1["V"]),
+                           "V_age": calc_stat(__df1["V_age"]),
+                           "ne_age": calc_stat(__df1["ne_age"]),
+                           "SOC": calc_stat(__df1["SOC"]),
+                           "SOC_age": calc_stat(__df1["SOC_age"]),
+                           "lka_h2": calc_stat(__df1["lka_h2"]),
+                           "Eff_charge": calc_stat(__df1["Eff_charge"]),
+                           "P_togrid": calc_stat(__df1["P_togrid"]),
+                           "P_service": calc_stat(__df1["P_service"]),
+                           "f": calc_stat(__df1["f"])})
+        with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
+            if out_all:
+                __df1.to_excel(__write, sheet_name='Timestamp results', index=False)
+                print(__df1.describe())
+            __df2.to_excel(__write, sheet_name='Summary', index=False)
+        print("Impact metrics file has been created in %4.2f seconds" % (time()-__strt))
 
     def frequency_watt(self, p_pre=1.0, p_avl=1.0, p_min=0.1, ts=datetime.utcnow(), location=0, start_time=None):
         f = self.grid.get_frequency(ts, location, start_time)

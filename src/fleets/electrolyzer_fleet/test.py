@@ -54,7 +54,8 @@ def fleet_test1(fleet):
         ts.append(fleet_response.ts)
 
     # Generate the impact metrics file
-    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')))
+    # To dump all metrics, set optional parameter out_all as True. Default is False
+    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')), out_all=True)
 
     # Plot the results
     fig1, y1 = subplots(figsize=(20, 12))
@@ -121,20 +122,19 @@ def fleet_test2(fleet):
         P_service_max.append(fleet_response.P_service_max)
         P_service_min.append(fleet_response.P_service_min)
         ts.append(fleet_response.ts)
-        print("P_togrid Rx", P_togrid[len(P_togrid)-1])
-        print("P_service Rx", P_service[len(P_service) - 1])
 
     # Generate the impact metrics file
-    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')))
+    # To dump all metrics, set optional parameter out_all as True. Default is False
+    fleet.output_metrics('impact_metrics_%s' % str(datetime.utcnow().strftime('%d_%b_%Y_%H_%M_%S')), out_all=True)
 
     # Plot the results
     fig1, y1 = subplots(figsize=(20, 12))
-    #p1, = y1.plot(P_service, label='service power', color='b')
+    p1, = y1.plot(P_service, label='service power', color='b')
     p2, = y1.plot(P_togrid, label='power to grid', color='k')
     y2 = y1.twinx()
     p3, = y2.plot(f, label='frequency', color='r')
     y2.set_ylabel('f (Hz)')
-    plots = [p2, p3]
+    plots = [p1, p2, p3]
     y1.set_ylabel('Power (kW)')
     y1.set_xlabel('Time (s)')
     y1.legend(plots, [l.get_label() for l in plots])

@@ -12,17 +12,17 @@ from warnings import simplefilter, filterwarnings, warn
 import configparser
 from datetime import datetime
 from numpy import polyfit, convolve, RankWarning, log, exp, ndarray
-from pandas import read_csv
+from pandas import read_csv, DataFrame, ExcelWriter
 from scipy.optimize import fsolve
 from matplotlib.pyplot import figure, subplot2grid
 sys.path.insert(0, dirname(dirname(dirname(abspath(__file__)))))
 from fleet_interface import FleetInterface
-from fleet_response  import FleetResponse
-from csv import writer
+from fleet_response import FleetResponse
+from time import time
 from grid_info_artificial_inertia import GridInfo
 simplefilter('ignore', RankWarning)
 filterwarnings("ignore", category=RuntimeWarning)
-if sys.version_info >= (3,6,7):
+if sys.version_info >= (3, 6, 7):
     from pandas.plotting import register_matplotlib_converters
     register_matplotlib_converters()
 
@@ -35,8 +35,8 @@ class FuelCellFleet(FleetInterface):
     def __init__(self, grid_info, mdl_config="config.ini", mdl_type="FuelCell", **kwargs):
         """
         :param GridInfo: GridInfo object derived from the GridInfo Class
-        :param mdl_config: File location for config.ini
-        :param mdl_config: Model parameters to be loaded from config.ini
+        :param mdl_type: Model parameters to be loaded from config.ini
+        :param p_req_load: Use instantaneous power request. Default is None.
         :param kwargs:
         """
 
@@ -101,6 +101,7 @@ class FuelCellFleet(FleetInterface):
         self.__P_pre = float(self.config.get(mdl_type, "P_pre", fallback=-1.0))
 
         # Establish the grid locations that the fuel cell fleet is connected in the grid
+        # Establish the location that the Electrolyzer fleet is connected in the grid
         if isinstance(grid_info, GridInfo):
             self.grid = grid_info
         else:
@@ -133,6 +134,7 @@ class FuelCellFleet(FleetInterface):
         self.lka_h2 = self.__Phi = 0.0
         self.__eta_ds = 0.0
         self.__inc = 0
+        self.__metrics = []
 
         self.fleet_rating = self.fc_Nfc*self.fc_size
 
@@ -175,9 +177,6 @@ class FuelCellFleet(FleetInterface):
 
         # Fit the base power profile for FuelCell
         self.p = self.fit_pdat(self.fc_pbase, 5 * 60)
-
-        # Output metrics dataframe
-        self.metrics = [['ts', 'Vr_ideal', 'Vr_age', 'ne_ideal', 'ne_age', 'Soc_ideal', 'Soc_age', 'Lka_H2', 'nds']]
 
     def process_request(self, fleet_request):
         resp = self.fc_model(fleet_request.ts_req, fleet_request.sim_step,
@@ -263,9 +262,10 @@ class FuelCellFleet(FleetInterface):
 
         # Impact metrics
         if not forecast:
-            self.metrics.append([str(ts), str(self.__Vr), str(self.__Vr_age), str(self.__ne),
-                                 str(self.__ne_age), str(self.soc_ideal * 1e2), str(self.soc_age * 1e2),
-                                 str(self.lka_h2), str(self.__eta_ds * 1e2)])
+            self.__metrics.append({"ts": ts, "Vr": self.__Vr, "Vr_age": self.__Vr_age, "ne": self.__ne,
+                                   "ne_age": self.__ne_age, "SOC": self.soc_ideal, "SOC_age": self.soc_age,
+                                   "lka_h2": self.lka_h2, "Eff_discharge": self.__eta_ds,
+                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service, "f": self.f})
 
         # Print Soc every 5 secs.
         if self.__inc % 5000 == 0:
@@ -273,12 +273,38 @@ class FuelCellFleet(FleetInterface):
 
         return resp
 
-    def output_metrics(self, filename):
+    def output_metrics(self, filename, out_all=False):
         base_path = dirname(abspath(__file__))
-        with open(join(base_path, str(filename)+'.csv'), 'w', newline='') as out:
-            write = writer(out)
-            write.writerows(self.metrics)
-            print("Impact metrics created has been created"+"\t"*5+" [OKAY]\n")
+        __data_dump = {}
+        __strt = time()
+
+        def calc_stat(df):
+            return [df.max(), df.min(), df.mean()]
+
+        for i, res in enumerate(self.__metrics):
+            __data_dump[i] = {"ts": res["ts"], "Vr": res["Vr"], "Vr_age": res["Vr_age"], "ne": res["ne"],
+                              "ne_age": res["ne_age"], "SOC": res["SOC"], "SOC_age": res["SOC_age"],
+                              "lka_h2": res["lka_h2"], "Eff_discharge": res["Eff_discharge"],
+                              "P_togrid": res["P_togrid"], "P_service": res["P_service"], "f": res["f"]}
+        __df1 = DataFrame.from_dict(__data_dump, "index")
+        __df2 = DataFrame({"Stat": ['max', 'min', 'mean'],
+                           "Vr": calc_stat(__df1["Vr"]),
+                           "Vr_age": calc_stat(__df1["Vr_age"]),
+                           "ne": calc_stat(__df1["ne"]),
+                           "ne_age": calc_stat(__df1["ne_age"]),
+                           "SOC": calc_stat(__df1["SOC"]),
+                           "SOC_age": calc_stat(__df1["SOC_age"]),
+                           "lka_h2": calc_stat(__df1["lka_h2"]),
+                           "Eff_discharge": calc_stat(__df1["Eff_discharge"]),
+                           "P_togrid": calc_stat(__df1["P_togrid"]),
+                           "P_service": calc_stat(__df1["P_service"]),
+                           "f": calc_stat(__df1["f"])})
+        with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
+            if out_all:
+                __df1.to_excel(__write, sheet_name='Timestamp results', index=False)
+                print(__df1.describe())
+            __df2.to_excel(__write, sheet_name='Summary', index=False)
+        print("Impact metrics file has been created in %4.2f seconds" % (time()-__strt))
 
     def assigned_service_kW(self):
         return self.fc_ser_wght*self.fleet_rating
@@ -375,9 +401,9 @@ class FuelCellFleet(FleetInterface):
         P_avl = p_avl / self.fc_Pmax_fleet
         P_min = p_min / self.fc_Pmax_fleet
         if f < 60 - self.fc_db_UF:
-            p_set = min(P_pre+((60-self.fc_db_UF)-f)/(60*self.fc_k_UF),P_avl)
+            p_set = min(P_pre+((60-self.fc_db_UF)-f)/(60*self.fc_k_UF),P_avl)#min(P_avl, P_pre + (60 - self.fc_db_UF - f) / (60 * self.fc_k_UF))
         elif f > 60 + self.fc_db_OF:
-            p_set = max(P_pre-(f-(60+self.fc_db_OF))/(60*self.fc_k_OF),P_min)
+            p_set = max(P_pre-(f-(60+self.fc_db_OF))/(60*self.fc_k_OF),P_min)#max(P_min, P_pre - (f - (60 + self.fc_db_OF)) / (60 * self.fc_k_OF))
         else:
             p_set = P_avl
         p_set *= self.fc_Pmax_fleet
