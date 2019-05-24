@@ -265,7 +265,8 @@ class FuelCellFleet(FleetInterface):
             self.__metrics.append({"ts": ts, "Vr": self.__Vr, "Vr_age": self.__Vr_age, "ne": self.__ne,
                                    "ne_age": self.__ne_age, "SOC": self.soc_ideal, "SOC_age": self.soc_age,
                                    "lka_h2": self.lka_h2, "Eff_discharge": self.__eta_ds,
-                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service, "f": self.f})
+                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service,
+                                   "Energy": abs(resp.P_service)*(sim_step.total_seconds()/3600), "f": self.f})
 
         # Print Soc every 5 secs.
         if self.__inc % 5000 == 0:
@@ -279,15 +280,16 @@ class FuelCellFleet(FleetInterface):
         __strt = time()
 
         def calc_stat(df):
-            return [df.max(), df.min(), df.mean()]
+            return [df.max(), df.min(), df.mean(), df.sum()]
 
         for i, res in enumerate(self.__metrics):
             __data_dump[i] = {"ts": res["ts"], "Vr": res["Vr"], "Vr_age": res["Vr_age"], "ne": res["ne"],
                               "ne_age": res["ne_age"], "SOC": res["SOC"], "SOC_age": res["SOC_age"],
                               "lka_h2": res["lka_h2"], "Eff_discharge": res["Eff_discharge"],
-                              "P_togrid": res["P_togrid"], "P_service": res["P_service"], "f": res["f"]}
+                              "P_togrid": res["P_togrid"], "P_service": res["P_service"],
+                              "Energy": res["Energy"], "f": res["f"]}
         __df1 = DataFrame.from_dict(__data_dump, "index")
-        __df2 = DataFrame({"Stat": ['max', 'min', 'mean'],
+        __df2 = DataFrame({"Stat": ['Max', 'Min', 'Mean', 'Total'],
                            "Vr": calc_stat(__df1["Vr"]),
                            "Vr_age": calc_stat(__df1["Vr_age"]),
                            "ne": calc_stat(__df1["ne"]),
@@ -298,6 +300,7 @@ class FuelCellFleet(FleetInterface):
                            "Eff_discharge": calc_stat(__df1["Eff_discharge"]),
                            "P_togrid": calc_stat(__df1["P_togrid"]),
                            "P_service": calc_stat(__df1["P_service"]),
+                           "Energy": calc_stat(__df1["Energy"]),
                            "f": calc_stat(__df1["f"])})
         with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
             if out_all:
@@ -401,9 +404,9 @@ class FuelCellFleet(FleetInterface):
         P_avl = p_avl / self.fc_Pmax_fleet
         P_min = p_min / self.fc_Pmax_fleet
         if f < 60 - self.fc_db_UF:
-            p_set = min(P_pre+((60-self.fc_db_UF)-f)/(60*self.fc_k_UF),P_avl)#min(P_avl, P_pre + (60 - self.fc_db_UF - f) / (60 * self.fc_k_UF))
+            p_set = min(P_pre+((60-self.fc_db_UF)-f)/(60*self.fc_k_UF), P_avl)
         elif f > 60 + self.fc_db_OF:
-            p_set = max(P_pre-(f-(60+self.fc_db_OF))/(60*self.fc_k_OF),P_min)#max(P_min, P_pre - (f - (60 + self.fc_db_OF)) / (60 * self.fc_k_OF))
+            p_set = max(P_pre-(f-(60+self.fc_db_OF))/(60*self.fc_k_OF), P_min)
         else:
             p_set = P_avl
         p_set *= self.fc_Pmax_fleet

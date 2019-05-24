@@ -257,7 +257,8 @@ class ElectrolyzerFleet(FleetInterface):
             self.__metrics.append({"ts": ts, "V": self.__V, "V_age": self.__V_age,
                                    "ne_age": self.__ne_age, "SOC": resp.E, "SOC_age": self.soc_age,
                                    "lka_h2": self.lka_h2, "Eff_charge": resp.Eff_charge,
-                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service, "f": self.f})
+                                   "P_togrid": resp.P_togrid, "P_service": resp.P_service,
+                                   "Energy": abs(resp.P_service) * (sim_step.total_seconds() / 3600), "f": self.f})
 
         # Print SoC status every 5 secs.
         if self.__inc % 5000 == 0:
@@ -362,15 +363,16 @@ class ElectrolyzerFleet(FleetInterface):
         __strt = time()
 
         def calc_stat(df):
-            return [df.max(), df.min(), df.mean()]
+            return [df.max(), df.min(), df.mean(), df.sum()]
 
         for i, res in enumerate(self.__metrics):
             __data_dump[i] = {"ts": res["ts"], "V": res["V"], "V_age": res["V_age"], "ne_age": res["ne_age"],
                               "SOC": res["SOC"], "SOC_age": res["SOC_age"], "lka_h2": res["lka_h2"],
                               "Eff_charge": res["Eff_charge"], "P_togrid": res["P_togrid"],
-                              "P_service": res["P_service"], "f": res["f"]}
+                              "P_service": res["P_service"],
+                              "Energy": res["Energy"], "f": res["f"]}
         __df1 = DataFrame.from_dict(__data_dump, "index")
-        __df2 = DataFrame({"Stat": ['max', 'min', 'mean'],
+        __df2 = DataFrame({"Stat": ['Max', 'Min', 'Mean', 'Total'],
                            "V": calc_stat(__df1["V"]),
                            "V_age": calc_stat(__df1["V_age"]),
                            "ne_age": calc_stat(__df1["ne_age"]),
@@ -380,6 +382,7 @@ class ElectrolyzerFleet(FleetInterface):
                            "Eff_charge": calc_stat(__df1["Eff_charge"]),
                            "P_togrid": calc_stat(__df1["P_togrid"]),
                            "P_service": calc_stat(__df1["P_service"]),
+                           "Energy": calc_stat(__df1["Energy"]),
                            "f": calc_stat(__df1["f"])})
         with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
             if out_all:
