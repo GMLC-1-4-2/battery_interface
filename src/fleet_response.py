@@ -17,13 +17,15 @@ class FleetResponse:
         """
         # Are the ts and sim_step necessary?
         self.ts = ts                        # Start of current time period
-        self.sim_step = timedelta(hours=3)  # Length of current time period (same as most recent request sim_step)
+        self.sim_step = None  # Length of current time period (same as most recent request sim_step)
 
         # Results related to the most recent request (all in units of kW or kvar, average over the recent timestep)
         self.P_togrid = None    # Previously called P_injected
         self.Q_togrid = None    # Previously called Q_injected
         self.P_service = None   # Dito
         self.Q_service = None   # Actual service being supplied in response to most recent request
+        self.P_base = None      # Baseline active power
+        self.Q_base = None      # Baseline reactive power
 
         # Constraints for the next time period
 

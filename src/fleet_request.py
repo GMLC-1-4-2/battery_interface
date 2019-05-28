@@ -8,10 +8,12 @@ from datetime import datetime, timedelta
 
 class FleetRequest:
     """
-    This class describes input fields required by fleets
+    This class describes input fields required by fleets 
     """
-
-    def __init__(self, ts=datetime.utcnow(), sim_step=timedelta(hours=1), p=None, q=None):
+    def __init__(self, ts=datetime.utcnow(),
+                 sim_step=timedelta(hours=1),
+                 start_time=None,
+                 p=None, q=None, steps=1):
         """
         Constructor
         """
@@ -20,9 +22,17 @@ class FleetRequest:
 
         # Simulation time step: timedelta object
         self.sim_step = sim_step
+        
+        # Initial timestamp in simulation loop: datetime 
+        # Used for artificial inertia service
+        self.start_time = start_time
 
         # Real power request
         self.P_req = p
 
         # Reactive power request
         self.Q_req = q
+
+        # NREL WaterHeater only: Number of steps in simulation.
+        # This value is always = 1 for the sake of not changing WaterHeater code
+        self.steps = 1
