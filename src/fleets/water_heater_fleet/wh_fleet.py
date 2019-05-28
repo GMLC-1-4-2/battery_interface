@@ -83,6 +83,10 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         # self.db_OF=float(LC.get(FW,'db_OF'))
         # self.k_UF=float(self.config.get(FrequencyWatt,'k_UF'))
         # self.k_OF=float(self.config.get(FrequencyWatt,'k_OF'))
+        
+        #Location for frequency response (doesn't necessarily correspond with WH location)
+        #TODO: sync this location with the climate zone
+        self.location = np.random.randint(0,1,self.numWH)
 
 
         # How to calculate effective fleet rating: this is going to be poorly
@@ -371,7 +375,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             elif self.P_request_perWH > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
                 NumDevicesToCall += 1          
     
-        self.P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
+        if P_req != None:
+            self.P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
         
         #create a .csv outputfile with each water heater's metrics
         outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
@@ -389,17 +394,19 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         #################################  
         for wh in self.whs: #loop through all water heaters
             
+            if P_req == None:
+                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
+                P_service = 0
             if P_req < 0 and self.IsAvailableAdd[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
-                P_service += response.Eservice
+                P_service += -response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
-                P_service += response.Eservice
+                P_service += -response.Eservice
             else:        
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
-                a=1
                 #print('P_req = {}'.format(P_req))
             # assign returned parameters to associated lists to be recorded
             self.TtankInitial[number] = response.Ttank
@@ -458,6 +465,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         resp.ts = ts
         resp.sim_step = dt    
         
+        
         # resp.P_dot_up = resp.P_togrid_max / ServiceRequest.Timestep.seconds
 
         resp.P_service_max = P_service_max
@@ -484,6 +492,9 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         resp.Q_dot_down = 'NA'
         resp.P_dot_up = 0
         resp.P_dot_down = 0
+        
+        resp.Eff_charge = 1.0 #TODO: change this if we ever use a HPWH to use the HP efficiency
+        resp.Eff_discharge = 1.0 #always equal to 1 for this device
 
         resp.P_dot = resp.P_togrid / dt
         resp.P_service_min  = 0
