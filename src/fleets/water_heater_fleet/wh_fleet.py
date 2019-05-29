@@ -9,8 +9,8 @@ creating and controlling a fleet of water heaters
 import sys
 from os.path import dirname, abspath, join
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-################################################################
 sys.path.insert(0,'C:\\battery_interface_jmaguire\\src\\fleets\\water_heater_fleet')
+################################################################
 from configparser import ConfigParser
 # import datetime
 # from datetime import timedelta
@@ -66,8 +66,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.base_path = dirname(abspath(__file__))
         
         #Input data for water heaters (probably should be moved to config.ini)
-        self.numWH = 100 #number of water heaters to be simulated to represent the entire fleet
-        self.Fleet_size_represented = max(self.numWH, 1e5)#size of the fleet that is represented by self.numWH
+        self.numWH = 500 #number of water heaters to be simulated to represent the entire fleet
 #        addshedTimestep NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
         #self.MaxNumAnnualConditions = 20 #max # of annual conditions to calculate, if more WHs than this just reuse some of the conditions and water draw profiles
 
@@ -140,6 +139,11 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.SOC_metric = metrics[5]
         # Unmet hours of the fleet
         self.unmet_hours = metrics[6]
+        
+        # P_togrid/P_baseline
+        self.ratio_P_togrid_P_base = 1.
+        # Energy impacts of providing the grid service
+        self.energy_impacts = 0.
         
                
         ########### initial tank temperatures and setpoint temperature
@@ -292,13 +296,13 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         ## Follow the example of EV
         """
         ts = fleet_request.ts_req   # starting time
-        dt = int(fleet_request.sim_step.total_seconds())   #fleet_request.sim_step  # Sim_step is how long a simulation time step
+        self.dt = int(fleet_request.sim_step.total_seconds())   #fleet_request.sim_step  # Sim_step is how long a simulation time step
         # dt in timedelta format
         p_req = fleet_request.P_req
         q_req = fleet_request.Q_req
 
         # call run function with proper inputs
-        resp = self.run(p_req, q_req, self.SOC, self.time, dt, ts)       
+        resp = self.run(p_req, q_req, self.SOC, self.time, self.dt, ts)       
 
         return resp
 
@@ -383,10 +387,6 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         self.outputfile = open(outputfilename,"w")
         self.outputfile.write("Timestep,")
         
-        tempoutputname = join(self.base_path,"WH_P_outputs.csv")
-        tempoutput = open(tempoutputname,"w")
-        tempoutput.write("P_base,P_service,\n")
-        
         for n in range(self.numWH):
             self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
         self.outputfile.write("\n")
@@ -400,11 +400,11 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             if P_req < 0 and self.IsAvailableAdd[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
-                P_service += -response.Eservice
+                P_service += response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
                 P_req =  P_req - response.Eservice
-                P_service += -response.Eservice
+                P_service += response.Eservice
             else:        
                 response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
                 #print('P_req = {}'.format(P_req))
@@ -444,7 +444,6 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 P_service_max0 += response.AvailableCapacityAdd
                 P_service_max = -1.0*P_service_max0
             
-        tempoutput.write("{},{},\n".format(P_base,P_service))
         self.outputfile.write("\n")
         self.step += 1 # To advance the step by step in the disturbance file
 
@@ -540,6 +539,9 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             if response.Ttank<=self.TsetInitial[number] - 10 :  #assume 10F deadband (consistent with wh.py)
                 self.unmet_hours += 1*self.sim_step/3600.0
 
+        self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
+        self.energy_impacts += abs(resp.P_service)*(self.sim_step/3600)
+
         return resp 
       
     #################################################   
@@ -553,17 +555,16 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         :return res: list of service responses
         """
         responses = []
-        
-        for number in range(self.numWH): #loop through all HVACs
-            TtankInitial[number] = self.TtankInitial[number]
-            TsetInitial[number] = self.TsetInitial[number]
-            Tamb[number] = self.Tamb[number][0]
-            RHamb[number] = self.RHamb[number][0]
-            Tmains[number] = self.Tmains[number][0]
-            draw[number] = self.draw[number][0]
-            Type[number] = self.Type
-            draw_fleet_ave[number] = self.draw_fleet_ave[0]
-            SOC[number] = self.SOC[number]
+        for number in range(self.numWH):
+            TtankInitial = self.TtankInitial[number]
+            TsetInitial = self.TsetInitial[number]
+            Tamb = self.Tamb[number][0]
+            RHamb= self.RHamb[number][0]
+            Tmains = self.Tmains[number][0]
+            draw = self.draw[number][0]
+            Type = self.Type
+            draw_fleet_ave = self.draw_fleet_ave[0]
+            SOC = self.SOC[number]
 
         # Iterate and process each request in fleet_requests
         for req in requests:
@@ -624,7 +625,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         for i in range(sim_time):
             for j in self.numWH:
                 response = wh.execute(self.TtankInitial[j], self.TsetInitial[j], self.Tamb[j][0], self.RHamb[j][0], self.Tmains[j][0], self.draw[j][0], None, self.Type, self.dt, self.draw_fleet_ave[0])
-                self.TtankInitial[number] = response.Ttank
+                self.TtankInitial[j] = response.Ttank
                 baseline_power.iloc[i,j] = response.Eused_ts
                 baseline_cycles.iloc[i,j] = response.cycles_b
                 baseline_Ttank.iloc[i,j] = response.Ttank_b
@@ -638,7 +639,9 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                                 ["ave_Tin_base", "ave_Tin", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service", "Unmet Hours"]]
         
         impact_metrics_DATA.append([str(self.ave_TinB), str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric), str(self.SOC_metric), str(self.unmet_hours)])
-
+        impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
+        impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
+        
         with open('impact_metrics.csv', 'w') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(impact_metrics_DATA)     
@@ -694,7 +697,7 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
     start_hr = (start_day-1) * 24. + start_hour
     
     num_steps_per_hr = int(np.ceil((60./float(timestep_min))))# how many hourly steps do you need to take if timestep is in minutes
-    num_steps = 10 * 24 * 60 #TODO: what if someone wants to simulate longer than a month, or the simulation wraps over the end of the year?
+    num_steps = 31 * 24 * 60 #TODO: what if someone wants to simulate longer than a month, or the simulation wraps over the end of the year?
     num_hrs = int(np.ceil(float(num_steps) / float(num_steps_per_hr)))
     num_mins = int(np.ceil(float(num_steps) * float(timestep_min )))
 #        print('num_mins',num_mins)
@@ -823,8 +826,8 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
 #               aggregate whenever the linenum is a multiple of timestep_min. Each increment in lineum represents one minute. Timestep_min is the number of minutes per timestep
             if timestep_min >= 1: # aggregate if timesteps are >= 1 minute
                 if linenum % timestep_min == 0: 
-                    hot_draw[lineidx] = agghotflow
-                    mixed_draw[lineidx] = aggmixflow
+                    hot_draw[lineidx] += agghotflow
+                    mixed_draw[lineidx] += aggmixflow
                     agghotflow = 0
                     aggmixflow = 0
                     draw_idx += 1

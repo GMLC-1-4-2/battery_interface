@@ -35,53 +35,54 @@ class WaterHeater():
         Element_on_ts = 0
         cycles_b = 0
         if Tlast < Tset - self.Tdeadband:
-            Eused_baseline_ts = self.E_heat*1000 #W used
+            Pused_baseline_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
-            dT_power_input = (Eused_baseline_ts*timestep)/(3.79*self.Capacity*4810)
+            dT_power_input = (Pused_baseline_ts*timestep)/(3.79*self.Capacity*4810)
             Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
             cycles_b = 1
             if Ttank_ts > Tset:
-                Eused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep
+                Pused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep
                 Ttank_ts = Tset
         elif Element_on_ts == 1 and Tlast < Tset:
-            Eused_baseline_ts = self.E_heat*1000 #W used
+            Pused_baseline_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
-            dT_power_input = (Eused_baseline_ts*timestep)/(3.79*self.Capacity*4810)
+            dT_power_input = (Pused_baseline_ts*timestep)/(3.79*self.Capacity*4810)
             Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw 
             if Ttank_ts > Tset:
-                Eused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep
+                Pused_baseline_ts = (Tset+dT_loss+dT_from_hot_draw-Tlast)*(3.79*self.Capacity*4810)/timestep
                 Ttank_ts = Tset
         else:
-            Eused_baseline_ts = 0
+            Pused_baseline_ts = 0
             Element_on_ts = 0
             dT_power_input = 0
             Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw
         
         SOC_b = (Ttank_ts - self.Tmin)/(self.Tmax - self.Tmin)
-        Pbase = Eused_baseline_ts
+        Pbase = Pused_baseline_ts
         
   ###########################################################################          
         #modify operation based on control signal 
         max_service_calls = 100000000000
         service_calls_accepted_ts = 0
+        P_request = control_signal_ts
         
-        if control_signal_ts < 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
-            Eused_ts = 0 #make sure it stays off
+        if P_request < 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            Pused_ts = 0 #make sure it stays off
             Element_on_ts = 0
             service_calls_accepted_ts += 1
-        elif control_signal_ts  < 0 and Tlast < self.Tmin:
+        elif P_request  < 0 and Tlast < self.Tmin:
             # don't change anything
-            Eused_ts = Eused_baseline_ts
-        elif control_signal_ts  > 0 and Tlast > self.Tmax:
-            Eused_ts = 0 #make sure it stays off
+            Pused_ts = Pused_baseline_ts
+        elif P_request  > 0 and Tlast > self.Tmax:
+            Pused_ts = 0 #make sure it stays off
             Element_on_ts = 0
-        elif control_signal_ts  > 0 and Tlast < self.Tmax and max_service_calls > service_calls_accepted_ts and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
+        elif P_request  > 0 and Tlast < self.Tmax and max_service_calls > service_calls_accepted_ts and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
             #make sure it stays on
-            Eused_ts = self.E_heat*1000 #W used
+            Pused_ts = self.E_heat*1000 #W used
             Element_on_ts = 1
             service_calls_accepted_ts += 1
         else:#no changes
-            Eused_ts = Eused_baseline_ts
+            Pused_ts = Pused_baseline_ts
         
         #calculate energy provided as a service, >0 is load add, <0 load shed
         # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
@@ -94,21 +95,21 @@ class WaterHeater():
         else: # assumes WH can't meet the entire request so it just does as much as it can
             Eservice_ts = Eused_ts-Eused_baseline_ts
         '''
-        if control_signal_ts != 0:
-            Eservice_ts = control_signal_ts
-            Eused_ts = control_signal_ts + Eused_baseline_ts
-            Element_on_ts = control_signal_ts/(Eused_ts-Eused_baseline_ts)
+        if P_request != 0:
+            Eservice_ts = P_request
+            Pused_ts = P_request + Pused_baseline_ts
+            Element_on_ts = P_request/(Pused_ts-Pused_baseline_ts)
         else:
             Eservice_ts = 0
         
         #could change this at some point based on signals
         Tset_ts = Tset
         
-        dT_power_input = (Eused_ts*timestep)/(3.79*self.Capacity*4810)
+        dT_power_input = (Pused_ts*timestep)/(3.79*self.Capacity*4810)
         Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw
         
         cycles = 0
-        if Eused_ts > 0 and Eused_baseline_ts == 0:
+        if Pused_ts > 0 and Pused_baseline_ts == 0:
             cycles = 1
         
 #        Calculate more parameters to be passed up
@@ -142,7 +143,7 @@ class WaterHeater():
         
         response.Ttank = Ttank_ts
         response.Tset = Tset_ts 
-        response.Eused = Eused_ts 
+        response.Eused = Pused_ts 
         response.PusedMax = PusedMax_ts
         response.PusedMin = PusedMin_ts
         response.Eloss = Eloss_ts
