@@ -4,15 +4,6 @@
 @authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov,
 Description: This class implements the FuelCell FleetInterface to integrate with a fleet of
 FuelCells
-Electrolyzers
-Changes:
-1. bool read from configparser fix ..................... done
-2. P_togrid and P_service calculations fix ............. done
-3. Pandas to store and output metrics .................. done
-4. Pbase based on a profile............................. done
-5. scale fleet to service implementation
-6. Implement interpolation function
-7. Implement GridInfo parse check func.................. done
 """
 
 import sys
