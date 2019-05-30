@@ -4,6 +4,15 @@
 @authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov,
 Description: This class implements the FuelCell FleetInterface to integrate with a fleet of
 FuelCells
+Electrolyzers
+Changes:
+1. bool read from configparser fix ..................... done
+2. P_togrid and P_service calculations fix ............. done
+3. Pandas to store and output metrics .................. done
+4. Pbase based on a profile............................. done
+5. scale fleet to service implementation
+6. Implement interpolation function
+7. Implement GridInfo parse check func.................. done
 """
 
 import sys
@@ -99,9 +108,13 @@ class FuelCellFleet(FleetInterface):
         self.fc_k_UF = float(self.config.get(mdl_type, "k_UF", fallback=0.05))
         self.fc_k_OF = float(self.config.get(mdl_type, "k_OF", fallback=0.05))
         self.__P_pre = float(self.config.get(mdl_type, "P_pre", fallback=-1.0))
+        self.__price_h2 = float(self.config.get(mdl_type, "H2_price", fallback=8))
+        self.__eff_fc = float(self.config.get(mdl_type, "FC_eff", fallback=0.7))
+        self.__h_v_h2 = float(self.config.get(mdl_type, "avg_heat_value_H2", fallback=130.92))
+
 
         # Establish the grid locations that the fuel cell fleet is connected in the grid
-        # Establish the location that the Electrolyzer fleet is connected in the grid
+        # Establish the location that the FuelCell fleet is connected in the grid
         if isinstance(grid_info, GridInfo):
             self.grid = grid_info
         else:
@@ -257,7 +270,7 @@ class FuelCellFleet(FleetInterface):
         resp.T_restore = 0
         resp.P_base = self.__p_base
         resp.Q_base = 0
-        resp.Strike_price = 0
+        resp.Strike_price = self.__sp_calc()
         resp.SOC_cost = 0
 
         # Impact metrics
@@ -321,6 +334,10 @@ class FuelCellFleet(FleetInterface):
         fb = list([x[0]-E_cell+Vact+Vohm-Vcon])
         fb.append(x[0]*x[1]-Pri)
         return fb
+
+    def __sp_calc(self):
+        """Will return the electricity production cost in $/MWh"""
+        return 3600*self.__price_h2/(self.__eff_fc * self.__h_v_h2)
 
     def __fc_p_calc(self, p_req):
         # Check for operating range of the fleet
