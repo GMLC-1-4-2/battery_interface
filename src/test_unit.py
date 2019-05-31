@@ -8,15 +8,19 @@ from fleet_factory import create_fleet
 # ======================   DEFAULT TEST PARAMETERS    =======================
 
 # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
-fleet_name = 'PV'
+fleet_name = 'HVAC'
 
 #start_time = parser.parse('8/1/17 16:00')
 #cur_time = parser.parse('8/1/17 16:00')
 #delt = timedelta(seconds=30)
 
-start_time = datetime.utcnow()
-cur_time = datetime.utcnow()
-delt = timedelta(hours=0.000277777778)
+start_time = parser.parse('2017-08-01 00:00:00')
+cur_time = parser.parse('2017-08-01 00:00:00')
+delt = timedelta(seconds=30)
+
+#start_time = datetime.utcnow()
+#cur_time = datetime.utcnow()
+#delt = timedelta(hours=0.000277777778)
 
 Prequest = 100;
 Qrequest = None;
@@ -54,6 +58,7 @@ class TestDeviceAPI(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -160,6 +165,7 @@ class TestDeviceTime(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -196,6 +202,7 @@ class TestPowers(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -234,6 +241,7 @@ class TestFleetScaling(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -261,6 +269,7 @@ class TestFreqResponse(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         kwargs['autonomous'] = 'autonomous'
 
         cur_time = start_time + timedelta(seconds= 75)
@@ -296,6 +305,7 @@ class TestForecast(unittest.TestCase):
         kwargs = {}
         kwargs['start_time'] = start_time
         kwargs['service_weight'] = 0.75
+        kwargs['sim_step'] = delt
         grid_type = 1
         fleet = create_fleet(fleet_name, grid_type, **kwargs)
         if fleet is None:
@@ -325,7 +335,7 @@ if __name__ == '__main__':
 
 #Concepts for later tests:
 # Test to see that the devices can run with a range of P_request and Q_request (particularly [positive P_Request)
-# Run to see that it can run with range of start times.
+# Run to see that it can run with range of start times (including utcnow or other times with decimal seconds - e.g. subsections).
 # Run to see that it can run with range of time-steps.
 # Check that variables such as start time created in a class set up are not used by other classes 
 # - may need to tear these down too.

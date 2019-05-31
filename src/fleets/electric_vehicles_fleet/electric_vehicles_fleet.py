@@ -22,6 +22,7 @@ from fleet_interface import FleetInterface
 from fleet_response  import FleetResponse
 from frequency_droop import FrequencyDroop
 from fleets.electric_vehicles_fleet.load_config import LoadConfig
+from utils import ensure_ddir
 
 class ElectricVehiclesFleet(FleetInterface):
     
@@ -596,9 +597,12 @@ class ElectricVehiclesFleet(FleetInterface):
 
             response.dT_hold_limit = None
             response.T_restore     = None
-    
-            response.Strike_price = None
-            response.SOC_cost     = None
+            
+            # TODO: Get SOC_cost and Strike_price API variables not constant over time
+            response.SOC_cost     = 0.2
+            # TODO: Conversion from SOC_cost to Strike_price from "Estimating a DER Device's Strike Price Corresponding..."
+            delta_t = 1
+            response.Strike_price = 0.5*(response.SOC_cost*delta_t/response.C)
             
             self.SOC = SOC_step
             self.time = t + dt
@@ -1210,7 +1214,7 @@ class ElectricVehiclesFleet(FleetInterface):
 
         return baseline_soc/(n_days_base), baseline_power/(n_days_base), baseline_std_soc/(n_days_base)
     
-    def output_impact_metrics(self): 
+    def output_impact_metrics(self, service_name): 
         """
         This function exports the impact metrics of each sub fleet
         """
@@ -1226,8 +1230,11 @@ class ElectricVehiclesFleet(FleetInterface):
         impact_metrics_DATA.append(["Total degradation cost ($):", str(total_cost)])
         impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
         impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
-
-        with open('impact_metrics.csv', 'w') as csvfile:
+        
+        metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
+        ensure_ddir(metrics_dir)
+        metrics_filename = 'ImpactMetrics_' + service_name + '_ElectricVehicles' + '_' + datetime.now().strftime('%Y%m%dT%H%M')  + '.csv'
+        with open(join(metrics_dir, metrics_filename), 'w') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerows(impact_metrics_DATA)     
     

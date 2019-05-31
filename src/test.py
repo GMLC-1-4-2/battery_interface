@@ -174,8 +174,8 @@ def integration_test(service_name, fleet_name, service_type='Traditional', **kwa
 
     elif service_name == 'PeakManagementService':
         start_time = service.drive_cycle["dt"][0]
-        service.request_loop(start_time, fleet_name=assigned_fleet_name)
-        
+        service.request_loop(start_time, service_name, fleet_name=assigned_fleet_name)
+        service.fleet.output_impact_metrics(service_name)        
     else:
         raise 'Could not recognize service with name ' + service_name
 
@@ -202,7 +202,7 @@ def dynamic_time_step(service_name, fleet_name):
         'Electrolyzer': timedelta(minutes=15),
         'FuelCell': timedelta(minutes=15),
         'HVAC': timedelta(minutes=15),
-        'Refridge': timedelta(minutes=15)
+        'Refridge': timedelta(minutes=60)
     }
 
     service_step_default = {
@@ -242,12 +242,12 @@ def dynamic_time_step(service_name, fleet_name):
 # =======================  MAIN  ==========================
 if __name__ == '__main__':
     # Full test
-    # services = ['Regulation', 'Reserve', 'ArtificialInertia' 'DistributionVoltageService']
+    # services = ['Regulation', 'Reserve', 'ArtificialInertia', 'PeakManagementService', 'DistributionVoltageService', 'EnergyMarketService']
     # fleets = ['BatteryInverter', 'ElectricVehicle', 'PV', 'WaterHeater', 'Electrolyzer', 'FuelCell', 'HVAC', 'Refridge' ]
     # kwargs = {'autonomous': True}  # This is for later use
 
     # Test configuration
-    services = ['Reserve']
+    services = ['EnergyMarketService']
     fleets = ['ElectricVehicle']
     start_time = parser.parse('2017-08-01 00:00:00')
 
