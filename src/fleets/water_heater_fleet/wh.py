@@ -96,31 +96,30 @@ class WaterHeater():
             Ttank_ts = Tlast + dT_power_input - dT_loss - dT_from_hot_draw
         
         #If there's a service request, turn the WH on or off
-        if P_request < 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
-            Pservice_ts = 0 #make sure it stays off
+        if P_request > 0 and Tlast > self.Tmin and max_service_calls > service_calls_accepted_ts and Element_on_ts == 1: #Element_on_ts = 1 requirement eliminates free rider situation
+            Pused_ts = 0 #make sure it stays off
             Element_on_ts = 0
             service_calls_accepted_ts += 1
-        elif P_request  < 0 and Tlast < self.Tmin:
+        elif P_request > 0 and Tlast < self.Tmin:
             # don't change anything
-            Pservice_ts = Pused_baseline_ts
-        elif P_request  > 0 and Tlast > self.Tmax:
-            Pservice_ts = 0 #make sure it stays off
+            Pused_ts = 0
+        elif P_request < 0 and Tlast > self.Tmax:
+            if P_request < Pused_ts:
+                Pused_ts = P_request
+            else:
+                Pused_ts = 0 #make sure it stays off
             Element_on_ts = 0
-        elif P_request  > 0 and Tlast < self.Tmax and max_service_calls > service_calls_accepted_ts and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
+        elif P_request < 0 and Tlast < self.Tmax and max_service_calls > service_calls_accepted_ts and Element_on_ts == 0: #Element_on_ts = 0 requirement eliminates free rider situation
             #make sure it stays on
             Pservice_max_ts = self.E_heat*1000 #W used
             if Pservice_max_ts > P_request:
-                Pservice_ts = P_request
+                Pused_ts = P_request
             else:
-                Pservice_ts = Pservice_max_ts
+                Pused_ts = Pservice_max_ts
             Element_on_ts = 1
             service_calls_accepted_ts += 1
             cycles = 1
-        else:
-            Pservice_ts = 0
         #Otherwise there's no change
-        
-        Pused_ts = max(Pused_ts,Pservice_ts)
         
         #calculate energy provided as a service, >0 is load add, <0 load shed
         # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
@@ -176,9 +175,6 @@ class WaterHeater():
             COP = 2.5 #this shouldn't be constant, just a placeholder for now
         else: #assumes electric resistance
             COP = 1
-            
-        if Pservice_ts > 0:
-            a = 1
             
         Texpected = Tlast - dT_from_hot_draw - dT_loss
         PusedMax_ts = (self.Tmax - Texpected)*(3.79*self.Capacity*4810)/COP/timestep # units: [W]  3.79 kg/gal of water, 4810 is J/kgK heat capacity of water

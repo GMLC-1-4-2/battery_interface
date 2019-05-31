@@ -382,7 +382,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
     
         if P_req != None:
             self.P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
-        
+            
         #create a .csv outputfile with each water heater's metrics
         #outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
         #self.outputfile = open(outputfilename,"w")
@@ -402,7 +402,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 P_req =  P_req - response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
-                P_req =  P_req - response.Eservice
+                P_req =  P_req + response.Eservice
+                print("P_req = {}".format(P_req))
             else:        
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 #print('P_req = {}'.format(P_req))
@@ -433,7 +434,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             '''
             P_togrid -= response.Eused
             P_base -= response.Pbase
-            P_service += response.Eservice  
+            P_service -= response.Eservice  
             
             #self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
 
@@ -473,8 +474,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
 
         resp.P_service_max = P_service_max
         resp.P_service = P_service
-        resp.P_base = -P_base
-        resp.P_togrid = -P_togrid
+        resp.P_base = P_base
+        resp.P_togrid = P_togrid
         #if P_service != 0:
         #    print("resp.P_base = {}".format(resp.P_base))
         #print("Pbase = {}".format(resp.P_base))
