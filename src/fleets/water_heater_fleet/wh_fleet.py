@@ -674,11 +674,11 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
 
     def output_impact_metrics(self):
         impact_metrics_DATA = [["Impact Metrics File"],
-                               [ "ave_Tin", "ave_TinB", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service",
+                               [ "ave_Tin",  "Cycle_base", "Cycle_service", "SOC_base", "SOC_service",
                                 "Unmet Hours"]]
 
         impact_metrics_DATA.append(
-            [str(self.ave_Tin), str(ave_Tinb), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric),
+            [str(self.ave_Tin),  str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric),
              str(self.SOC_metric), str(self.unmet_hours)])
         impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
         impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
