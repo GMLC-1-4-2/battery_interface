@@ -126,7 +126,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         metrics = LC.get_impact_metrics_params()
 
         # Aveage tank baseline
-        self.ave_Tin = metrics[0]
+        self.ave_Tinb = metrics[0]
         # Aveage tank temperature under grid service
         self.ave_Tin = metrics[1]
         # Cylces in baseline
@@ -417,13 +417,15 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
                                       self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0],
                                       self.element_on_last)
                 P_req = P_req - response.Eservice
+                P_service += response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
                                       self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0],
                                       self.element_on_last)
                 P_req = P_req + response.Eservice
-                print("P_req = {}".format(P_req))
+                P_service -= response.Eservice
+                #print("P_req = {}, P_service = {}, Eservice = {}".format(P_req,P_service,response.Eservice))
             else:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
@@ -457,7 +459,8 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
             '''
             P_togrid -= response.Eused
             P_base -= response.Pbase
-            P_service -= response.Eservice
+            
+            
 
             # self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
 
@@ -671,11 +674,11 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
 
     def output_impact_metrics(self):
         impact_metrics_DATA = [["Impact Metrics File"],
-                               [ "ave_Tin", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service",
+                               [ "ave_Tin", "ave_TinB", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service",
                                 "Unmet Hours"]]
 
         impact_metrics_DATA.append(
-            [str(self.ave_Tin), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric),
+            [str(self.ave_Tin), str(ave_Tinb), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric),
              str(self.SOC_metric), str(self.unmet_hours)])
         impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
         impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
