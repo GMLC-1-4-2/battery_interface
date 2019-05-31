@@ -13,15 +13,16 @@ import os
 import datetime
 import matplotlib.pyplot as plt
 from fleet_request import FleetRequest
-from WH_fleet_control import WaterHeaterFleet
+from wh_fleet import WaterHeaterFleet
+from grid_info import GridInfo
 
 def main():
     
     #Test case: Run a forecast for the day of July 26th
     #Configure the simulation to be run. Need to set the number of timesteps, start time, and the length of the timestep (in minutes)
     Steps = 24 #num steps in simulation, if greater than 1 assuming a forecast is being requested
-    Timestep = 60 #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
-    allowable_timesteps = [0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]
+    Timestep = 1 / 60. #minutes, NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
+    allowable_timesteps = [1 / 60.,0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60]
     if Timestep not in allowable_timesteps:
         print("Timestep must be a divisor of 60")
         return
@@ -45,7 +46,7 @@ def main():
     starthour = starttime % 24
     
     StartTime = datetime.datetime(2018,startmonth,startday,starthour)         
-
+    grid = GridInfo('Grid_Info_Data_2.csv')
     ########################################################################
     #generate load request signal and regulation
 #    NOTE: code is set up to deal with capacity separately from regulation, the only interface is in the capacity signal there is a single timestep
@@ -76,10 +77,10 @@ def main():
 #        Call fleet
     
     #creating service request object
-    ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request, Steps, forecast) # ts,dt,Power[T],0.0)
+    ServiceRequest = FleetRequest(StartTime, Timestep, P_request, Q_request)
 
     # initializing fleet
-    fleet = WaterHeaterFleet()
+    fleet = WaterHeaterFleet(grid,StartTime,Timestep)
     
     #calling fleet
     FleetResponse = fleet.process_request(ServiceRequest)
@@ -89,10 +90,9 @@ def main():
         
     #for x in range(len(FleetResponse)):
     #    for y in range FleetResponse[0].AvailableCapacityAdd:
-    a=1
 ############################################################################
     #Plotting load add/shed responses
-    '''
+
     for n in range(len(FleetResponse.IsAvailableAdd)):
         plt.figure(n+1)
         plt.clf()
@@ -128,6 +128,6 @@ def main():
         plt.legend()
         plt.ylim([-1,2])
     plt.show()
-    '''
+
 if __name__ == '__main__':
     main()

@@ -53,8 +53,10 @@ def create_fleet(name, grid_type=1, **kwargs):
         return fleet
 
     elif name == 'WaterHeater':
-        from fleets.water_heater_fleet.WH_fleet_control import WaterHeaterFleet
-        fleet = WaterHeaterFleet()
+        from fleets.water_heater_fleet.wh_fleet import WaterHeaterFleet
+        ts = kwargs['start_time']
+        s_step = kwargs['sim_step']
+        fleet = WaterHeaterFleet(grid, ts, s_step)
         if 'autonomous' in kwargs and kwargs['autonomous']:
            fleet.is_autonomous = True
         else:
