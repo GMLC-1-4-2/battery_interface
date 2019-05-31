@@ -9,7 +9,7 @@ creating and controlling a fleet of water heaters
 import sys
 from os.path import dirname, abspath, join
 sys.path.insert(0,dirname(dirname(dirname(abspath(__file__)))))
-sys.path.insert(0,'C:\\battery_interface_jmaguire\\src\\fleets\\water_heater_fleet')
+#sys.path.insert(0,'C:\\battery_interface_jmaguire\\src\\fleets\\water_heater_fleet')
 ################################################################
 from configparser import ConfigParser
 # import datetime
@@ -20,8 +20,9 @@ from datetime import datetime, timedelta
 from fleet_interface import FleetInterface
 from fleet_response import FleetResponse
 #from fleets.water_heater_fleet.load_config import LoadConfig
-from load_config import LoadConfig
+from fleets.water_heater_fleet.load_config import LoadConfig
 from frequency_droop import FrequencyDroop
+from fleets.water_heater_fleet.wh import WaterHeater
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -31,8 +32,6 @@ import scipy as sp
 import time
 import csv
 import os
-
-from wh import WaterHeater
 
 class WaterHeaterFleet(FleetInterface):   #FleetInterface
     """
@@ -188,6 +187,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             self.TsetInitial[x] = max(self.TsetInitial[x],110)
             if self.TtankInitial[x] > self.TsetInitial[x]:
                 self.TtankInitial[x] = self.TsetInitial[x]
+                
+        self.TtankInitial_b = self.TtankInitial
 
         Capacity = [np.random.choice(self.CapacityMasterList) for n in range(self.numWH)]
 #        Capacity_fleet_ave = sum(Capacity)/self.numWH
@@ -236,7 +237,7 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
 
         draw_fleet = sum(self.draw)# this sums all rows, where each row is a WH, so gives the fleet sum of hot draw at each step
         self.draw_fleet_ave = draw_fleet/self.numWH  # this averages all rows, where each row is a WH, so gives the fleet average of hot draw at each step
-        
+        self.element_on_last = [0 for x in range(self.numWH)]
         
         self.MaxServiceCalls = [np.random.choice(self.MaxServiceCallMasterList) for n in range(self.numWH)]
         self.AvailableCapacityAdd = [0 for x in range(self.numWH)]
@@ -383,56 +384,58 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             self.P_request_perWH =  P_req/max(NumDevicesToCall,1) #divide the fleet request by the number of devices that can be called upon
         
         #create a .csv outputfile with each water heater's metrics
-        outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
-        self.outputfile = open(outputfilename,"w")
-        self.outputfile.write("Timestep,")
+        #outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
+        #self.outputfile = open(outputfilename,"w")
+        #self.outputfile.write("Timestep,")
         
-        for n in range(self.numWH):
-            self.outputfile.write("Ttank_{},".format(n) +"Tset_{},".format(n) +"Eused_{},".format(n) +"PusedMax_{},".format(n) +"Eloss_{},".format(n) +"ElementOn_{},".format(n) +"Eservice_{},".format(n) +"SOC_{},".format(n) +"AvailableCapAdd_{},".format(n) +"AvailableCapShed_{},".format(n) +"CallsAccepted_{},".format(n) +"AvailableAdd_{},".format(n) +"AvailableShed_{},".format(n) + "Hot+MixedDrawVolume_{},".format(n) + "Edel_{},".format(n))
-        self.outputfile.write("\n")
-        self.outputfile.write(str(ts) + ",")
+        #create a .csv outputfile with P_service, P_togrid, and P_base
+        #outputfilename = join(self.base_path,"WH_fleet_outputs.csv")
+        
         #################################  
         for wh in self.whs: #loop through all water heaters
             
             if P_req == None:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 P_service = 0
             if P_req < 0 and self.IsAvailableAdd[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 P_req =  P_req - response.Eservice
-                P_service += response.Eservice
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], P_req, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 P_req =  P_req - response.Eservice
-                P_service += response.Eservice
             else:        
-                response = wh.execute(self.TtankInitial[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number], self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0], self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 #print('P_req = {}'.format(P_req))
             # assign returned parameters to associated lists to be recorded
+            self.element_on_last[number] = response.ElementOn
             self.TtankInitial[number] = response.Ttank
+            self.TtankInitial_b[number] = response.Ttank_b
             
             self.SOC[number] = response.SOC
             self.SOCb[number] = response.SOC_b
             self.IsAvailableAdd[number] = response.IsAvailableAdd
             self.IsAvailableShed[number] = response.IsAvailableShed
             
-            self.AvailableCapacityAdd[number] = response.AvailableCapacityAdd 
-            self.AvailableCapacityShed[number] = response.AvailableCapacityShed 
+            self.AvailableCapacityAdd[number] = response.AvailableCapacityAdd
+            self.AvailableCapacityShed[number] = response.AvailableCapacityShed
             self.ServiceCallsAccepted[number] = response.ServiceCallsAccepted
 
             self.ServiceProvided[number] = response.Eservice
             
+            '''
             P_togrid -= response.Eused
-
-            # resp.P_togrid_max += response.PusedMax
-            # resp.P_togrid_min += response.PusedMin 
-
-            #P_service -= (response.Eservice - response.Eused)   
-            
-
             P_base -= response.Pbase
             
-            self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
+            if P_req <0 or P_req > 0:
+                P_response = (P_togrid - P_base)
+            else:
+                P_response = 0
+            '''
+            P_togrid -= response.Eused
+            P_base -= response.Pbase
+            P_service += response.Eservice  
+            
+            #self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
 
 
             # resp.sim_step = response.sim_step       
@@ -444,7 +447,8 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
                 P_service_max0 += response.AvailableCapacityAdd
                 P_service_max = -1.0*P_service_max0
             
-        self.outputfile.write("\n")
+        #self.outputfile.write("\n")
+            
         self.step += 1 # To advance the step by step in the disturbance file
 
         # Output Fleet Response
@@ -469,9 +473,10 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
 
         resp.P_service_max = P_service_max
         resp.P_service = P_service
-        resp.P_base = P_base
-        resp.P_togrid = P_togrid
-        
+        resp.P_base = -P_base
+        resp.P_togrid = -P_togrid
+        #if P_service != 0:
+        #    print("resp.P_base = {}".format(resp.P_base))
         #print("Pbase = {}".format(resp.P_base))
         #print("Ptogrid = {}".format(resp.P_togrid))
 
@@ -539,7 +544,12 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
             if response.Ttank<=self.TsetInitial[number] - 10 :  #assume 10F deadband (consistent with wh.py)
                 self.unmet_hours += 1*self.sim_step/3600.0
 
-        self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
+        if resp.P_base == 0 and resp.P_togrid == 0:
+            self.ratio_P_togrid_P_base = 1.0
+        elif resp.P_base ==0 and resp.P_togrid != 0:
+            self.ratio_P_togrid_P_base = 'NA'
+        else:
+            self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
         self.energy_impacts += abs(resp.P_service)*(self.sim_step/3600)
 
         return resp 
@@ -624,8 +634,9 @@ class WaterHeaterFleet(FleetInterface):   #FleetInterface
         #main simulation loop
         for i in range(sim_time):
             for j in self.numWH:
-                response = wh.execute(self.TtankInitial[j], self.TsetInitial[j], self.Tamb[j][0], self.RHamb[j][0], self.Tmains[j][0], self.draw[j][0], None, self.Type, self.dt, self.draw_fleet_ave[0])
+                response = wh.execute(self.TtankInitial[j],  self.TtankInitial_b[j], self.TsetInitial[j], self.Tamb[j][0], self.RHamb[j][0], self.Tmains[j][0], self.draw[j][0], None, self.Type, self.dt, self.draw_fleet_ave[0],self.element_on_last)
                 self.TtankInitial[j] = response.Ttank
+                self.element_on_last[i,j] = response.ElementOn
                 baseline_power.iloc[i,j] = response.Eused_ts
                 baseline_cycles.iloc[i,j] = response.cycles_b
                 baseline_Ttank.iloc[i,j] = response.Ttank_b
