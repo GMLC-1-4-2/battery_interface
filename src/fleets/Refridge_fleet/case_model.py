@@ -177,7 +177,7 @@ class CaseModel():
 
         elif Tair_lastB <= (Tset - self.Tdeadband) and Element_on_tsB == 1 :
 
-            Eused_baseline_tsB = 0 # kW used
+            Eused_baseline_ts = 0 # kW used
             Element_on_tsB = 0
             cycle_off_base += 1  # count cycles  turning from ON to OFF
             lockoffB = 1*ts # start recording off period

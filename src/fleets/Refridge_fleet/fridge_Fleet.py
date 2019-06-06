@@ -157,6 +157,11 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.SOC_metric = metrics[5]
         # Unmet hours of the fleet
         self.unmet_hours = metrics[6]
+
+        # P_togrid/P_baseline
+        self.ratio_P_togrid_P_base = 1.
+        # Energy impacts of providing the grid service
+        self.energy_impacts = 0.
        
         ########### initial indoor temperatures and SoC
         self.TairInitialMean = 5.5 #deg C
@@ -203,9 +208,12 @@ class RFFleet(FleetInterface):   #FleetInterface
                   8160408, 12240162, 12240162]   # J/K 50% Normal, 30% Low-product (*0.8), 20% High-product (*1.2)
 
         #  Typical US nationwide climate locations
-        self.ClimateMasterList = ['Miami', 'Phoenix', 'Atlanta', 'Atlanta', 'Las Vegas', 'Denver',  
-                             'Denver', 'Atlanta', 'Miami', 'Minneapolis'] # 20% Miami
-        # 30% Atlanta; 20% Denver, 10% for Phoneix, Vegas and Minneapolis
+        # self.ClimateMasterList = ['Miami', 'Phoenix', 'Atlanta', 'Atlanta', 'Las Vegas', 'Denver',  
+        #                      'Denver', 'Atlanta', 'Miami', 'Minneapolis'] # 20% Miami
+        # # 30% Atlanta; 20% Denver, 10% for Phoneix, Vegas and Minneapolis
+
+        self.ClimateMasterList = ['Atlanta', 'Atlanta', 'Atlanta', 'Atlanta', 'Atlanta', 'Atlanta',  
+                             'Atlanta', 'Atlanta', 'Atlanta', 'Atlanta'] # For consistant baseline, fix to one climate
         
         self.MaxServiceCallMasterList = [30, 20, 20, 10, 15, 25, 5, 15, 30] # this is the max number of monthly service calls for load add/shed.
         
@@ -602,13 +610,17 @@ class RFFleet(FleetInterface):   #FleetInterface
         self.cycle_grid += np.sum(self.cycle_on_grid)
 
         for numberr in range(self.numRF-1):    
-            if self.TairInitial[numberr]>=self.TsetInitial[numberr] + 2:  #assume 2F, self.deadband
+            if self.TairInitial[numberr]>=self.TsetInitial[numberr] + 3:  #assume 2F, self.deadband
                 self.unmet_hours += 1*self.sim_step/3600.0
 
         self.ave_TairB = np.average(self.TairInitialB)
         self.ave_Tair = np.average(self.TairInitial)
         self.SOCb_metric = np.average(self.SOCb)
         self.SOC_metric = np.average(self.SOC)
+        self.unmet_hours = self.unmet_hours/self.numRF
+
+        self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
+        self.energy_impacts += abs(resp.P_service)*(self.sim_step/3600)
 
         return resp 
      
@@ -847,6 +859,8 @@ class RFFleet(FleetInterface):   #FleetInterface
                                 ["ave_Tair_base", "ave_Tair", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service", "Unmet Hours"]]
         
         impact_metrics_DATA.append([str(self.ave_TairB), str(self.ave_Tair), str(self.cycle_basee), str(self.cycle_grid), str(self.SOCb_metric), str(self.SOC_metric), str(self.unmet_hours)])
+        impact_metrics_DATA.append(["P_togrid/P_base ratio:", self.ratio_P_togrid_P_base])
+        impact_metrics_DATA.append(["Energy Impacts (kWh):", self.energy_impacts])
 
         metrics_dir = join(dirname(dirname(dirname(abspath(__file__)))), 'integration_test', service_name)
         ensure_ddir(metrics_dir)
