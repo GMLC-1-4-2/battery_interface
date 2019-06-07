@@ -3,7 +3,6 @@
 """
 @authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov,
 Description: This class implements the FuelCell FleetInterface to integrate with a fleet of
-FuelCells
 """
 
 import sys
@@ -99,9 +98,13 @@ class FuelCellFleet(FleetInterface):
         self.fc_k_UF = float(self.config.get(mdl_type, "k_UF", fallback=0.05))
         self.fc_k_OF = float(self.config.get(mdl_type, "k_OF", fallback=0.05))
         self.__P_pre = float(self.config.get(mdl_type, "P_pre", fallback=-1.0))
+        self.__price_h2 = float(self.config.get(mdl_type, "H2_price", fallback=8))
+        self.__eff_fc = float(self.config.get(mdl_type, "FC_eff", fallback=0.7))
+        self.__h_v_h2 = float(self.config.get(mdl_type, "avg_heat_value_H2", fallback=130.92))
+
 
         # Establish the grid locations that the fuel cell fleet is connected in the grid
-        # Establish the location that the Electrolyzer fleet is connected in the grid
+        # Establish the location that the FuelCell fleet is connected in the grid
         if isinstance(grid_info, GridInfo):
             self.grid = grid_info
         else:
@@ -257,12 +260,12 @@ class FuelCellFleet(FleetInterface):
         resp.T_restore = 0
         resp.P_base = self.__p_base
         resp.Q_base = 0
-        resp.Strike_price = 0
+        resp.Strike_price = self.__sp_calc()
         resp.SOC_cost = 0
 
         # Impact metrics
         if not forecast:
-            self.__metrics.append({"ts": ts, "Vr": self.__Vr, "Vr_age": self.__Vr_age, "ne": self.__ne,
+            self.__metrics.append({"ts": ts, "ne": self.__ne,
                                    "ne_age": self.__ne_age, "SOC": self.soc_ideal, "SOC_age": self.soc_age,
                                    "lka_h2": self.lka_h2, "Eff_discharge": self.__eta_ds,
                                    "P_togrid": resp.P_togrid, "P_service": resp.P_service,
@@ -279,29 +282,31 @@ class FuelCellFleet(FleetInterface):
         __data_dump = {}
         __strt = time()
 
-        def calc_stat(df):
-            return [df.max(), df.min(), df.mean(), df.sum()]
+        def calc_stat(df, return_sum=False):
+            if return_sum:
+                __r = [df.max(), df.min(), df.mean(), df.sum()]
+            else:
+                __r = [df.max(), df.min(), df.mean(), None]
+            return __r
 
         for i, res in enumerate(self.__metrics):
-            __data_dump[i] = {"ts": res["ts"], "Vr": res["Vr"], "Vr_age": res["Vr_age"], "ne": res["ne"],
+            __data_dump[i] = {"ts": res["ts"], "ne": res["ne"],
                               "ne_age": res["ne_age"], "SOC": res["SOC"], "SOC_age": res["SOC_age"],
                               "lka_h2": res["lka_h2"], "Eff_discharge": res["Eff_discharge"],
                               "P_togrid": res["P_togrid"], "P_service": res["P_service"],
                               "Energy": res["Energy"], "f": res["f"]}
         __df1 = DataFrame.from_dict(__data_dump, "index")
         __df2 = DataFrame({"Stat": ['Max', 'Min', 'Mean', 'Total'],
-                           "Vr": calc_stat(__df1["Vr"]),
-                           "Vr_age": calc_stat(__df1["Vr_age"]),
                            "ne": calc_stat(__df1["ne"]),
                            "ne_age": calc_stat(__df1["ne_age"]),
                            "SOC": calc_stat(__df1["SOC"]),
                            "SOC_age": calc_stat(__df1["SOC_age"]),
                            "lka_h2": calc_stat(__df1["lka_h2"]),
                            "Eff_discharge": calc_stat(__df1["Eff_discharge"]),
-                           "P_togrid": calc_stat(__df1["P_togrid"]),
-                           "P_service": calc_stat(__df1["P_service"]),
-                           "Energy": calc_stat(__df1["Energy"]),
-                           "f": calc_stat(__df1["f"])})
+                           "P_togrid (kW)": calc_stat(__df1["P_togrid"]),
+                           "P_service (kW)": calc_stat(__df1["P_service"]),
+                           "Energy": calc_stat(__df1["Energy"], True),
+                           "f (Hz)": calc_stat(__df1["f"])})
         with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
             if out_all:
                 __df1.to_excel(__write, sheet_name='Timestamp results', index=False)
@@ -321,6 +326,10 @@ class FuelCellFleet(FleetInterface):
         fb = list([x[0]-E_cell+Vact+Vohm-Vcon])
         fb.append(x[0]*x[1]-Pri)
         return fb
+
+    def __sp_calc(self):
+        """Will return the electricity production cost in $/MWh"""
+        return 3600*self.__price_h2/(self.__eff_fc * self.__h_v_h2)
 
     def __fc_p_calc(self, p_req):
         # Check for operating range of the fleet

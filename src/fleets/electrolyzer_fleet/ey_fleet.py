@@ -3,7 +3,6 @@
 """
 @authors: rahul.kadavil@inl.gov, julian.ramirez@inl.gov, smshafiul.alam@inl.gov
 Description: This class implements the Electrolyzer FleetInterface to integrate with a fleet of
-Electrolyzers
 """
 
 import sys
@@ -254,7 +253,7 @@ class ElectrolyzerFleet(FleetInterface):
 
         # Impact metrics
         if not forecast:
-            self.__metrics.append({"ts": ts, "V": self.__V, "V_age": self.__V_age,
+            self.__metrics.append({"ts": ts, "ne": self.__ne,
                                    "ne_age": self.__ne_age, "SOC": resp.E, "SOC_age": self.soc_age,
                                    "lka_h2": self.lka_h2, "Eff_charge": resp.Eff_charge,
                                    "P_togrid": resp.P_togrid, "P_service": resp.P_service,
@@ -362,28 +361,31 @@ class ElectrolyzerFleet(FleetInterface):
         __data_dump = {}
         __strt = time()
 
-        def calc_stat(df):
-            return [df.max(), df.min(), df.mean(), df.sum()]
+        def calc_stat(df, return_sum=False):
+            if return_sum:
+                __r = [df.max(), df.min(), df.mean(), df.sum()]
+            else:
+                __r = [df.max(), df.min(), df.mean(), None]
+            return __r
 
         for i, res in enumerate(self.__metrics):
-            __data_dump[i] = {"ts": res["ts"], "V": res["V"], "V_age": res["V_age"], "ne_age": res["ne_age"],
+            __data_dump[i] = {"ts": res["ts"], "ne": res["ne"], "ne_age": res["ne_age"],
                               "SOC": res["SOC"], "SOC_age": res["SOC_age"], "lka_h2": res["lka_h2"],
                               "Eff_charge": res["Eff_charge"], "P_togrid": res["P_togrid"],
                               "P_service": res["P_service"],
                               "Energy": res["Energy"], "f": res["f"]}
         __df1 = DataFrame.from_dict(__data_dump, "index")
         __df2 = DataFrame({"Stat": ['Max', 'Min', 'Mean', 'Total'],
-                           "V": calc_stat(__df1["V"]),
-                           "V_age": calc_stat(__df1["V_age"]),
+                           "ne": calc_stat(__df1["ne"]),
                            "ne_age": calc_stat(__df1["ne_age"]),
                            "SOC": calc_stat(__df1["SOC"]),
                            "SOC_age": calc_stat(__df1["SOC_age"]),
                            "lka_h2": calc_stat(__df1["lka_h2"]),
                            "Eff_charge": calc_stat(__df1["Eff_charge"]),
-                           "P_togrid": calc_stat(__df1["P_togrid"]),
-                           "P_service": calc_stat(__df1["P_service"]),
-                           "Energy": calc_stat(__df1["Energy"]),
-                           "f": calc_stat(__df1["f"])})
+                           "P_togrid (kW)": calc_stat(__df1["P_togrid"]),
+                           "P_service (kW)": calc_stat(__df1["P_service"]),
+                           "Energy": calc_stat(__df1["Energy"], True),
+                           "f (Hz)": calc_stat(__df1["f"])})
         with ExcelWriter(join(base_path, str(filename)+'.xlsx')) as __write:
             if out_all:
                 __df1.to_excel(__write, sheet_name='Timestamp results', index=False)
