@@ -6,6 +6,22 @@ This overarching goal of this project is to enable and spur the deployment of a 
 
 Implementation of Device Models and their Battery Equivalent Interface
 
+
+## List of fully functional code:
+
+A list of all the devices and services which classes are fully functional is shown in the following table:
+
+|            Device\Service            | Peak Load Management | Autonomous Frequency Response | Capacity Market Dispatch | Traditional Frequency Regulation | Spinning Reserve | Dynamic Frequency Regulation | Autonomous Distribution Voltage Response | Wholesale Market Price Response |
+|:------------------------------------:|:--------------------:|:-----------------------------:|:------------------------:|:--------------------------------:|:----------------:|:----------------------------:|:----------------------------------------:|:-------------------------------:|
+|           **Water Heaters**          |       &#x2611;       |            &#x2611;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2611;                 |          *Needs update*         |
+|           **PV Inverters**           |   *Trivial result*   |            &#x2611;           |         &#x2612;         |             &#x2611;             | *Trivial result* |           &#x2611;           |                 &#x2611;                 |         *Trivial result*        |
+|         **Battery Inverters**        |    *Needs update*    |         *Needs update*        |         &#x2612;         |          *Needs update*          |  *Needs update*  |        *Needs update*        |              *Needs update*              |          *Needs update*         |
+|         **Electric Vehicles**        |       &#x2611;       |            &#x2611;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2611;                 |             &#x2611;            |
+|            **Fuel Cells**            |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
+|           **Electrolyzers**          |       &#x2611;       |            &#x2611;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2611;                 |             &#x2611;            |
+|         **Air Conditioners**         |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
+| **Commercial Refrigeration Systems** |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
+
 ## How to contribute
 
 - On Github, “fork” the GMLC-1-4-2 repository to one of your own (if your github registration name is ‘jeff’, you’d fork GMLC-1-4-2/battery_interface to jeff/battery_interface).
