@@ -20,7 +20,7 @@ A list of all the devices and services which classes are fully functional is sho
 |            **Fuel Cells**            |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
 |           **Electrolyzers**          |       &#x2611;       |            &#x2611;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2611;                 |             &#x2611;            |
 |         **Air Conditioners**         |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
-| **Commercial Refrigeration Systems** |       &#x2611;       |            &#9746;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
+| **Commercial Refrigeration Systems** |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
 
 ## How to contribute
 
