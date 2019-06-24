@@ -1,7 +1,10 @@
+# GMLC 1.4.2. Definitions, Standards and Test Procedures for Grid Services from Devices
+
+This overarching goal of this project is to enable and spur the deployment of a broad range of distributed energy resource (DER) devices with the ability to provide much of the flexibility required for operating a clean and reliable power grid at reasonable cost. The required flexibility, expressed in the form of a growing number of increasingly valuable services at the bulk system and local distribution levels, is largely embodied in grid services that are provided by power plants and substations today. However, it is also increasingly reflected in wholesale market products or utility programs in which DERs participate. The project’s objectives address the primary barriers that limit the ability of grid operational and planning tools to assess the ability of such devices to provide these services, at scale, in the future power grid.
+
 ## Battery Interface
 
 Implementation of Device Models and their Battery Equivalent Interface
-
 
 ## How to contribute
 
