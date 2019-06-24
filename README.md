@@ -7,7 +7,7 @@ This overarching goal of this project is to enable and spur the deployment of a 
 Implementation of Device Models and their Battery Equivalent Interface
 
 
-## List of fully functional code:
+## List of fully functional code
 
 A list of all the devices and services which classes are fully functional is shown in the following table:
 
