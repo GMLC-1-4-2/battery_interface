@@ -22,6 +22,12 @@ A list of all the devices and services which classes are fully functional is sho
 |         **Air Conditioners**         |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
 | **Commercial Refrigeration Systems** |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
 
+
+## List of contributors
+### Grid services
+1. [Peak Load Management](src/services/peak_managment_service)
+
+
 ## How to contribute
 
 - On Github, “fork” the GMLC-1-4-2 repository to one of your own (if your github registration name is ‘jeff’, you’d fork GMLC-1-4-2/battery_interface to jeff/battery_interface).
@@ -113,4 +119,6 @@ Notes: If you don't want to use command line (CLI), I suggest to use Sourcetree,
 
 ## License
 battery_interface is released under the [MIT license](LICENSE). 
+
+
 
