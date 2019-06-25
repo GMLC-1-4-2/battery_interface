@@ -33,7 +33,7 @@ A list of all the devices and services which classes are fully functional is sho
 
 ### Grid services
 1. [Peak Load Management](src/services/peak_managment_service): [Ebony Mayhorn](https://github.com/emayhorn) (PNNL)
-2. [Autonomous Frequency Response (Artificial Inertia)](src/services/artificial_inertia_service): [Yuan Liu](https://github.com/yliu250) @ (PNNL)
+2. [Autonomous Frequency Response (Artificial Inertia)](src/services/artificial_inertia_service): [Yuan Liu](https://github.com/yliu250) (PNNL)
 3. Capacity Market Dispatch: [Jingjing Liu](https://github.com/jingjingliu2018) (LBNL)
 4. [Traditional Frequency Regulation](src/services/reg_service): [Jingjing Liu](https://github.com/jingjingliu2018) (LBNL) 
 5. [Spinning Reserve](src/services/reg_service): [Jingjing Liu](https://github.com/jingjingliu2018) (LBNL) & [Peter Schwartz](https://github.com/rhosbach) (LBNL) 
@@ -45,7 +45,7 @@ A list of all the devices and services which classes are fully functional is sho
 1. [Water Heaters](src/fleets/water_heater_fleet): [Jeff Maguire](https://github.com/jmaguire1) (NREL)
 2. [PV Inverters](src/fleets/PV): [Rasel Mahmud](https://github.com/raselmahmud02) (NREL)
 3. [Battery Inverters](src/fleets/battery_inverter_fleet): [David Rosewater](https://github.com/DavidRosewater) (SNL)
-4. [Electric Vehicles](src/fleets/electric_vehicles_fleet): [Alejandro Fernandez Canosa](https://github.com/afernandezcanosa) (ANL)
+4. [Electric Vehicles](src/fleets/electric_vehicles_fleet): [Alejandro Fernandez Canosa](https://github.com/afernandezcanosa) (ANL) & Michael Duoba (ANL)
 5. [Fuel Cells](src/fleets/fuel_cell_fleet): [Julian Osorio-Ramirez](https://github.com/xtrememenace) (INL) & [Rahul Kadavil](https://github.com/rkadavil) (INL)
 6. [Electrolyzers](src/fleets/electrolyzer_fleet): [Julian Osorio-Ramirez](https://github.com/xtrememenace) (INL) & [Rahul Kadavil](https://github.com/rkadavil) (INL)
 7. [Air Conditioners](src/fleets/HVAC_fleet): [Jin Dong](https://github.com/ORNLJD) (ORNL)
