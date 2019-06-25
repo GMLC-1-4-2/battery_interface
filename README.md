@@ -23,10 +23,33 @@ A list of all the devices and services which classes are fully functional is sho
 | **Commercial Refrigeration Systems** |       &#x2611;       |            &#x2612;           |         &#x2612;         |             &#x2611;             |     &#x2611;     |           &#x2611;           |                 &#x2612;                 |             &#x2612;            |
 
 
-## List of contributors
-### Grid services
-1. [Peak Load Management](src/services/peak_managment_service)
+## List of initial contributors and corresponding contacts
 
+### Integrators and software support
+1. Hung Ngo @hlngo (PNNL)
+2. Ebony Mayhorn @emayhorn (PNNL)
+3. David Winiarski @DavidWiniarski-pnnl (PNNL)
+4. Hayden Reeve @Hayden-Reeve (PNNL) 
+
+### Grid services
+1. [Peak Load Management](src/services/peak_managment_service): Ebony Mayhorn @emayhorn (PNNL)
+2. [Autonomous Frequency Response (Artificial Inertia)](src/services/artificial_inertia_service): Yuan Liu @yliu250 (PNNL)
+3. Capacity Market Dispatch: Jingjing Liu @jingjingliu2018 (LBNL)
+4. [Traditional Frequency Regulation](src/services/reg_service): Jingjing Liu @jingjingliu2018 (LBNL) 
+5. [Spinning Reserve](src/services/reg_service): Jingjing Liu @jingjingliu2018 (LBNL) & Peter Schwartz @rhosbach (LBNL) 
+6. [Dynamic Frequency Regulation](src/services/reg_service): Jingjing Liu @jingjingliu2018 (LBNL) 
+7. [Autonomous Distribution Voltage Response](src/services/distribution_voltage_regulation): Rasel Mahmud @raselmahmud02 (NREL) 
+8. [Wholesale Market Price Response](src/services/energy_market_service): Tom Edmunds @TomEdmunds (LLNL)  & Can Huang @can7huang (LLNL)
+
+### DERs
+1. [Water Heaters](src/fleets/water_heater_fleet): Jeff Maguire @jmaguire1 (NREL)
+2. [PV Inverters](src/fleets/PV): Rasel Mahmud @raselmahmud02 (NREL)
+3. [Battery Inverters](src/fleets/battery_inverter_fleet): David Rosewater @DavidRosewater (SNL)
+4. [Electric Vehicles](src/fleets/electric_vehicles_fleet): Alejandro Fernandez Canosa @afernandezcanosa (ANL)
+5. [Fuel Cells](src/fleets/fuel_cell_fleet): Julian Osorio-Ramirez @xtrememenace (INL) & Rahul Kadavil @rkadavil (INL)
+6. [Electrolyzers](src/fleets/electrolyzer_fleet): Julian Osorio-Ramirez @xtrememenace (INL) & Rahul Kadavil @rkadavil (INL)
+7. [Air Conditioners](src/fleets/HVAC_fleet): Jin Dong @ORNLJD (ORNL)
+8. [Commercial Refrigeration Systems](src/fleets/Refridge_fleet): Jin Dong @ORNLJD (ORNL)
 
 ## How to contribute
 
