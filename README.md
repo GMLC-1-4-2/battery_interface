@@ -26,8 +26,8 @@ A list of all the devices and services which classes are fully functional is sho
 ## List of initial contributors and corresponding contacts
 
 ### Integrators and software support
-1. Hung Ngo @hlngo (PNNL)
-2. Ebony Mayhorn @emayhorn (PNNL)
+1. (https://github.com/hlngo) (PNNL)
+2. (https://github.com/emayhorn) (PNNL)
 3. David Winiarski @DavidWiniarski-pnnl (PNNL)
 4. Hayden Reeve @Hayden-Reeve (PNNL) 
 
