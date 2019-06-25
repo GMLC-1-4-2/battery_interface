@@ -143,6 +143,6 @@ Notes: If you don't want to use command line (CLI), I suggest to use Sourcetree,
 ## License
 battery_interface is released under the [MIT license](LICENSE). 
 
-<img src="http://acep.uaf.edu/media/244211/gmlc-logo-2-203x300.png" width="75"> </img> <img src="https://cdn-images-1.medium.com/max/1600/1*C87EjxGeMPrkTuVRVWVg4w.png" width="225"></img>
+<img src="http://acep.uaf.edu/media/244211/gmlc-logo-2-203x300.png" width="115"> </img> <img src="https://cdn-images-1.medium.com/max/1600/1*C87EjxGeMPrkTuVRVWVg4w.png" width="225"></img>
 
 
