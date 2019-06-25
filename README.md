@@ -25,13 +25,13 @@ A list of all the devices and services which classes are fully functional is sho
 
 ## List of initial contributors and corresponding contacts
 
-### Integrators and software support
+### - Integrators and software support
 1. [Hung Ngo](https://github.com/hlngo) (PNNL)
 2. [Ebony Mayhorn](https://github.com/emayhorn) (PNNL)
 3. [David Winiarski](https://github.com/DavidWiniarski-pnnl) (PNNL)
 4. [Hayden Reeve](https://github.com/Hayden-Reeve) (PNNL) 
 
-### Grid services
+### - Grid services
 1. [Peak Load Management](src/services/peak_managment_service): [Ebony Mayhorn](https://github.com/emayhorn) (PNNL)
 2. [Autonomous Frequency Response (Artificial Inertia)](src/services/artificial_inertia_service): [Yuan Liu](https://github.com/yliu250) (PNNL)
 3. Capacity Market Dispatch: [Jingjing Liu](https://github.com/jingjingliu2018) (LBNL)
@@ -41,7 +41,7 @@ A list of all the devices and services which classes are fully functional is sho
 7. [Autonomous Distribution Voltage Response](src/services/distribution_voltage_regulation): [Rasel Mahmud](https://github.com/raselmahmud02) (NREL) 
 8. [Wholesale Market Price Response](src/services/energy_market_service): [Tom Edmunds](https://github.com/TomEdmunds) (LLNL)  & [Can Huang](https://github.com/can7huang) (LLNL)
 
-### DERs
+### - DERs
 1. [Water Heaters](src/fleets/water_heater_fleet): [Jeff Maguire](https://github.com/jmaguire1) (NREL)
 2. [PV Inverters](src/fleets/PV): [Rasel Mahmud](https://github.com/raselmahmud02) (NREL)
 3. [Battery Inverters](src/fleets/battery_inverter_fleet): [David Rosewater](https://github.com/DavidRosewater) (SNL)
