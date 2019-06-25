@@ -112,4 +112,5 @@ Notes: If you don't want to use command line (CLI), I suggest to use Sourcetree,
 
 
 ## License
-The project is private and the license will be added soon.
+battery_interface is released under the [MIT license](LICENSE). 
+
