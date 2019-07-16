@@ -68,7 +68,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         self.base_path = dirname(abspath(__file__))
 
         # Input data for water heaters (probably should be moved to config.ini)
-        self.numWH = 500  # number of water heaters to be simulated to represent the entire fleet
+        self.numWH = 100  # number of water heaters to be simulated to represent the entire fleet
         #        addshedTimestep NOTE, MUST BE A DIVISOR OF 60. Acceptable numbers are: 0.1, 0.2, 0.5, 1,2,3,4,5,6,10,12,15,20,30, 60, etc.
         # self.MaxNumAnnualConditions = 20 #max # of annual conditions to calculate, if more WHs than this just reuse some of the conditions and water draw profiles
 
@@ -147,7 +147,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
 
         ########### initial tank temperatures and setpoint temperature
         # for capacity, type, location and max. number of service calls need to specify discrete values and randomly sample to get a desired distribution
-        self.MaxNumAnnualConditions = 20
+        self.MaxNumAnnualConditions = self.numWH
         self.CapacityMasterList = [50, 50, 50, 50, 50, 50, 50, 50, 40, 40, 80]  # 70% 50 gal, 20% 40 gal, 10% 80 gal
         self.TypeMasterList = ['ER', 'ER', 'ER', 'ER', 'ER', 'ER', 'ER', 'ER', 'ER',
                                'HP']  # elec_resis 90% and HPWH 10%
@@ -184,12 +184,12 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         # generate distribution of initial water heater fleet states.
         # random initial temperatures (with a distribution based on field research by Lutz)
 
-        self.TtankInitial = np.random.normal(self.TtankInitialMean, self.TtankInitialStddev, self.numWH)
         self.TsetInitial = np.random.normal(self.TsetInitialMean, self.TsetInitialStddev, self.numWH)
         for x in range(self.numWH):
-            self.TsetInitial[x] = max(self.TsetInitial[x], 110)
-            if self.TtankInitial[x] > self.TsetInitial[x]:
-                self.TtankInitial[x] = self.TsetInitial[x]
+            self.TtankInitial = np.random.uniform(self.TsetInitial[x], (self.TsetInitial[x]-10), self.numWH)
+            #self.TsetInitial[x] = max(self.TsetInitial[x], 110)
+            #if self.TtankInitial[x] > self.TsetInitial[x]:
+            #    self.TtankInitial[x] = self.TsetInitial[x]
 
         self.TtankInitial_b = self.TtankInitial
 
@@ -210,8 +210,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         input_param = [0] * self.numWH
 
         for a in range(self.numWH):
-            if a <= (
-                    self.MaxNumAnnualConditions - 1):  # if self.numWH > MaxNumAnnualConditions just start reusing older conditions to save computational time
+            if a <= (self.MaxNumAnnualConditions - 1):  # if self.numWH > MaxNumAnnualConditions just start reusing older conditions to save computational time
                 numbeds = np.random.randint(1, 5)
                 shift = np.random.randint(0, 364)
                 unit = np.random.randint(0, 9)
@@ -256,9 +255,18 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
 
         self.IsAvailableAdd = [1 for x in range(self.numWH)]
         self.IsAvailableShed = [1 for x in range(self.numWH)]
-
-        self.elementOnB = np.random.randint(2, size=self.numWH)
-        self.elementOn = np.random.randint(2, size=self.numWH)
+        
+        
+        self.elementOnB = [0 for x in range(self.numWH)]
+        self.elementOn = [0 for x in range(self.numWH)]
+        elemOn = np.random.uniform(0,1,self.numWH)
+        for x in range(self.numWH):
+            if elemOn[x] > 0.9: #Assume 10% of the water heaters are finishing up a heating cycle at the start of the test
+                self.elementOnB[x] = 1
+                self.elementOn[x] = 1
+            else:
+                self.elementOnB[x] = 0
+                self.elementOn[x] = 0
 
         self.cycle_off_base = [0 for x in range(self.numWH)]
         self.cycle_on_base = [0 for x in range(self.numWH)]
@@ -387,8 +395,6 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
                 NumDevicesToCall += 1
             elif self.P_request_perWH > 0 and self.IsAvailableShed[n] > 0 and self.SOC[n] > self.minSOC:
                 NumDevicesToCall += 1
-        NumDevicesToCall = min(NumDevicesToCall,self.numWH)
-        #print("self.P_request_perWH = {}, self.IsAvailableAdd = {}, self.SOC = {}".format(self.P_request_perWH,self.IsAvailableAdd,self.SOC))
 
         #if P_req != None:
         #    self.P_request_perWH = P_req / max(NumDevicesToCall,1)  # divide the fleet request by the number of devices that can be called upon
@@ -407,28 +413,30 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         #print("NumDevicesToCall = {}".format(NumDevicesToCall))
         #################################
         for wh in self.whs:  # loop through all water heaters
-            
             if P_req == None:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
                                       self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0],
-                                      self.element_on_last[number])#, self.element_on_lastb[number]
+                                      self.element_on_last[number], self.element_on_lastb[number])
             if P_req < 0 and self.IsAvailableAdd[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
                                       self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0],
-                                      self.element_on_last[number])#, self.element_on_last[number]
+                                      self.element_on_last[number], self.element_on_lastb[number])
                 P_req = P_req - response.Eservice
                 #print("P_req = {}, P_service = {}, Eservice = {}".format(P_req,P_service,response.Eservice))
-                #if P_req > 0: #To prevent things from bouncing back and forth in the case of services being overprovided
+                if P_req > 0: #To prevent things from bouncing back and forth in the case of services being overprovided
+                    P_req = 0
+                #if P_req > 0:
                 #    P_req = 0
             elif P_req > 0 and self.IsAvailableShed[number] > 0:
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
                                       self.draw[number][0], self.P_request_perWH, self.Type, self.dt, self.draw_fleet_ave[0],
-                                      self.element_on_last[number])#, self.element_on_last[number]
+                                      self.element_on_last[number], self.element_on_lastb[number])
                 P_req = P_req + response.Eservice
-                
+                if P_req < 0:
+                    P_req = 0
                 #if P_req < 0: #To prevent things from bouncing back and forth in the case of services being overprovided
                 #    P_req = 0
                 #print("P_req = {}, P_service = {}, Eservice = {}".format(P_req,P_service,response.Eservice))
@@ -436,11 +444,11 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
                 response = wh.execute(self.TtankInitial[number], self.TtankInitial_b[number], self.TsetInitial[number],
                                       self.Tamb[number][0], self.RHamb[number][0], self.Tmains[number][0],
                                       self.draw[number][0], 0, self.Type, self.dt, self.draw_fleet_ave[0],
-                                      self.element_on_last[number])#, self.element_on_last[number]
+                                      self.element_on_last[number], self.element_on_lastb[number])
                 # print('P_req = {}'.format(P_req))
             # assign returned parameters to associated lists to be recorded
             self.element_on_last[number] = response.ElementOn
-            #self.element_on_lastb[number] = response.ElementOnb
+            self.element_on_lastb[number] = response.ElementOnb
             self.TtankInitial[number] = response.Ttank
             self.TtankInitial_b[number] = response.Ttank_b
             #self.Tave_b[number] = response.Ttank_b
@@ -474,7 +482,6 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
             #    print("P_base = {}".format(P_base))
 
             # self.outputfile.write(str(response.Ttank) +"," + str(self.TsetInitial[number]) + "," + str(response.Eused) + "," + str(response.PusedMax) + "," + str(response.Eloss) + "," + str(response.ElementOn) + "," + str(response.Eservice) + "," + str(response.SOC) + "," + str(response.AvailableCapacityAdd) + "," + str(response.AvailableCapacityShed) + "," + str(response.ServiceCallsAccepted) + "," + str(response.IsAvailableAdd) + "," + str(response.IsAvailableShed) + "," +  str(self.draw[number][0]) + "," +  str(response.Edel) + ",")
-
             # resp.sim_step = response.sim_step
             number += 1  # go to next device
 
@@ -521,7 +528,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
         #self.outputfile.write(str(P_service) +"," + str(P_togrid) +"," + str(P_base) +" \n" )
         #print("P_service = {}, P_togrid = {}, P_base = {}".format(P_service,P_togrid,P_base))
         #if (P_service) != (P_togrid + P_base):
-        print("P_service = {}, P_togrid = {}, P_base = {}".format(P_service,P_togrid,P_base))
+        #print("P_service = {}, P_togrid = {}, P_base = {}".format(P_service,P_togrid,P_base))
         
         # if P_service != 0:
         #    print("resp.P_base = {}".format(resp.P_base))
@@ -685,7 +692,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
             for j in self.numWH:
                 response = wh.execute(self.TtankInitial[j], self.TtankInitial_b[j], self.TsetInitial[j],
                                       self.Tamb[j][0], self.RHamb[j][0], self.Tmains[j][0], self.draw[j][0], None,
-                                      self.Type, self.dt, self.draw_fleet_ave[0], self.element_on_last)#, self.element_on_lastb
+                                      self.Type, self.dt, self.draw_fleet_ave[0], self.element_on_last[j], self.element_on_lastb[j])
                 self.TtankInitial[j] = response.Ttank
                 self.element_on_last[i, j] = response.ElementOn
                 self.element_on_lastb[i, j] = response.ElementOnb
@@ -696,7 +703,7 @@ class WaterHeaterFleet(FleetInterface):  # FleetInterface
 
         return baseline_soc, baseline_power, baseline_cycles, baseline_Ttank
 
-    def output_impact_metrics(self):
+    def output_impact_metrics(self,service_name):
         impact_metrics_DATA = [["Impact Metrics File"],
                                [ "ave_Tin", "ave_TinB", "Cycle_base", "Cycle_service", "SOC_base", "SOC_service",
                                 "Unmet Hours"]]
@@ -765,7 +772,9 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
     num_steps_per_hr = int(
         np.ceil((60. / float(timestep_min))))  # how many hourly steps do you need to take if timestep is in minutes
     #num_steps = int(2 * 24 * 60 * (1. / timestep_min))  # TODO: what if someone wants to simulate longer than a month, or the simulation wraps over the end of the year?
-    num_steps = int(4* 60 * (1. / timestep_min))
+    
+    #load 4 days of data
+    num_steps = int(7 * 24 * 60 * (1. / timestep_min))
     num_hrs = int(np.ceil(float(num_steps) / float(num_steps_per_hr)))
     num_mins = int(np.ceil(float(num_steps) * float(timestep_min)))
     #        print('num_mins',num_mins)
@@ -873,6 +882,7 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
     aggmixflow = 0.0
     nbr = n_br - 1  # go back to starting index at zero for python internal calcs
     lineidx = 0
+    houridx = 0
     for line in draw_profile_file:
         if linenum > start_hr * 60 and linenum <= start_hr * 60 + num_mins:  # this linenum is in min
 
@@ -899,13 +909,13 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
             aggmixflow += mixed_flow
 
             #               aggregate whenever the linenum is a multiple of timestep_min. Each increment in lineum represents one minute. Timestep_min is the number of minutes per timestep
-            if timestep_min >= 1:  # aggregate if timesteps are >= 1 minute
+            if timestep_min > 1:  # aggregate if timesteps are >= 1 minute
                 if linenum % timestep_min == 0:
-                    hot_draw[lineidx] += agghotflow
-                    mixed_draw[lineidx] += aggmixflow
+                    hot_draw[houridx] += agghotflow
+                    mixed_draw[houridx] += aggmixflow
                     agghotflow = 0
                     aggmixflow = 0
-                    draw_idx += 1
+                    houridx += 1
             elif timestep_min < 1:  # repeat the value if timesteps are < 1 minute
                 #                    print('len draws',len(hot_draw))
                 #                    if linenum == 1:
@@ -925,6 +935,10 @@ def get_annual_conditions(climate_location, installation_location, days_shift, n
                 hot_draw[lineidx] = agghotflow
                 mixed_draw[lineidx] = aggmixflow
             lineidx += 1
+            
+            #Reset the agg hot flow and mixed flow for the next timestep
+            agghotflow = 0
+            aggmixflow = 0
         linenum += 1
 
     #            if draw_idx >= steps_per_year:

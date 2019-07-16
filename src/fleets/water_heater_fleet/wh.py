@@ -22,14 +22,14 @@ class WaterHeater():
         self.max_service_calls = int(max_service_calls)
 
     def execute(self, Ttank, Ttank_b, Tset, Tamb, RHamb, Tmains, hot_draw, control_signal, Type, timestep,
-                forecast_draw, element_on_last):
+                forecast_draw, element_on_last, element_on_lastb):
         (response) = self.WH(Ttank, Ttank_b, Tset, Tamb, Tmains, hot_draw, control_signal, Type, timestep,
-                             forecast_draw, element_on_last)
+                             forecast_draw, element_on_last, element_on_lastb)
 
         return response  # Ttank, Tset, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, Eservice, is_available_add, is_available_shed, ElementOn, Eused, PusedMax
 
     def WH(self, Tlast, Tlast_b, Tset, Tamb_ts, Tmains_ts, hot_draw_ts, control_signal_ts, Type, timestep,
-           forecast_draw, element_on_last):
+           forecast_draw, element_on_last, element_on_lastb):
         #############################################################################
 
         response = ()  # initialize
@@ -43,6 +43,7 @@ class WaterHeater():
         Edel_ts_b = hot_draw_ts[0] * 4180 * 3.79 * (Tlast_b - float(Tmains_ts[0]))
         Element_on_tsb = 0
         cycles_b = 0
+        Pused_baseline_ts = 0
         if Tlast_b < (Tset - self.Tdeadband):
             Pused_baseline_ts = self.E_heat * 1000  # W used
             Element_on_tsb = 1
@@ -54,14 +55,13 @@ class WaterHeater():
                             3.79 * self.Capacity * 4810) / timestep
                 Ttank_ts_b = Tset
             element_on_last = 1
-        elif element_on_last == 1 and Tlast_b < Tset:  # and P_request == 0
+        elif element_on_lastb == 1 and Tlast_b < Tset:
             Pused_baseline_ts = self.E_heat * 1000  # W used
             Element_on_tsb = 1
             dT_power_input_b = (Pused_baseline_ts * timestep) / (3.79 * self.Capacity * 4810)
             Ttank_ts_b = Tlast_b + dT_power_input_b - dT_loss_b - dT_from_hot_draw_b
             if Ttank_ts_b > Tset:
-                Pused_baseline_ts = (Tset + dT_loss_b + dT_from_hot_draw_b - Tlast_b) * (
-                            3.79 * self.Capacity * 4810) / timestep
+                Pused_baseline_ts = (Tset + dT_loss_b + dT_from_hot_draw_b - Tlast_b) * (3.79 * self.Capacity * 4810) / timestep
                 Ttank_ts_b = Tset
             element_on_last = 1
         else:
@@ -69,12 +69,11 @@ class WaterHeater():
             Element_on_tsb = 0
             dT_power_input_b = 0
             Ttank_ts_b = Tlast_b + dT_power_input_b - dT_loss_b - dT_from_hot_draw_b
-        
         SOC_b = (Ttank_ts_b - self.Tmin) / (self.Tmax - self.Tmin)
         Pbase = Pused_baseline_ts
-        if Pbase < 0:
-            print("Found an (eventually positive) Pbase!")
-
+        if Pused_baseline_ts < 0:
+            print("Shouldn't be at negative baseline! Pused_baseline_ts = {}".format(Pused_baseline_ts))
+        
         ###########################################################################
         # modify operation based on control signal
         max_service_calls = 100000000000
@@ -87,36 +86,47 @@ class WaterHeater():
                     3.79 * self.Capacity * 4810)  # 3.79 kg/gal of water, 4810 is J/kgK heat capacity of water, timestep units are minutes
         Edel_ts = hot_draw_ts[0] * 4180 * 3.79 * (Tlast - float(Tmains_ts[0]))
         
-        #if Tlast > self.Tmin and Element_on_tsb > 0:
-        #    print("Tlast > self.Tmin and the element turned on! P_request = {}".format(P_request))
-        #    print("P_request = {}".format(P_request))
-        # If there's a service request, turn the WH on or off
         if P_request > 0: #Requesting the water heater stays off
             if Tlast > self.Tmin and Element_on_tsb > 0 and max_service_calls > service_calls_accepted_ts: #The water heater CAN turn OFF
-                Pused_ts = 0
-                Element_on_ts = 0
-                service_calls_accepted_ts += 1
-                Eservice_ts = Pused_ts - Pused_baseline_ts
+                if P_request > Element_on_tsb:
+                    Pused_ts = P_request
+                    Element_on_ts = 1
+                    service_calls_accepted_ts += 1
+                    Eservice_ts = Pused_ts - Pused_baseline_ts
+                else:
+                    Pused_ts = 0
+                    Element_on_ts = 0
+                    service_calls_accepted_ts += 1
+                    Eservice_ts = Pused_ts - Pused_baseline_ts
             else: #The water heater CANNOT turn OFF
                 Pused_ts = Pused_baseline_ts
                 Element_on_ts = Element_on_tsb
                 Eservice_ts = 0
                 element_on_last = 1
         elif P_request < 0: #Requesting the water heater turns on
-            if Tlast < self.Tmax and max_service_calls > service_calls_accepted_ts and Element_on_tsb == 0: #Water heater CAN turn ON
-                Pservice_max_ts = self.E_heat * 1000  # W used
-                if Pservice_max_ts < -P_request:
-                    Pused_ts = Pservice_max_ts
-                    #print("P_request = {}, Pused_ts = {}, Pused_baseline_ts = {}".format(P_request,Pused_ts,Pused_baseline_ts))
-                else:
-                    Pused_ts = -P_request
-                    #print("P_request = {}, Pused_ts = {}, Pused_baseline_ts = {}".format(P_request,Pused_ts,Pused_baseline_ts))
-                Element_on_ts = 1
-                service_calls_accepted_ts += 1
-                Eservice_ts = Pused_ts - Pused_baseline_ts
-                cycles = 1
-                #print("Eservice_ts = {}".format(Eservice_ts))
-            else: #water heater CANNOT turn ON
+            if (Element_on_tsb == 0):
+                if (Tlast < (self.Tmax - self.Tdeadband) or (element_on_last > 0 and Tlast < self.Tmax)): #Water heater CAN turn ON
+                    Pservice_max_ts = self.E_heat * 1000  # W used
+                    if Pservice_max_ts < -P_request:
+                        Pused_ts = Pservice_max_ts
+                    else:
+                        Pused_ts = -P_request
+                    Element_on_ts = 1
+                    service_calls_accepted_ts += 1
+                    Eservice_ts = Pused_ts - Pused_baseline_ts
+                    cycles = 1
+                    if Pused_ts > -P_request:
+                        Pused_ts = -P_request
+                        print(Pused_ts)
+                        Element_on_ts = 1
+                        service_calls_accepted_ts += 1
+                        Eservice_ts = Pused_ts - Pused_baseline_ts
+                else: #water heater CANNOT turn ON
+                    Pused_ts = Pused_baseline_ts
+                    Element_on_ts = Element_on_tsb
+                    Eservice_ts = 0
+                
+            else:
                 Pused_ts = Pused_baseline_ts
                 Element_on_ts = Element_on_tsb
                 Eservice_ts = 0
@@ -150,14 +160,7 @@ class WaterHeater():
             service_calls_accepted_ts += 1
             cycles = 1
         # Otherwise there's no change
-        '''
-        # calculate energy provided as a service, >0 is load add, <0 load shed
-        # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
-        #        print('Available',abs(Eused_ts-Eused_baseline_ts), 'requested',control_signal_ts)
 
-        
-        
-        '''
         if abs(Pused_ts-Pused_baseline_ts) > abs(control_signal_ts): 
             Eservice_ts = control_signal_ts
             Pused_ts = control_signal_ts + Pused_baseline_ts
@@ -174,7 +177,7 @@ class WaterHeater():
         '''
         
         if Pused_ts < 0:
-            print("Shouldn't be here!")
+            print("Shouldn't be here! P_request = {}, P_used = {}".format(P_request,Pused_ts))
         # could change this at some point based on signals
         Tset_ts = Tset
 
@@ -229,9 +232,6 @@ class WaterHeater():
         Available_Capacity_Shed = float(
             SOC * self.Capacity * 3.79 * 4180 * (self.Tmax - self.Tmin) * isAvailable_shed_ts / (
                 timestep))  # /timestep*60 converts from Joules to Watts,
-        
-        if Ttank_ts > Tset:
-            print("Ttank_ts = {}".format(Ttank_ts))
 
         response = WHResponse()
 
@@ -244,6 +244,7 @@ class WaterHeater():
         response.PusedMin = PusedMin_ts
         response.Eloss = Eloss_ts
         response.Edel = Edel_ts
+        response.ElementOnb = Element_on_tsb
         response.ElementOn = Element_on_ts
         response.Eservice = Eservice_ts
         response.Estored = Estored
