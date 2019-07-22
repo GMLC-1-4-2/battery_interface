@@ -120,9 +120,9 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # Weight used to scale the service request
         self.service_weight = LC.get_service_weight()    
 
-        """
-        Can this fleet operate in autonomous operation?
-        """
+        # Random seed for regenerating the same result
+        self.seed = 0
+        np.random.seed(self.seed)
         
         # Locations of the subfleets: suppose that you only have one location
         self.location = np.random.randint(0,1,self.numHVAC)
@@ -136,13 +136,13 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.FW21_Enabled = fw_21[0]
         if self.FW21_Enabled == True:
             # Single-sided deadband value for low-frequency, in Hz
-            self.db_UF = fw_21[1]
+            self.db_UF = 0.25 # fw_21[1]
             # Single-sided deadband value for high-frequency, in Hz
-            self.db_OF = fw_21[2]
+            self.db_OF = 0.25 # fw_21[2]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            self.k_UF  = fw_21[3]
+            self.k_UF  = 0.05 # fw_21[3]
             # Per-unit frequency change corresponding to 1 per-unit power output change (frequency droop), dimensionless
-            self.k_OF  = fw_21[4]
+            self.k_OF  = 0.05 # fw_21[4]
             # Available active power, in p.u. of the DER rating
             self.P_avl = fw_21[5]
             # Minimum active power output due to DER prime mover constraints, in p.u. of the DER rating
@@ -150,8 +150,8 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.P_pre = fw_21[7]
             
             # Randomization of discrete devices: deadbands must be randomize to provide a continuous response
-            self.db_UF_subfleet = np.random.uniform(low = self.db_UF[0], high = self.db_UF[1], size = (self.numHVAC, ))
-            self.db_OF_subfleet = np.random.uniform(low = self.db_OF[0], high = self.db_OF[1], size = (self.numHVAC, ))
+            # self.db_UF_subfleet = np.random.uniform(low = self.db_UF[0], high = self.db_UF[1], size = (self.numHVAC, ))
+            # self.db_OF_subfleet = np.random.uniform(low = self.db_OF[0], high = self.db_OF[1], size = (self.numHVAC, ))
         
         # Impact metrics of the fleet
         metrics = LC.get_impact_metrics_params()
@@ -222,9 +222,6 @@ class HVACFleet(FleetInterface):   #FleetInterface
         #    Initializing lists to be saved to track indivisual HVAC performance over each timestep
 
         # Randomly set up and mix the HVAC fleet
-        # Random seed for regenerating the same result
-        self.seed = 0
-        np.random.seed(self.seed)
 
         # generate distribution of initial HVAC fleet states. this means Rext, Rattic, Cmass,
         # profile for the yr for each building in fleet, this will be imported later, just get something reasonable here
@@ -243,6 +240,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.TsetInitial=np.random.normal(self.TsetInitialMean, self.TsetInitialStddev,self.numHVAC)
         
         # sampling from houses with different envelope efficiencies
+        random.seed(26)
         self.Rext = [random.choice(self.RextMasterList) for n in range(self.numHVAC)]
         self.Rattic = [random.choice(self.RatticMasterList) for n in range(self.numHVAC)]
         self.Cmass = [random.choice(self.CmassMasterList) for n in range(self.numHVAC)]
@@ -424,7 +422,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
 
     # Example code for Frequency Watt Function
 
-    def frequency_watt(self, p_req = 0, p_prev = 0, ts=datetime.utcnow(), location=0, db_UF = 0.05, db_OF = 0.05):  #datetime.
+    def frequency_watt(self, p_prev = 0 , p_avl=1.0, p_min=0.1, ts=datetime.utcnow(), location=0):
         """
         This function takes the requested power, date, time, and location
         and modifys the requested power according to the configured FW21 
@@ -433,15 +431,27 @@ class HVACFleet(FleetInterface):   #FleetInterface
         :return p_mod: modifyed real power based on FW21 function
         """
         f = self.grid.get_frequency(ts,location)
-        
-        if (f < 60 - db_UF).any():
-            p_mod = 0
-        elif (f > 60 + db_OF).any():
-            p_mod = p_req
+
+        P_prev = -p_prev / (3.5*self.numHVAC)
+        P_avl = -p_avl / (3.5*self.numHVAC)
+        P_min = -p_min / (3.5*self.numHVAC)
+
+        if (f < 60 - self.db_UF).any():
+            p_set = min(P_min, P_prev + (60 - self.db_UF - f) / (60 * self.k_UF))
+        elif (f > 60 + self.db_OF).any():
+            p_set = max(P_avl, P_prev + (60 + self.db_OF - f) / (60 * self.k_OF))
         else:
-            p_mod = p_prev
+            p_set = P_prev
         
-        return p_mod
+        # if (f < 60 - db_UF).any():
+        #     p_mod = 0
+        # elif (f > 60 + db_OF).any():
+        #     p_mod = p_req
+        # else:
+        #     p_mod = p_prev
+        p_set *= -(3.5*self.numHVAC)
+        
+        return p_set, f
 
     def update_soc_due_to_frequency_droop(self, initSOC, p_fleet, dt):
         """
@@ -573,7 +583,7 @@ class HVACFleet(FleetInterface):   #FleetInterface
             self.lockon[number] = response.lockon
             self.lockoff[number]  = response.lockoff
 
-            self.cycle_off_base[number] = response.cycle_off_base
+            self.cycle_off_base[number] = response.cycle_off_base  # this has been accumulated inside the build_model
             self.cycle_on_base[number] = response.cycle_on_base
             self.cycle_off_grid[number] = response.cycle_off_grid
             self.cycle_on_grid[number] = response.cycle_on_grid
@@ -667,10 +677,13 @@ class HVACFleet(FleetInterface):   #FleetInterface
         """
     
         if self.FW21_Enabled and self.is_autonomous:
-            power_ac = resp.P_service_max
+            power_ac = resp.P_togrid_max
+            p_min = resp.P_togrid_min
             p_prev = resp.P_togrid
-            power_fleet = self.frequency_watt(power_ac, p_prev, self.ts, self.location, self.db_UF_subfleet, self.db_OF_subfleet)
-            power_fleet, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
+            power_fleet, self.f = self.frequency_watt(p_prev, power_ac, p_min, self.ts)
+            power_fleet_step, SOC_step = self.update_soc_due_to_frequency_droop(initSOC, power_fleet, dt)
+
+            P_req = power_fleet_step
 
         self.time = t + dt
         self.ts = self.ts + timedelta(seconds = dt)
@@ -682,12 +695,17 @@ class HVACFleet(FleetInterface):   #FleetInterface
         # Update the metrics
         Ttotal = 0
         SOCTotal = 0
-     
-        self.cycle_basee = np.sum(self.cycle_off_base)
-        self.cycle_basee += np.sum(self.cycle_on_base)
 
-        self.cycle_grid = np.sum(self.cycle_off_grid)
-        self.cycle_grid += np.sum(self.cycle_on_grid)
+        self.cycle_basee = sum(self.cycle_off_base)
+        self.cycle_basee += sum(self.cycle_on_base)
+        self.cycle_grid = sum(self.cycle_off_grid)
+        self.cycle_grid += sum(self.cycle_on_grid)
+     
+        # self.cycle_basee = self.cycle_off_base[self.numHVAC-1]
+        # self.cycle_basee += self.cycle_on_base[self.numHVAC-1]
+
+        # self.cycle_grid = self.cycle_off_grid[self.numHVAC-1]
+        # self.cycle_grid += self.cycle_on_grid[self.numHVAC-1]
 
         for numberr in range(self.numHVAC-1):    
             if self.TinInitial[numberr]>=self.TsetInitial[numberr] + 2:  #assume 2F, self.deadband
@@ -699,7 +717,13 @@ class HVACFleet(FleetInterface):   #FleetInterface
         self.SOC_metric = np.average(self.SOC)
         self.unmet_hours = self.unmet_hours/self.numHVAC
 
-        self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
+        if resp.P_base == 0 and resp.P_togrid == resp.P_base:
+            self.ratio_P_togrid_P_base = 1
+        elif resp.P_base == 0 and resp.P_togrid != resp.P_base:
+            self.ratio_P_togrid_P_base = 'NA'
+        else:
+            self.ratio_P_togrid_P_base = resp.P_togrid/(resp.P_base)
+
         self.energy_impacts += abs(resp.P_service)*(self.sim_step/3600)
 
         return resp 

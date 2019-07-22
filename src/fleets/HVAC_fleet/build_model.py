@@ -207,27 +207,29 @@ class BuildingModel():
 
         # Record control states          
         # switch on
-        if TlastB > (Tset + self.Tdeadband) and Element_on_tsB == 0 and lockoffB >= 2*60.0:   # and Element_on_tsB == 0 
+        if TlastB > (Tset + self.Tdeadband):    # and lockoffB >= 2*60.0 and Element_on_tsB == 0 
+            if Element_on_tsB == 0:
+                cycle_on_base += 1 #count cycles turning from off to on
             Element_on_tsB = 1
-            Eused_baseline_ts = E_cool*1.000 # kW used
-            cycle_on_base += 1 #count cycles turning from off to on
+            Eused_baseline_ts = E_cool*1.000 # kW used            
             # lockonB = 1*ts # start recording on period
-            lockoffB += 1*ts
+            # lockoffB += 1*ts
 
         # switch off
-        elif TlastB <= (Tset - self.Tdeadband) and Element_on_tsB == 1:  #and lockonB >= 1*60.0
+        elif TlastB <= (Tset - self.Tdeadband):  #and lockonB >= 1*60.0
+            if Element_on_tsB == 1: 
+                cycle_off_base += 1  # count cycles  turning from ON to OFF
+                lockoffB = 1*ts # start recording off period
             Eused_baseline_ts = 0 # kW used
-            Element_on_tsB = 0
-            cycle_off_base += 1  # count cycles  turning from ON to OFF
-            lockoffB = 1*ts # start recording off period
+            Element_on_tsB = 0            
+            lockoffB += 1*ts # start recording off period
             # lockonB = 0
 
         # no change
         else:
             Eused_baseline_ts = Element_on_tsB * E_cool
-
             # lockonB += 1*ts
-            lockoffB += 1*ts # cumulating recording off period      
+            lockoffB += 1*ts # cumulating recording off period        
             # if Element_on_tsB:
             #     lockonB += 1*ts
             # else:
@@ -277,11 +279,14 @@ class BuildingModel():
         # Reduce loads 
         if control_signal_ts  > 0 and Tlast < (Tset + self.Tdeadband) and Element_on_tsB == 1: #Element_on_ts = 1 requirement eliminates free rider situation  and lockoff >= 3*60.0
             Eused_ts = 0 #make sure it stays off
-            Element_on_ts = 0
-            service_calls_accepted_ts += 1
-            cycle_off_grid += 1
-            # lockon = 1*ts
-            lockoff = 1*ts # start recording on period
+            if Element_on_ts == 1:
+                cycle_off_grid += 1
+                Element_on_ts = 0
+                lockoff = 1*ts # start recording on period
+            else:
+                Element_on_ts = 0
+                service_calls_accepted_ts += 1
+                lockoff += 1*ts
 
         # elif control_signal_ts  > 0 and Tlast >= Tset + self.Tdeadband:
         #     # don't change anything
@@ -293,19 +298,35 @@ class BuildingModel():
         #     Element_on_ts = 0
     
 
-        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 2*60.0: #Element_on_ts = 0 requirement eliminates free rider situation   
+        elif control_signal_ts  < 0 and Tlast >= (Tset - self.Tdeadband) and Element_on_tsB == 0: #Element_on_ts = 0 requirement eliminates free rider situation   
 
             #make sure it stays on
-            Eused_ts = E_cool*1.000 #W used
-            Element_on_ts = 1
+            if lockoff >= 2*60.0 and Element_on_ts == 0:
+                Element_on_ts = 1
+                Eused_ts = E_cool*1.000 # kW used
+                cycle_on_grid += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts
+            elif lockoff < 2*60.0 and Element_on_ts == 0:
+                Element_on_ts = 0
+                Eused_ts = 0 # kW used
+                # cycle_on_base += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts 
+            else:
+                Element_on_ts = 1
+                Eused_ts = E_cool*1.000 # kW used
+                # cycle_on_base += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts
+
             service_calls_accepted_ts += 1
-            cycle_on_grid += 1
-            lockoff += 1*ts # start recording on period
 
         else:#no changes
             Eused_ts = Eused_baseline_ts
+            # Element_on_ts = Element_on_tsB
             # lockon += 1*ts
-            lockoff += 1*ts # cumulating recording off period   
+            lockoff += 1*ts # cumulating recording off period     
         
         #calculate energy provided as a service, >0 is load add, <0 load shed
         # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
@@ -341,7 +362,7 @@ class BuildingModel():
 
 #        Calculate more parameters to be passed up
 #       update SoC
-        SOC = (Tset + self.Tdeadband - Tin_ts)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))
+        SOC = (Tset + self.Tdeadband + .1 - Tin_ts)/(Tset + self.Tdeadband +.2 - (Tset - self.Tdeadband))
         if SOC >= 1:
             SOC = 1 
         elif SOC <= 0:
