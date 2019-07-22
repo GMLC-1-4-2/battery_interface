@@ -79,10 +79,7 @@ def QMT(self, Tambient, SMT=13.36):
     self.CFMT=AC_RF.k0+AC_RF.k1*SMT+AC_RF.k2*self.SDT+AC_RF.k3*SMT*self.SDT
     return(self.CFMT*(AC_RF.b6+AC_RF.b7*SMT+AC_RF.b8*SMT*SMT+AC_RF.b9*self.SDT+AC_RF.b10*self.SDT*self.SDT+AC_RF.b11*SMT*self.SDT))
 
-
-
 #################################################################
-
 
 #Case characteristics    
 
@@ -119,9 +116,9 @@ class CaseModel():
         self.Tambient = [20.0]
         
         
-        self.Tdeadband = 2
-        self.Tmin = 4 # deg C
-        self.Tmax = 8 # deg C            
+        self.Tdeadband = 1
+        self.Tmin = 5 # deg C
+        self.Tmax = 7 # deg C            
     
     # def execute(self, Tair, Tfood, Tcase, Tset, Tamb, R_case, R_food, R_infil, C_case, C_food, C_air, control_signal, timestep, Element_on, lockon, lockoff, cycle_off_base, cycle_on_base, cycle_off_grid, cycle_on_grid):
         # # (Tin, Twall, Tmass, Tattic, Tset, Eused, PusedMax, ElementOn, Eservice, SoC, AvailableCapacityAdd, AvailableCapacityShed, service_calls_accepted, is_available_add, is_available_shed) = self.HVAC(Tin, Twall, Tmass,  Tattic, Tset, Tamb, Tsol_w, QIHL_i, Qsolar_i, Tsol_r, QIHL_mass, Qsolar_mass, Rwall, Rattic, Cmass, control_signal, 
@@ -227,12 +224,17 @@ class CaseModel():
         service_calls_accepted_ts = 0
         
         # Reduce loads 
-        if control_signal_ts  > 0 and Element_on_tsB == 1 and Tair_last < (Tset + self.Tdeadband): #Element_on_ts = 1 requirement eliminates free rider situation  
+        if control_signal_ts  > 0 and Element_on_tsB == 1 and Tair_last < (Tset + self.Tdeadband+.01): #Element_on_ts = 1 requirement eliminates free rider situation  
             Eused_ts = 0 #make sure it stays off
-            Element_on_ts = 0
-            service_calls_accepted_ts += 1
-            cycle_off_grid += 1
-            lockoff = 1*ts # start recording on period
+            if Element_on_ts == 1:
+                cycle_off_grid += 1
+                Element_on_ts = 0
+                lockoff = 1*ts # start recording on period
+            else:
+                Element_on_ts = 0
+                service_calls_accepted_ts += 1
+                lockoff += 1*ts
+            
 
         # elif control_signal_ts  > 0 and Tair_last >= Tset + self.Tdeadband:
             # # don't change anything
@@ -241,29 +243,40 @@ class CaseModel():
         # # Increase loads    
 
    
-        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband) and Element_on_tsB == 0 and lockoff >= 2*60.0: #Element_on_ts = 0 requirement eliminates free rider situation  
+        elif control_signal_ts  < 0 and Tair_last >= (Tset - self.Tdeadband -.01) and Element_on_tsB == 0: #Element_on_ts = 0 requirement eliminates free rider situation  
+
+            if lockoff >= 2*60.0 and Element_on_ts == 0:
+                Element_on_ts = 1
+                Eused_ts = E_cool*1.000 # kW used
+                cycle_on_grid += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts
+            elif lockoff < 2*60.0 and Element_on_ts == 0:
+                Element_on_ts = 0
+                Eused_ts = 0 # kW used
+                # cycle_on_base += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts 
+            else:
+                Element_on_ts = 1
+                Eused_ts = E_cool*1.000 # kW used
+                # cycle_on_base += 1 #count cycles turning from off to on
+                # lockonB = 1*ts # start recording on period
+                lockoff += 1*ts
 
             #make sure it stays on
-            Eused_ts = E_cool*1.000 #W used
-            Element_on_ts = 1
+            # Eused_ts = E_cool*1.000 #W used
+            # Element_on_ts = 1
             service_calls_accepted_ts += 1
-            cycle_on_grid += 1
-            lockoff += 1*ts # start recording on period
+            # cycle_on_grid += 1
+            # lockoff += 1*ts # start recording on period
 
         else:#no changes
             Eused_ts = Eused_baseline_ts
+            # Element_on_ts = Element_on_tsB
             lockoff += 1*ts # cumulating recording off period 
         
         #calculate energy provided as a service, >0 is load add, <0 load shed
-        # if the magnitude of the service that could be provided is greater than what is requested, just use what is requested and adjust the element on time
-#        print('Available',abs(Eused_ts-Eused_baseline_ts), 'requested',control_signal_ts[1])
-#            if abs(Eused_ts-Eused_baseline_ts) > abs(control_signal_ts): 
-#                Eservice_ts = control_signal_ts
-#                Eused_ts = control_signal_ts + Eused_baseline_ts
-#                Element_on_ts = control_signal_ts/(Eused_ts-Eused_baseline_ts)
-#            else: # assumes HVAC can't meet the entire request so it just does as much as it can
-#                Eservice_ts = Eused_ts-Eused_baseline_ts
-
         Eservice_ts = Eused_baseline_ts - Eused_ts
    
         #could change this at some point based on signals
@@ -281,7 +294,7 @@ class CaseModel():
         
 #            dT_power_input = Eused_ts*timestep*60/(3.79*self.Capacity*4810) #timestep is in minutes so mult by 60 to get seconds
 
-#        Calculate more parameters to be passed up
+#       Calculate more parameters to be passed up
 #       update SoC
         SOC = (Tset + self.Tdeadband - Tair_ts)/(Tset + self.Tdeadband - (Tset - self.Tdeadband))
         if SOC >= 1:
@@ -308,13 +321,12 @@ class CaseModel():
         
         Tair_forecast = Tair_Cff      
 
-
-        if Tair_forecast >= (Tset - self.Tdeadband)-1 and Element_on_tsB == 0:  # and lockoffB >= 3*60.0
+        if Tair_forecast >= (Tset - self.Tdeadband)-.01 and Element_on_tsB == 0:  # and lockoffB >= 3*60.0
             isAvailable_add_ts = 1
         else:
             isAvailable_add_ts = 0
 
-        if Tair_forecast <= (Tset + self.Tdeadband)+1 and Element_on_tsB > 0:
+        if Tair_forecast <= (Tset + self.Tdeadband)+.01 and Element_on_tsB > 0:
             isAvailable_shed_ts = 1
         else:
             isAvailable_shed_ts = 0
@@ -327,7 +339,6 @@ class CaseModel():
         Available_Capacity_Add = isAvailable_add_ts * E_cool
         Available_Capacity_Shed = isAvailable_shed_ts * E_cool
         
-
         response = RFResponse()
     
         # Report baseline response
